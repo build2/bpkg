@@ -191,6 +191,104 @@ namespace bpkg
   static process_path dnf_path;
   static process_path sudo_path;
 
+  // Note that dnf5 introduces quite a lot of changes to the command line
+  // interface. See the full list of changes between dnf and dnf5 at
+  // https://dnf5.readthedocs.io/en/latest/changes_from_dnf4.7.html.
+  //
+
+  // Run `dnf --version`, parse the output, and return true for dnf of the
+  // version 5 and above. Cache the value returned on the first call.
+  //
+  static optional<bool> dnf_version_5;
+
+  static bool
+  dnf5 ()
+  {
+    // Note that `dnf --version` output looks as follows for dnf5:
+    //
+    // dnf5 version 5.2.6.2
+    // dnf5 plugin API version 2.0
+    // libdnf5 version 5.2.6.2
+    // libdnf5 plugin API version 2.0
+    //
+    // Loaded dnf5 plugins:
+    // ...
+    //
+    // and as follows for the earlier versions:
+    //
+    // 4.19.2
+    // Installed: dnf-0:4.19.2-1.fc39.noarch at Sat 15 Jun 2024 07:37:35 PM GMT
+    // Built    : Fedora Project at Fri 29 Mar 2024 06:55:12 PM GMT
+    //
+    // Installed: rpm-0:4.19.1.1-1.fc39.x86_64 at Sat 15 Jun 2024 07:37:18 PM GMT
+    // Built    : Fedora Project at Wed 07 Feb 2024 04:05:57 PM GMT
+    //
+    // We will return true if the first line of the output starts with "dnf",
+    // assuming (perhaps a bit optimistically) that the first line format will
+    // not change in the future.
+    //
+    if (!dnf_version_5)
+    {
+      cstrings args {"dnf", "--version", nullptr};
+      const char* evars[] = {"LC_ALL=C", nullptr};
+
+      try
+      {
+        process_path pp (process::path_search (args[0]));
+        process_env pe (pp, evars);
+
+        if (verb >= 3)
+          print_process (pe, args);
+
+        process pr (pp, args, -2 /* stdin */, -1 /* stdout */, 2);
+
+        string l;
+        try
+        {
+          ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
+          getline (is, l);
+          is.close ();
+        }
+        catch (const io_error& e)
+        {
+          if (pr.wait ())
+            fail << "unable to read " << args[0] << " --version output: " << e;
+
+          // Fall through.
+        }
+
+        if (!pr.wait ())
+        {
+          diag_record dr (fail);
+          dr << args[0] << " exited with non-zero code";
+
+          if (verb < 3)
+          {
+            dr << info << "command line: ";
+            print_process (dr, pe, args);
+          }
+        }
+
+        if (l.empty ())
+          fail << "unable to retrieve dnf version from " << args[0]
+               << " --version output";
+
+        dnf_version_5 = (l.compare (0, 3, "dnf") == 0);
+      }
+      catch (const process_error& e)
+      {
+        error << "unable to execute " << args[0] << ": " << e;
+
+        if (e.child)
+          exit (1);
+
+        throw failed ();
+      }
+    }
+
+    return *dnf_version_5;
+  }
+
   // Obtain the installed and candidate versions for the specified list of
   // Fedora packages by executing `dnf list`.
   //
@@ -263,6 +361,7 @@ namespace bpkg
       //
       process pr;
       if (!simulate_)
+      {
         pr = process (dnf_path,
                       args,
                       -2      /* stdin */,
@@ -270,6 +369,7 @@ namespace bpkg
                       2       /* stderr */,
                       nullptr /* cwd */,
                       evars);
+      }
       else
       {
         strings k;
@@ -315,10 +415,11 @@ namespace bpkg
         // The output of `dnf list <pkg1> <pkg2> ...` is the 2 groups of lines
         // in the following form:
         //
-        // Installed Packages
+        // Installed packages
         // <pkg1>.<arch1>            13.0.0-3.fc35        @<repo1>
         // <pkg2>.<arch2>            69.1-6.fc35          @<repo2>
-        // Available Packages
+        //
+        // Available packages
         // <pkg1>.<arch1>            13.0.1-1.fc35        <repo1>
         // <pkg3>.<arch3>            1.2.11-32.fc35       <repo3>
         //
@@ -326,8 +427,8 @@ namespace bpkg
         // necessarily match the order of the packages on the command line.
         // It looks like there should be not blank lines but who really knows.
         //
-        // Note also that if a package appears in the 'Installed Packages'
-        // group, then it only appears in the 'Available Packages' if the
+        // Note also that if a package appears in the 'Installed packages'
+        // group, then it only appears in the 'Available packages' if the
         // candidate version is better. Only the single (best) available
         // version is listed, which we call the candidate version.
         //
@@ -339,14 +440,22 @@ namespace bpkg
               print_process (dr, pe, args);
             });
 
-          // Keep track of whether we are inside of the 'Installed Packages'
-          // or 'Available Packages' sections.
+          // Keep track of whether we are inside of the 'Installed packages'
+          // or 'Available packages' sections.
+          //
+          // Note that dnf prior to dnf5 prints "Installed Packages" and
+          // "Available Packages".
           //
           optional<bool> installed;
 
           for (string l; !eof (getline (is, l)); )
           {
-            if (l == "Installed Packages")
+            // Skip empty lines.
+            //
+            if (l.empty ())
+              continue;
+
+            if (icasecmp (l, "Installed packages") == 0)
             {
               if (installed)
                 fail << "unexpected line '" << l << "'";
@@ -355,7 +464,7 @@ namespace bpkg
               continue;
             }
 
-            if (l == "Available Packages")
+            if (icasecmp (l, "Available packages") == 0)
             {
               if (installed && !*installed)
                 fail << "duplicate line '" << l << "'";
@@ -507,7 +616,7 @@ namespace bpkg
 
     // Note that if a Fedora package is installed but the repository doesn't
     // contain a better version, then this package won't appear in the
-    // 'Available Packages' section of the `dnf list` output and thus the
+    // 'Available packages' section of the `dnf list` output and thus the
     // candidate_version will stay empty. Let's set it to the installed
     // version in this case to be consistent with the Debian's semantics and
     // keep the Fedora and Debian system package manager implementations
@@ -525,7 +634,8 @@ namespace bpkg
     }
   }
 
-  // Execute `dnf repoquery --requires` for the specified
+  // Execute `dnf repoquery --providers-of=requires` (`dnf repoquery
+  // --requires` for dnf prior to dnf5) for the specified
   // package/version/architecture and return its dependencies as a list of the
   // name/version pairs.
   //
@@ -568,11 +678,39 @@ namespace bpkg
     // error diagnostics (try specifying an unknown option).
     //
     cstrings args {
-      "dnf", "repoquery", "--requires",
+      "dnf", "repoquery",
       "--quiet",
-      "--cacheonly", // Don't automatically update the metadata.
-      "--resolve",   // Resolve requirements to packages/versions.
-      "--qf", "%{name} %{arch} %{epoch}:%{version}-%{release}"};
+      "--cacheonly"}; // Don't automatically update the metadata.
+
+    // Resolve requirements to packages/versions.
+    //
+    // Note that dnf5 has dropped the --resolve option, but the semantics of
+    // the --requires --resolve options combination can now be achieved with
+    // the --providers-of=requires option.
+    //
+    // Also note that for dnf5 the newline character needs to be specified
+    // explicitly in the --queryformat option value.
+    //
+    // As a side note, the full list of macros that can be used in the
+    // --queryformat value can be retrieved by the `dnf repoquery --querytags`
+    // command.
+    //
+    if (simulate_ || dnf5 ())
+    {
+      args.push_back ("--providers-of");
+      args.push_back ("requires");
+
+      args.push_back ("--queryformat");
+      args.push_back ("%{name} %{arch} %{epoch}:%{version}-%{release}\\n");
+    }
+    else
+    {
+      args.push_back ("--requires");
+      args.push_back ("--resolve");
+
+      args.push_back ("--queryformat");
+      args.push_back ("%{name} %{arch} %{epoch}:%{version}-%{release}");
+    }
 
     // Note that installed packages which are not available from configured
     // repositories (e.g. packages installed from local rpm files or temporary
@@ -592,7 +730,19 @@ namespace bpkg
       // --install to make sure that all installed packages will be listed and
       // no configuration file may influence the result.
       //
-      args.push_back ("--disableexcludes=all");
+      // Note that dnf5 has dropped the --disableexcludes command line option
+      // but has invented the disable_excludes configuration option instead.
+      //
+      if (simulate_ || dnf5 ())
+      {
+        args.push_back ("--setopt");
+        args.push_back ("disable_excludes=*");
+      }
+      else
+      {
+        args.push_back ("--disableexcludes");
+        args.push_back ("all");
+      }
     }
 
     args.push_back (spec.c_str ());
@@ -662,9 +812,9 @@ namespace bpkg
         ifdstream is (move (pr.in_ofd), fdstream_mode::skip, ifdstream::badbit);
 
         // The output of the command will be the sequence of the package lines
-        // in the `<name> <arc> <version>` form (per the -qf option above). So
-        // for example for the libicu-devel-69.1-6.fc35.x86_64 package it is
-        // as follows:
+        // in the `<name> <arc> <version>` form (per the --queryformat option
+        // above). So for example for the libicu-devel-69.1-6.fc35.x86_64
+        // package it is as follows:
         //
         // bash i686 0:5.1.8-3.fc35
         // bash x86_64 0:5.1.8-3.fc35
@@ -732,8 +882,9 @@ namespace bpkg
       catch (const io_error& e)
       {
         if (pr.wait ())
-          fail << "unable to read " << args[0] << " repoquery --requires "
-               << "output: " << e;
+          fail << "unable to read " << args[0] << " repoquery "
+               << (dnf5 () ? "--providers-of=requires" : "--requires")
+               << " output: " << e;
 
         // Fall through.
       }
@@ -767,6 +918,7 @@ namespace bpkg
   //
   pair<cstrings, const process_path&> system_package_manager_fedora::
   dnf_common (const char* command,
+              const char* subcommand,
               optional<size_t> fetch_timeout,
               strings& args_storage)
   {
@@ -782,6 +934,9 @@ namespace bpkg
 
     args.push_back ("dnf");
     args.push_back (command);
+
+    if (subcommand != nullptr)
+      args.push_back (subcommand);
 
     // Map our verbosity/progress to dnf --quiet and --verbose options.
     //
@@ -818,11 +973,12 @@ namespace bpkg
     //
     if (fetch_timeout)
     {
-      args_storage.push_back (
-        "--setopt=timeout=" + to_string (*fetch_timeout));
-
+      args.push_back ("--setopt");
+      args_storage.push_back ("timeout=" + to_string (*fetch_timeout));
       args.push_back (args_storage.back ().c_str ());
-      args.push_back ("--setopt=minrate=0");
+
+      args.push_back ("--setopt");
+      args.push_back ("minrate=0");
     }
 
     try
@@ -850,6 +1006,17 @@ namespace bpkg
     {
       fail << "unable to execute " << args[0] << ": " << e << endf;
     }
+  }
+
+  pair<cstrings, const process_path&> system_package_manager_fedora::
+  dnf_common (const char* command,
+              optional<size_t> fetch_timeout,
+              strings& args_storage)
+  {
+    return dnf_common (command,
+                       nullptr /* subcommand */,
+                       fetch_timeout,
+                       args_storage);
   }
 
   // Execute `dnf makecache` to download and cache the repositories metadata.
@@ -955,7 +1122,8 @@ namespace bpkg
     // save us from attempting to download no longer existing packages).
     //
 #if 0
-    args.push_back ("--setopt=metadata_expire=never");
+    args.push_back ("--setopt");
+    args.push_back ("metadata_expire=never");
 #endif
 
     for (const string& p: pkgs)
@@ -1012,18 +1180,19 @@ namespace bpkg
     }
   }
 
-  // Execute `dnf mark install` to mark the installed packages as installed by
-  // the user (see dnf_install() for details on the package specs).
+  // Execute `dnf mark user` (`dnf mark install` for dnf prior to dnf5) to
+  // mark the installed packages as installed by the user (see dnf_install()
+  // for details on the package specs).
   //
   // Note that an installed package may be marked as installed by the user
   // rather than as a dependency. In particular, such a package will never be
   // automatically removed as an unused dependency. This mark can be added and
-  // removed by the `dnf mark install` and `dnf mark remove` commands,
-  // respectively. Besides that, this mark is automatically added by `dnf
-  // install` for a package specified on the command line, but only if it is
-  // not yet installed. Note that this mark will not be added automatically
-  // for an already installed package even if it is upgraded explicitly. For
-  // example:
+  // removed by the `dnf mark user` and `dnf mark dependency` (`dnf mark
+  // remove` for dnf prior to dnf5) commands, respectively. Besides that, this
+  // mark is automatically added by `dnf install` for a package specified on
+  // the command line, but only if it is not yet installed. Note that this
+  // mark will not be added automatically for an already installed package
+  // even if it is upgraded explicitly. For example:
   //
   // $ sudo dnf install libsigc++30-devel-3.0.2-2.fc32 --repofrompath test,./repo --setopt=gpgcheck=0 --assumeyes
   // Installed: libsigc++30-3.0.2-2.fc32.x86_64 libsigc++30-devel-3.0.2-2.fc32.x86_64
@@ -1041,12 +1210,14 @@ namespace bpkg
 
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
-      dnf_common ("mark", nullopt /* fetch_timeout */, args_storage));
+      dnf_common ("mark",
+                  (simulate_ || dnf5 () ? "user" : "install"),
+                  nullopt /* fetch_timeout */,
+                  args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
 
-    args.push_back ("install");
     args.push_back ("--cacheonly");
 
     for (const string& p: pkgs)
@@ -1062,9 +1233,14 @@ namespace bpkg
       process pr;
       if (!simulate_)
       {
-        // Redirect stdout to stderr.
+        // Redirect stdout to /dev/null for dnf5 (which prints some useless
+        // information) and to stderr for the earlier versions (which issue
+        // diagnostics to stdout rather than to stderr).
         //
-        pr = process (pp, args, 0 /* stdin */, 2 /* stdout */);
+        pr = process (pp, args,
+                      0                  /* stdin */,
+                      (dnf5 () ? -2 : 2) /* stdout */,
+                      2                  /* stderr */);
       }
       else
       {
@@ -1738,18 +1914,18 @@ namespace bpkg
     // packages, including the fully installed ones. But we must be careful
     // not to force their upgrade. To achieve this we will specify the
     // installed version as the desired version. Whether we run `dnf install`
-    // or not we will also always run `dnf mark install` afterwards for all
-    // the packages to mark them as installed by the user.
+    // or not we will also always run `dnf mark user` afterwards for all the
+    // packages to mark them as installed by the user.
     //
     // Note also that for partially/not installed packages we used to not
     // specify the version, expecting the candidate version to always be
     // installed (we did specify the candidate architecture though, since for
     // reasons unknown dnf may install a package of a different architecture
-    // otherwise). This, however, turned out to not always be the case.
-    // Moreover, we have observed such an undocumented behavior, that if the
-    // package versions are not specified, then the dnf-install command
-    // outcome may depend on the order of the packages specified on the
-    // command line:
+    // otherwise). This, however, turned out to not always be the case (at
+    // least for dnf prior to dnf5). Moreover, we have observed such an
+    // undocumented behavior, that if the package versions are not specified,
+    // then the dnf-install command outcome may depend on the order of the
+    // packages specified on the command line:
     //
     // $ dnf list expat.x86_64 expat-devel.x86_64
     // Installed Packages
@@ -2700,12 +2876,18 @@ namespace bpkg
     dir_path licensedir;
     dir_path build2dir;
 
-    // Note that the ~/rpmbuild/{.,BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
-    // directory paths used by rpmbuild are actually defined as the
-    // %{_topdir}, %{_builddir}, %{_buildrootdir}, %{_rpmdir}, %{_sourcedir},
-    // %{_specdir}, and %{_srcrpmdir} RPM macros. These macros can potentially
-    // be redefined in RPM configuration files, in particular, in
-    // ~/.rpmmacros.
+    // Note that the ~/rpmbuild/{.,BUILD,RPMS,SOURCES,SPECS,SRPMS} directory
+    // paths used by rpmbuild are actually defined as the %{_topdir},
+    // %{_builddir}, %{_rpmdir}, %{_sourcedir}, %{_specdir}, and %{_srcrpmdir}
+    // RPM macros. These macros can potentially be redefined in RPM
+    // configuration files, in particular, in ~/.rpmmacros.
+    //
+    // Also note that the newer versions of rpmbuild don't create the
+    // ~/rpmbuild/BUILDROOT directory and don't support the %{_buildrootdir}
+    // macro anymore. Instead, they create the package-specific
+    // ~/rpmbuild/BUILD/<package>-<version>-build/BUILDROOT directory. Thus,
+    // we always use the $RPM_BUILD_ROOT environment variable in the %install
+    // section of the RPM spec file, rather than the %{_buildrootdir} macro.
     //
     dir_path topdir;  // ~/rpmbuild/
     dir_path specdir; // ~/rpmbuild/SPECS/
@@ -2747,7 +2929,6 @@ namespace bpkg
       expressions.push_back ("%{?_rpmdir}");
       expressions.push_back ("%{?_rpmfilename}");
       expressions.push_back ("%{?_usrsrc}");
-      expressions.push_back ("%{?buildroot}");
 
       // Note that if the architecture passed with the --target option is
       // invalid, then rpmbuild will fail with some ugly diagnostics since
@@ -2821,7 +3002,6 @@ namespace bpkg
       // We only need the following macro expansions for the verification.
       //
       pop_string (); // %{?_arch}
-      pop_dir ();    // %{?buildroot}
       pop_dir ();    // %{?_usrsrc}
       pop_string (); // %{?_rpmfilename}
       pop_dir ();    // %{?_rpmdir}
@@ -2860,9 +3040,10 @@ namespace bpkg
     // won't fight with rpmbuild and will use this tree as the user would
     // do while creating the binary package manually.
     //
-    // Specifially, we will create the RPM spec file in ~/rpmbuild/SPECS/,
-    // install the package(s) under the ~/rpmbuild/BUILDROOT/<package-dir>/
-    // chroot, and expect the generated RPM files under ~/rpmbuild/RPMS/.
+    // Specifically, we will create the RPM spec file in ~/rpmbuild/SPECS/,
+    // install the package(s) under the $RPM_BUILD_ROOT chroot (set by
+    // rpmbuild while executing the %install section of the RPM spec file),
+    // and expect the generated RPM files under ~/rpmbuild/RPMS/.
     //
     // That, in particular, means that we have no use for the --output-root
     // directory. We will also make sure that we don't overwrite an existing
@@ -3672,8 +3853,7 @@ namespace bpkg
           // debugsources.list file is piped as an input to the cpio program
           // executed in the ~/rpmbuild/BUILD/foo-1.0.0 directory as its
           // current working directory, which tries to copy these source files
-          // to the
-          // ~/rpmbuild/BUILDROOT/foo-1.0.0-1.fc35.x86_64/usr/src/debug/foo-1.0.0-1.fc35.x86_64
+          // to the $RPM_BUILD_ROOT/usr/src/debug/foo-1.0.0-1.fc35.x86_64
           // directory. Given that these source files are actually located in
           // the bpkg configuration directory rather than in the
           // ~/rpmbuild/BUILD/foo-1.0.0 directory the cpio program fails to
@@ -3761,7 +3941,7 @@ namespace bpkg
           os << " \\\\\\\n  " << v;
         };
 
-        add_macro_line ("config.install.chroot='%{buildroot}/'");
+        add_macro_line ("config.install.chroot=\"$RPM_BUILD_ROOT/\"");
         add_macro_line ("config.install.sudo='[null]'");
 
         // If this is a C-based language, add rpath for private installation.

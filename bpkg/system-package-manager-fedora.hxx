@@ -274,7 +274,13 @@ namespace bpkg
     dnf_mark_install (const strings&);
 
     pair<cstrings, const process_path&>
-    dnf_common (const char*,
+    dnf_common (const char* command,
+                optional<size_t> fetch_timeout,
+                strings& args_storage);
+
+    pair<cstrings, const process_path&>
+    dnf_common (const char* command,
+                const char* subcommand,
                 optional<size_t> fetch_timeout,
                 strings& args_storage);
 

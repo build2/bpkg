@@ -109,7 +109,7 @@
     pkgconf-pkg-config i686 0:1.8.0-1.fc35
     pkgconf-pkg-config x86_64 0:1.8.0-1.fc35
     EOI
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all openssl-devel-1:1.1.1q-1.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* openssl-devel-1:1.1.1q-1.fc35.x86_64 <-
     EOE
     opae-devel 2.0.0-2.3.fc35
     openssl-libs 1:1.1.1q-1.fc35
@@ -124,7 +124,7 @@
     cargo x86_64 0:1.65.0-1.fc35
     rust-uuid-devel noarch 0:1.2.1-1.fc35
     EOI
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" rust-uuid+std-devel-1.2.1-1.fc35.noarch <-
+    LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" rust-uuid+std-devel-1.2.1-1.fc35.noarch <-
     EOE
     cargo 1.65.0-1.fc35
     rust-uuid-devel 1.2.1-1.fc35
@@ -151,7 +151,7 @@
     systemd i686 0:249.13-6.fc35
     systemd x86_64 0:249.13-6.fc35
     EOI
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all dhcp-client-12:4.4.3-4.P1.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* dhcp-client-12:4.4.3-4.P1.fc35.x86_64 <-
     EOE
     bash 5.1.8-3.fc35
     coreutils 8.32-36.fc35
@@ -171,13 +171,13 @@
   : no-depends
   :
   $* glibc 2.34-38.fc35 x86_64 true <:'' 2>>EOE >:''
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all glibc-2.34-38.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* glibc-2.34-38.fc35.x86_64 <-
     EOE
 
   : unknown
   :
   $* glibg 2.34-38.fc35 x86_64 false <:'' 2>>EOE >:''
-    LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" glibg-2.34-38.fc35.x86_64 <-
+    LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" glibg-2.34-38.fc35.x86_64 <-
     EOE
 }
 
@@ -462,9 +462,9 @@
       dnf-list:               libpq                               libpq.info
       EOI
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info
-      sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
       EOE
       libpq 13.4 (libpq 13.4-1.fc35) installed
       EOO
@@ -503,10 +503,10 @@
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf install --quiet --assumeno libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info
       EOE
       libpq 13.4 (libpq 13.4-1.fc35) part installed
@@ -565,10 +565,10 @@
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info-fetched
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires-fetched
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires-fetched
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info-fetched
       sudo dnf install --quiet --assumeno libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info-installed
       EOE
       libpq 13.4 (libpq 13.4-1.fc35) part installed
@@ -619,10 +619,10 @@
       dnf-list-installed:     libpq                                libpq.info-installed
       EOI
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.3-3.fc35.x86_64 <libpq-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" libpq-devel-13.3-3.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf install --quiet --assumeno libpq-13.3-3.fc35.x86_64 libpq-devel-13.3-3.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.3-3.fc35.x86_64 libpq-devel-13.3-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libpq-13.3-3.fc35.x86_64 libpq-devel-13.3-3.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info-installed
       error: unexpected fedora package version for libpq
         info: expected: 13.3-3.fc35
@@ -675,10 +675,10 @@
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" libpq-devel-13.4-1.fc35.x86_64 <libpq-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info
       sudo dnf install --quiet --assumeno libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libpq-13.4-1.fc35.x86_64 libpq-devel-13.4-1.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet libpq rpm <libpq.info-installed
       EOE
       libpq 13.4 (libpq 13.4-1.fc35) not installed
@@ -804,9 +804,9 @@
       dnf-list:               sqlite-libs                            sqlite-libs.info
       EOI
       LC_ALL=C dnf list --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet sqlite-libs rpm <sqlite-libs.info
-      sudo dnf mark --quiet --assumeno install --cacheonly sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
       EOE
       libsqlite3 3.36.0 (sqlite-libs 3.36.0-3.fc35) installed
       EOO
@@ -867,10 +867,10 @@
       LC_ALL=C dnf list --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libsqlite3-devel sqlite-devel rpm <libsqlite3-devel+sqlite-devel.info-fetched
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires-fetched
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" sqlite-devel-3.36.0-3.fc35.x86_64 <sqlite-devel.requires-fetched
       LC_ALL=C dnf list --cacheonly --quiet sqlite-libs rpm <sqlite-libs.info-fetched
       sudo dnf install --quiet --assumeno sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly sqlite-libs-3.36.0-3.fc35.x86_64 sqlite-devel-3.36.0-3.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet sqlite-libs rpm <sqlite-libs.info-installed
       EOE
       libsqlite3 3.36.0 (sqlite-libs 3.36.0-3.fc35) not installed
@@ -928,7 +928,7 @@
       dnf-list: sqlite3 sqlite sqlite3+sqlite.info
       EOI
       LC_ALL=C dnf list --cacheonly --quiet sqlite3 sqlite rpm <sqlite3+sqlite.info
-      sudo dnf mark --quiet --assumeno install --cacheonly sqlite-3.36.0-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly sqlite-3.36.0-3.fc35.x86_64
       EOE
       sqlite3 3.36.0 (sqlite 3.36.0-3.fc35) installed
       EOO
@@ -972,7 +972,7 @@
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet sqlite3 sqlite rpm <sqlite3+sqlite.info-fetched
       sudo dnf install --quiet --assumeno sqlite-3.36.0-3.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly sqlite-3.36.0-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly sqlite-3.36.0-3.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet sqlite rpm <sqlite.info-installed
       EOE
       sqlite3 3.36.0 (sqlite 3.36.0-3.fc35) not installed
@@ -1055,10 +1055,10 @@
       dnf-list:               ncurses-c++-libs ncurses-devel                ncurses-c++-libs+ncurses-devel.info
       EOI
       LC_ALL=C dnf list --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" --installed --disableexcludes=all ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" --installed --setopt disable_excludes=* ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires
       LC_ALL=C dnf list --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info
       LC_ALL=C dnf list --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info
-      sudo dnf mark --quiet --assumeno install --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
       EOE
       libncurses 6.2.0 (ncurses-libs 6.2-8.20210508.fc35) installed
       libncurses-c++ 6.2.0 (ncurses-c++-libs 6.2-8.20210508.fc35) installed
@@ -1128,11 +1128,11 @@
       LC_ALL=C dnf list --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
       LC_ALL=C dnf list --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info-fetched
       LC_ALL=C dnf list --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info-fetched
       sudo dnf install --quiet --assumeno ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet ncurses-libs ncurses-c++-libs rpm <ncurses-libs+ncurses-c++-libs.info-installed
       EOE
       libncurses 6.2.0 (ncurses-libs 6.2-8.20210508.fc35) part installed
@@ -1212,11 +1212,11 @@
       LC_ALL=C dnf list --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info
       sudo dnf makecache --quiet --assumeno --refresh
       LC_ALL=C dnf list --cacheonly --quiet libncurses-devel ncurses-devel rpm <libncurses-devel+ncurses-devel.info-fetched
-      LC_ALL=C dnf repoquery --requires --quiet --cacheonly --resolve --qf "%{name} %{arch} %{epoch}:%{version}-%{release}" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
+      LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" ncurses-devel-6.2-8.20210508.fc35.x86_64 <ncurses-devel.requires-fetched
       LC_ALL=C dnf list --cacheonly --quiet ncurses-libs rpm <ncurses-libs.info-fetched
       LC_ALL=C dnf list --cacheonly --quiet ncurses-c++-libs ncurses-devel rpm <ncurses-c++-libs+ncurses-devel.info-fetched
       sudo dnf install --quiet --assumeno ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly ncurses-libs-6.2-8.20210508.fc35.x86_64 ncurses-devel-6.2-8.20210508.fc35.x86_64 ncurses-c++-libs-6.2-8.20210508.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet ncurses-libs ncurses-c++-libs rpm <ncurses-libs+ncurses-c++-libs.info-installed
       EOE
       libncurses 6.2.0 (ncurses-libs 6.2-8.20210508.fc35) not installed
@@ -1269,7 +1269,7 @@
       EOI
       LC_ALL=C dnf list --cacheonly --quiet libsigc++30 libsigc++30-devel rpm <libsigc++30+libsigc++30-devel.info
       LC_ALL=C dnf list --cacheonly --quiet libsigc++20 libsigc++20-devel rpm <libsigc++20+libsigc++20-devel.info
-      sudo dnf mark --quiet --assumeno install --cacheonly libsigc++20-2.10.7-3.fc35.x86_64 libsigc++20-devel-2.10.7-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libsigc++20-2.10.7-3.fc35.x86_64 libsigc++20-devel-2.10.7-3.fc35.x86_64
       EOE
       libsigc++ 2.10.7 (libsigc++20 2.10.7-3.fc35) installed
       EOO
@@ -1319,7 +1319,7 @@
       LC_ALL=C dnf list --cacheonly --quiet libsigc++30 libsigc++30-devel rpm <libsigc++30+libsigc++30-devel.info
       LC_ALL=C dnf list --cacheonly --quiet libsigc++20 libsigc++20-devel rpm <libsigc++20+libsigc++20-devel.info
       sudo dnf install --quiet --assumeno libsigc++20-2.10.7-3.fc35.x86_64 libsigc++20-devel-2.10.7-3.fc35.x86_64
-      sudo dnf mark --quiet --assumeno install --cacheonly libsigc++20-2.10.7-3.fc35.x86_64 libsigc++20-devel-2.10.7-3.fc35.x86_64
+      sudo dnf mark user --quiet --assumeno --cacheonly libsigc++20-2.10.7-3.fc35.x86_64 libsigc++20-devel-2.10.7-3.fc35.x86_64
       LC_ALL=C dnf list --cacheonly --quiet libsigc++20 rpm <libsigc++20.info-installed
       EOE
       libsigc++ 2.10.7 (libsigc++20 2.10.7-3.fc35) part installed
