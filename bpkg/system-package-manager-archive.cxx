@@ -307,6 +307,7 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             optional<bool> recursive_full,
+            bool priv,
             bool first) -> binary_files
   {
     tracer trace ("system_package_manager_archive::generate");
@@ -331,7 +332,6 @@ namespace bpkg
                            true  /* ignore_iteration */));
 
     bool lib (pt == "lib");
-    bool priv (ops->private_ ()); // Private installation.
 
     // Return true if this package uses the specified language, only as
     // interface language if intf_only is true.

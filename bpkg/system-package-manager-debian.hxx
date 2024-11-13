@@ -144,6 +144,7 @@ namespace bpkg
               const string&,
               const small_vector<language, 1>&,
               optional<bool>,
+              bool,
               bool) override;
 
   public:

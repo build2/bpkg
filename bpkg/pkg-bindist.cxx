@@ -3,6 +3,7 @@
 
 #include <bpkg/pkg-bindist.hxx>
 
+#include <map>
 #include <list>
 #include <iostream> // cout
 
@@ -129,21 +130,58 @@ namespace bpkg
     }
   }
 
+  enum class recursive_mode {auto_, full, separate};
+
+  // Package-specific recursive mode overrides.
+  //
+  struct package_recursive
+  {
+    // --recursive <pkg>=<mode>
+    //
+    // If present, overrides the recursive mode for collecting dependencies of
+    // this package (inner absent means `none`).
+    //
+    optional<optional<recursive_mode>> dependencies;
+
+    // --recursive ?<pkg>=<mode>
+    //
+    // If present, this dependency is collected in this mode rather than in
+    // the mode(s) its dependents collect their dependencies (inner absent
+    // means `none`).
+    //
+    optional<optional<recursive_mode>> self;
+  };
+
+  using package_recursive_map = map<package_name, package_recursive>;
+
   // Collect dependencies of the specified package, potentially recursively.
-  // System dependencies go to deps, non-system -- to pkgs, which could be the
-  // same as deps or NULL, depending on the desired semantics (see the call
-  // site for details). Find available packages for pkgs and deps and merge
-  // languages.
+  //
+  // Specifically, in the non-recursive mode or in the `separate` recursive
+  // mode we want all the immediate (system and non-) dependencies in deps.
+  // Otherwise, if the recursive mode is `full`, then we want all the
+  // transitive non-system dependencies in pkgs. In both recursive modes we
+  // also want all the transitive system dependencies in deps.
+  //
+  // Or, to put it another way, the system dependencies and those collected
+  // non-recursively or in the `separate` recursive mode go to the deps
+  // list. The dependencies collected in the `full` recursive mode go to pkgs
+  // list. All other dependencies (collected in the `auto` recursive mode) are
+  // not saved to any of the lists.
+  //
+  // Find available packages for pkgs and deps and merge languages. Also save
+  // the effective recursive modes to package_rec_map (so that the mode from
+  // the first encounter of the package is used in subsequent).
   //
   static void
   collect_dependencies (const common_options& co,
                         database& db,
-                        packages* pkgs,
+                        packages& pkgs,
                         packages& deps,
                         const string& type,
                         small_vector<language, 1>& langs,
                         const selected_package& p,
-                        bool recursive)
+                        optional<recursive_mode> rec,
+                        package_recursive_map& package_rec_map)
   {
     for (const auto& pr: p.prerequisites)
     {
@@ -173,7 +211,44 @@ namespace bpkg
       assert (d->state == package_state::configured);
 
       bool sys (d->substate == package_substate::system);
-      packages* ps (sys ? &deps : pkgs);
+
+      // Deduce/save the effective recursive modes for the dependency.
+      //
+      // Note: don't change after being saved from the command line
+      // (--recursive [?]<pkg>=<mode>) or via the first encountered dependent.
+      //
+      optional<recursive_mode> drec;
+      optional<recursive_mode> srec;
+
+      if (!sys)
+      {
+        package_recursive& pr (package_rec_map[d->name]);
+
+        if (!pr.dependencies)
+          pr.dependencies = rec;
+
+        if (!pr.self)
+          pr.self = rec;
+
+        drec = *pr.dependencies;
+        srec = *pr.self;
+      }
+
+      // Note that in the `auto` recursive mode it's possible that some of the
+      // system dependencies are not really needed. But there is no way for us
+      // to detect this and it's better to over- than under-specify.
+      //
+      packages* ps (!srec || *srec == recursive_mode::separate
+                    ? &deps
+                    : *srec == recursive_mode::full ? &pkgs : nullptr);
+
+      // Collect the package dependencies recursively, if requested, unless
+      // the package is collected in the separate mode in which case its
+      // dependencies will be collected later, when its own binary package is
+      // generated.
+      //
+      bool recursive (drec.has_value () &&
+                      (!srec || *srec != recursive_mode::separate));
 
       // Skip duplicates.
       //
@@ -185,13 +260,13 @@ namespace bpkg
       {
         const selected_package& p (*d);
 
-        if (ps != nullptr || (recursive && !sys))
+        if (ps != nullptr || recursive)
         {
           available_packages aps (find_available_packages (co, db, d));
 
           // Load and merge languages.
           //
-          if (recursive && !sys)
+          if (recursive)
           {
             const shared_ptr<available_package>& ap (aps.front ().first);
             db.load (*ap, ap->languages_section);
@@ -208,8 +283,11 @@ namespace bpkg
           }
         }
 
-        if (recursive && !sys)
-          collect_dependencies (co, db, pkgs, deps, type, langs, p, recursive);
+        if (recursive)
+          collect_dependencies (co,
+                                db,
+                                pkgs, deps, type, langs, p,
+                                drec, package_rec_map);
       }
     }
   }
@@ -222,26 +300,73 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    // Verify options.
+    // Parse and verify options.
     //
-    enum class recursive_mode {auto_, full, separate};
+    map<package_name, package_recursive> package_rec_map;
 
     optional<recursive_mode> rec;
     {
       diag_record dr;
 
-      if (o.recursive_specified ())
+      for (const string& m: o.recursive ())
       {
-        const string& m (o.recursive ());
-
         if      (m == "auto")     rec = recursive_mode::auto_;
         else if (m == "full")     rec = recursive_mode::full;
         else if (m == "separate") rec = recursive_mode::separate;
-        else if (m != "none")
+        else if (m == "none")     rec = nullopt;
+        else
+        {
+          size_t n (m.find ('='));
+
+          if (n != string::npos)
+          {
+            string pm (m, n + 1, m.size () - n - 1);
+
+            optional<optional<recursive_mode>> prec;
+
+            if      (pm == "auto")     prec = recursive_mode::auto_;
+            else if (pm == "full")     prec = recursive_mode::full;
+            else if (pm == "separate") prec = recursive_mode::separate;
+            else if (pm == "none")     prec = optional<recursive_mode> ();
+
+            if (prec)
+            {
+              string p (m, 0, n);
+              bool dependency (p[0] == '?');
+
+              if (dependency)
+                p.erase (0, 1);
+
+              try
+              {
+                package_recursive& pr (
+                  package_rec_map[project_name (move (p))]);
+
+                (dependency ? pr.self : pr.dependencies) = prec;
+              }
+              catch (const invalid_argument& e)
+              {
+                dr << fail << "invalid package name '" << p
+                   << "' in --recursive mode '" << m << "': " << e;
+                break;
+              }
+
+              continue; // Proceed to the next --recursive option.
+            }
+
+            // Fall through.
+          }
+
           dr << fail << "unknown --recursive mode '" << m << "'";
+          break;
+        }
       }
 
-      if (o.private_ ())
+      // Verify the --private/--recursive options consistency for the simple
+      // case (no --recursive [?]<pkg>=<mode>). Otherwise, just ignore
+      // --private if the dependencies are not bundled.
+      //
+      if (o.private_ () && package_rec_map.empty ())
       {
         if (!rec)
         {
@@ -249,7 +374,7 @@ namespace bpkg
         }
         else if (*rec == recursive_mode::separate)
         {
-          dr << fail << "--private specified without --recursive=separate";
+          dr << fail << "--private specified with --recursive=separate";
         }
       }
 
@@ -364,9 +489,10 @@ namespace bpkg
     bool dependent_config (false);
 
     auto generate = [&o, &vars,
-                     rec, &spm,
+                     &package_rec_map, &spm,
                      &c, &db,
                      &dependent_config] (const vector<package_name>& pns,
+                                         optional<recursive_mode> rec,
                                          bool first) -> result
     {
       // Resolve package names to selected packages and verify they are all
@@ -441,28 +567,31 @@ namespace bpkg
         pkgs.push_back (
           package {move (p), move (aps), r.effective_out_root (db.config)});
 
-        // If --recursive is not specified or specified with the seperate mode
-        // then we want all the immediate (system and non-) dependecies in
-        // deps. Otherwise, if the recursive mode is full, then we want all
-        // the transitive non-system dependecies in pkgs. In both recursive
-        // modes we also want all the transitive system dependecies in deps.
+        // Deduce the effective recursive mode for collecting dependencies.
         //
-        // Note also that in the auto recursive mode it's possible that some
-        // of the system dependencies are not really needed. But there is no
-        // way for us to detect this and it's better to over- than
-        // under-specify.
-        //
+        optional<recursive_mode> drec;
+        {
+          auto i (package_rec_map.find (n));
+
+          if (i != package_rec_map.end ())
+          {
+            const package_recursive& pr (i->second);
+            drec = pr.dependencies ? *pr.dependencies : rec;
+          }
+          else
+            drec = rec;
+        }
+
         collect_dependencies (
           o,
           db,
-          (!rec || *rec == recursive_mode::separate
-           ? &deps
-           : *rec == recursive_mode::full ? &pkgs : nullptr),
+          pkgs,
           deps,
           type,
           langs,
           r,
-          rec.has_value ());
+          drec,
+          package_rec_map);
       }
 
       // Load the package manifest (source of extra metadata). This should be
@@ -483,6 +612,15 @@ namespace bpkg
       if (rec && *rec != recursive_mode::separate)
         recursive_full = (*rec == recursive_mode::full);
 
+      // Only enable private installation subdirectory functionality if the
+      // dependencies are bundled with the dependent (see the --private option
+      // for details).
+      //
+      bool priv (o.private_ () &&
+                 rec           &&
+                 (*rec == recursive_mode::full ||
+                  *rec == recursive_mode::auto_));
+
       // Note that we pass type from here in case one day we want to provide
       // an option to specify/override it (along with languages). Note that
       // there will probably be no way to override type for dependencies.
@@ -494,6 +632,7 @@ namespace bpkg
                                            pm,
                                            type, langs,
                                            recursive_full,
+                                           priv,
                                            first));
 
       return result {move (r), move (deps), move (pkgs.front ().selected)};
@@ -504,8 +643,9 @@ namespace bpkg
     // Generate packages for dependencies, recursively, suppressing
     // duplicates. Note: recursive lambda.
     //
-    auto generate_deps = [&generate, &rs] (const packages& deps,
-                                           const auto& generate_deps) -> void
+    auto generate_deps = [&package_rec_map, &generate, &rs]
+                         (const packages& deps,
+                          const auto& generate_deps) -> void
     {
       for (const package& d: deps)
       {
@@ -528,19 +668,42 @@ namespace bpkg
         if (verb >= 1)
           text << "generating package for dependency " << p->name;
 
-        rs.push_back (generate ({p->name}, false /* first */));
-        generate_deps (rs.back ().deps, generate_deps);
+        // The effective recursive modes for the dependency.
+        //
+        optional<recursive_mode> drec;
+        optional<recursive_mode> srec;
+        {
+          auto i (package_rec_map.find (p->name));
+
+          // Must have been saved by collect_dependencies().
+          //
+          assert (i != package_rec_map.end () &&
+                  i->second.self              &&
+                  i->second.dependencies);
+
+          drec = *i->second.dependencies;
+          srec = *i->second.self;
+        }
+
+        // See collect_dependencies() for details.
+        //
+        assert (!srec || *srec == recursive_mode::separate);
+
+        if (srec)
+        {
+          rs.push_back (generate ({p->name}, drec, false /* first */));
+          generate_deps (rs.back ().deps, generate_deps);
+        }
       }
     };
 
     // Generate top-level package(s).
     //
-    rs.push_back (generate (pns, true /* first */));
+    rs.push_back (generate (pns, rec, true /* first */));
 
     // Generate dependencies, if requested.
     //
-    if (rec && rec == recursive_mode::separate)
-      generate_deps (rs.back ().deps, generate_deps);
+    generate_deps (rs.back ().deps, generate_deps);
 
     t.commit ();
 
@@ -641,7 +804,11 @@ namespace bpkg
         }
         s.end_object (); // os_release
 
-        member ("recursive", o.recursive (), "none");
+        if (rec)
+          member ("recursive", *rec == recursive_mode::auto_ ? "auto" :
+                               *rec == recursive_mode::full  ? "full" :
+                               "separate");
+
         if (o.private_ ()) s.member ("private", true);
         if (dependent_config) s.member ("dependent_config", true);
 

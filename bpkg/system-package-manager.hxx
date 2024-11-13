@@ -185,6 +185,9 @@ namespace bpkg
     // If the result is empty, assume the prepare-only mode (or similar) with
     // appropriate result diagnostics having been already issued.
     //
+    // If the private argument is true, then enable the private installation
+    // subdirectory functionality (see the --private option for details).
+    //
     // Note that this function may be called multiple times in the
     // --recursive=separate mode. In this case the first argument indicates
     // whether this is the first call (can be used, for example, to adjust the
@@ -220,6 +223,7 @@ namespace bpkg
               const string& type,
               const small_vector<language, 1>&,
               optional<bool> recursive_full,
+              bool private_,
               bool first) = 0;
 
   public:

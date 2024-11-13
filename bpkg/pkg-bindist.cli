@@ -94,7 +94,7 @@ namespace bpkg
        If unspecified, the host architecture is used."
     }
 
-    string --recursive = "none"
+    strings --recursive
     {
       "<mode>",
       "Bundle or generate dependencies of the specified packages. The <mode>
@@ -112,7 +112,15 @@ namespace bpkg
        dependency package is installed explicitly and completely, as if they
        were specified as additional package on the command line. The
        \cb{separate} mode is equivalent to invoking the \cb{pkg-bindist}
-       command on each dependency package. See also the \cb{--private} option."
+       command on each dependency package. See also the \cb{--private} option.
+
+       The <mode> value can also be prefixed with the package name in the
+       \c{[\b{?}]\i{pkg}\b{=}\i{mode}} form in order to specify the mode on
+       the per-package basis. Specifically, if the package name starts with
+       \cb{?}, then the mode applies to the package itself (which only
+       makes sense for dependencies) and otherwise \- only to this package's
+       dependencies, recursively (until and unless overridden with another
+       package-specific mode)."
     }
 
     bool --private

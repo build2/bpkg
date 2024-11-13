@@ -1986,6 +1986,7 @@ namespace bpkg
             const string& pt,
             const small_vector<language, 1>& langs,
             optional<bool> recursive_full,
+            bool priv,
             bool first) -> binary_files
   {
     tracer trace ("system_package_manager_debian::generate");
@@ -2017,7 +2018,6 @@ namespace bpkg
     const available_packages& aps (pkgs.front ().available);
 
     bool lib (pt == "lib");
-    bool priv (ops_->private_ ()); // Private installation.
 
     // For now we only know how to handle libraries with C-common interface
     // languages. But we allow other implementation languages.
