@@ -665,9 +665,6 @@ namespace bpkg
                      }) != rs.end ())
           continue;
 
-        if (verb >= 1)
-          text << "generating package for dependency " << p->name;
-
         // The effective recursive modes for the dependency.
         //
         optional<recursive_mode> drec;
@@ -691,6 +688,9 @@ namespace bpkg
 
         if (srec)
         {
+          if (verb >= 1)
+            text << "generating package for dependency " << p->name;
+
           rs.push_back (generate ({p->name}, drec, false /* first */));
           generate_deps (rs.back ().deps, generate_deps);
         }
