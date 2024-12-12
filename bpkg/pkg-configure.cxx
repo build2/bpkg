@@ -864,6 +864,8 @@ namespace bpkg
 
         // Note: no operation_post/meta_operation_post for configure.
 
+        ctx.load_generation++; // For next package to be configured.
+
         // Here is a tricky part: if this is a normal package, then it will be
         // discovered as a subproject of the bpkg configuration when we load
         // it for the first time (because they are all unpacked). However, if
