@@ -145,7 +145,7 @@ anchor it to \cb{refs/} make it absolute, for example:
 .../foo.git#/tags/v*  - refs/tags/v1.2.3 only
 \
 
-While a \ci{refname} pattern is allowed not match any references, a
+While a \ci{refname} pattern is allowed not to match any references, a
 non-pattern that doesn't resolve to a reference is invalid.
 
 If a \ci{refname} starts with minus (\cb{-}) then it is treated as an
