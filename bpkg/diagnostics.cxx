@@ -44,7 +44,10 @@ namespace bpkg
                  const process_env& pe, const char* const args[], size_t n)
   {
     if (pe.env ())
-      dr << pe << ' ';
+    {
+      to_stream (dr.os, pe, process_env_format::cwd | process_env_format::vars);
+      dr << ' ';
+    }
 
     dr << process_args {args, n};
   }
