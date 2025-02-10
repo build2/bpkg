@@ -11,6 +11,7 @@
 
 #include <bpkg/pkg-bindist-options.hxx>
 
+using namespace std;
 using namespace butl;
 
 namespace bpkg
@@ -1019,6 +1020,34 @@ namespace bpkg
                        args_storage);
   }
 
+  // Try to terminate the process gracefully sending SIGTERM and, if it
+  // doesn't terminate in 2 seconds, send SIGKILL and wait indefinitely.
+  //
+  static void
+  terminate (process& pr)
+  {
+    try
+    {
+      pr.term ();
+    }
+    catch (const process_error&)
+    {
+      // Not much we can do here.
+    }
+
+    try
+    {
+      if (!pr.timed_wait (chrono::seconds (2)))
+        pr.kill ();
+    }
+    catch (const process_error&)
+    {
+      // Not much we can do here.
+    }
+
+    pr.wait ();
+  }
+
   // Execute `dnf makecache` to download and cache the repositories metadata.
   //
   void system_package_manager_fedora::
@@ -1054,10 +1083,24 @@ namespace bpkg
         pr = process (process_exit (simulate_->dnf_makecache_fail_ ? 1 : 0));
       }
 
-      if (!pr.wait ())
+      // Note that for reasons unknown dnf-makecache may hang indefinitely
+      // (while consuming 100% CPU) despite the specified timeout-related
+      // options. Thus, we will terminate the process after the double fetch
+      // timeout, if specified by the user.
+      //
+      optional<bool> r (!simulate_ && fetch_timeout_
+                        ? pr.timed_wait (chrono::seconds (*fetch_timeout_ * 2))
+                        : pr.wait ());
+
+      if (!r || !*r)
       {
+        if (!r)
+          terminate (pr);
+
         diag_record dr (fail);
-        dr << "dnf makecache exited with non-zero code";
+        dr << (r
+               ? "dnf makecache exited with non-zero code"
+               : "dnf makecache terminated: timeout expired");
 
         if (verb < 2)
         {
@@ -1151,10 +1194,24 @@ namespace bpkg
         pr = process (process_exit (simulate_->dnf_install_fail_ ? 100 : 0));
       }
 
-      if (!pr.wait ())
+      // Note that for reasons unknown dnf-install may hang indefinitely
+      // (while consuming 100% CPU) despite the specified timeout-related
+      // options. Thus, we will terminate the process after the double fetch
+      // timeout, if specified by the user.
+      //
+      optional<bool> r (!simulate_ && fetch_timeout_
+                        ? pr.timed_wait (chrono::seconds (*fetch_timeout_ * 2))
+                        : pr.wait ());
+
+      if (!r || !*r)
       {
+        if (!r)
+          terminate (pr);
+
         diag_record dr (fail);
-        dr << "dnf install exited with non-zero code";
+        dr << (r
+               ? "dnf install exited with non-zero code"
+               : "dnf install terminated: timeout expired");
 
         if (verb < 2)
         {
@@ -2034,7 +2091,7 @@ namespace bpkg
       // particular, may result in the network short-term unavailability.
       // Thus, let's pause for a while before fetching the source packages.
       //
-      std::this_thread::sleep_for (std::chrono::seconds (1));
+      this_thread::sleep_for (chrono::seconds (1));
     }
 
     // Mark as installed by the user.
@@ -4554,7 +4611,7 @@ namespace bpkg
         // Given that we don't include the timezone there is no much sense to
         // print the current time as local.
         //
-        std::locale l (os.imbue (std::locale ("C")));
+        locale l (os.imbue (locale ("C")));
         to_stream (os,
                    system_clock::now (),
                    "%a %b %d %Y",
