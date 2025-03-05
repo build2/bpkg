@@ -46,6 +46,7 @@ namespace bpkg
 
         run_b (o,
                verb_b::normal,
+               false /* no_progress */,
                (o.jobs_specified ()
                 ? strings ({"-j", to_string (o.jobs ())})
                 : strings ()),

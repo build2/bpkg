@@ -9,14 +9,20 @@ namespace bpkg
   //
   template <typename V>
   void
-  map_verb_b (const common_options& co, verb_b v, V& ops, string& verb_arg)
+  map_verb_b (const common_options& co,
+              verb_b v,
+              bool no_progress,
+              V& ops,
+              string& verb_arg)
   {
     // Map verbosity level. If we are running quiet or at level 1,
     // then run build2 quiet. Otherwise, run it at the same level
     // as us.
     //
-    bool progress    (co.progress ());
-    bool no_progress (co.no_progress ());
+    if (!no_progress)
+      no_progress = co.no_progress ();
+
+    bool progress (!no_progress && co.progress ());
 
     if (verb == 0)
     {
@@ -36,7 +42,7 @@ namespace bpkg
           if (v == verb_b::progress && stderr_term)
           {
             ops.push_back ("--progress");
-              progress = false; // The option is already added.
+            progress = false; // The option is already added.
           }
         }
         else
@@ -61,7 +67,7 @@ namespace bpkg
 
   template <typename... A>
   void
-  print_b (const common_options& co, verb_b v, A&&... args)
+  print_b (const common_options& co, verb_b v, bool no_progress, A&&... args)
   {
     process_path pp (search_b (co));
 
@@ -70,7 +76,7 @@ namespace bpkg
     // As in start_b() below.
     //
     string verb_arg;
-    map_verb_b (co, v, ops, verb_arg);
+    map_verb_b (co, v, no_progress, ops, verb_arg);
 
     if (co.diag_color ())
       ops.push_back ("--diag-color");
@@ -95,6 +101,7 @@ namespace bpkg
            O&& out,
            E&& err,
            verb_b v,
+           bool no_progress,
            A&&... args)
   {
     process_path pp (search_b (co));
@@ -109,7 +116,7 @@ namespace bpkg
       //       anything new here (search for search_b()).
 
       string verb_arg;
-      map_verb_b (co, v, ops, verb_arg);
+      map_verb_b (co, v, no_progress, ops, verb_arg);
 
       // Forward our --[no]diag-color options.
       //
@@ -141,10 +148,14 @@ namespace bpkg
 
   template <typename... A>
   void
-  run_b (const common_options& co, verb_b v, A&&... args)
+  run_b (const common_options& co, verb_b v, bool no_progress, A&&... args)
   {
     process pr (
-      start_b (co, 1 /* stdout */, 2 /* stderr */, v, forward<A> (args)...));
+      start_b (co,
+               1 /* stdout */, 2 /* stderr */,
+               v,
+               no_progress,
+               forward<A> (args)...));
 
     if (!pr.wait ())
     {

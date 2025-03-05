@@ -312,6 +312,7 @@ namespace bpkg
 
       run_b (o,
              verb_b::progress,
+             false /* no_progress */,
              "--no-external-modules",
              "!config.dist.bootstrap=true",
              "config.dist.root='" + ord.representation () + '\'',

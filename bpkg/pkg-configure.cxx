@@ -503,7 +503,8 @@ namespace bpkg
   pkg_configure_context (
     const common_options& o,
     strings&& cmd_vars,
-    const function<build2::context::var_override_function>& var_ovr_func)
+    const function<build2::context::var_override_function>& var_ovr_func,
+    bool no_progress)
   {
     using namespace build2;
 
@@ -533,6 +534,22 @@ namespace bpkg
 
       return cmd_vars;
     };
+
+    // See pkg_configure() below for details on why we need this.
+    //
+    auto verbg = make_guard (
+      [ov = build2::verb,
+       op = build2::diag_progress_option] ()
+      {
+        build2::verb = ov;
+        build2::diag_progress_option = op;
+      });
+
+    if (bpkg::verb == 1)
+      build2::verb = 0;
+
+    if (no_progress)
+      build2::diag_progress_option = false;
 
     // Shouldn't we shared the module context with package skeleton
     // contexts? Maybe we don't have to since we don't build modules in
@@ -579,6 +596,7 @@ namespace bpkg
                  const unique_ptr<build2::context>&,
                  const build2::variable_overrides&, // Still in cpr.config_variables.
 #endif
+                 bool no_progress,
                  bool simulate)
   {
     tracer trace ("pkg_configure");
@@ -653,7 +671,7 @@ namespace bpkg
 
       try
       {
-        run_b (o, verb_b::quiet, cpr.config_variables, bspec);
+        run_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
       catch (const failed&)
       {
@@ -661,7 +679,7 @@ namespace bpkg
         //
         p->out_root = out_root.leaf ();
         p->state = package_state::broken;
-        pkg_disfigure (o, db, t, p, true, true, false);
+        pkg_disfigure (o, db, t, p, true, true, no_progress, false);
         throw;
       }
 #else
@@ -680,7 +698,7 @@ namespace bpkg
             src_root.representation () + "'@'" +
             out_root.representation () + "')";
 
-        print_b (o, verb_b::quiet, cpr.config_variables, bspec);
+        print_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
 
       // If failed to configure the package, we try to revert it to the
@@ -738,9 +756,25 @@ namespace bpkg
         // we temporarily adjust the build2 verbosity (see map_verb_b() for
         // details).
         //
-        auto verbg (make_guard ([ov = build2::verb] () {build2::verb = ov;}));
+        // Also suppress progress if requested.
+        //
+        // Note that we also have to do this before creating the context in
+        // pkg_configure_context() above since these values are set as global
+        // scope variable.
+        //
+        auto verbg = make_guard (
+          [ov = build2::verb,
+           op = build2::diag_progress_option] ()
+          {
+            build2::verb = ov;
+            build2::diag_progress_option = op;
+          });
+
         if (bpkg::verb == 1)
           build2::verb = 0;
+
+        if (no_progress)
+          build2::diag_progress_option = false;
 
         context& ctx (*pctx);
 
@@ -942,8 +976,9 @@ namespace bpkg
           //
           pkg_disfigure (o, db, t,
                          p,
-                         true /* clean */,
-                         true /* disfigure */,
+                         true  /* clean */,
+                         true  /* disfigure */,
+                         no_progress,
                          false /* simulate */);
         }
 
@@ -1014,7 +1049,10 @@ namespace bpkg
 
 #ifndef BPKG_OUTPROC_CONFIGURE
     if (!simulate)
-      ctx = pkg_configure_context (o, move (cpr.config_variables));
+      ctx = pkg_configure_context (o,
+                                   move (cpr.config_variables),
+                                   nullptr /* var_override_function */,
+                                   false   /* no_progress */);
 #endif
 
     pkg_configure (o,
@@ -1026,6 +1064,7 @@ namespace bpkg
                    (ctx != nullptr
                     ? ctx->var_overrides
                     : build2::variable_overrides {}),
+                   false /* no_progress */,
                    simulate);
   }
 

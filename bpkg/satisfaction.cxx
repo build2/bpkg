@@ -156,6 +156,7 @@ namespace bpkg
       process pr (start_b (o,
                            pipe, 2 /* stderr */,
                            verb_b::quiet,
+                           false /* no_progress */,
                            "--version"));
 
       // Shouldn't throw, unless something is severely damaged.

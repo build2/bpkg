@@ -245,6 +245,7 @@ namespace bpkg
 
   // Run build2, mapping verbosity levels.
   //
+  // Note that if printing own progress, then need to suppress it in build2.
 
   // Verbosity level 1 mapping.
   //
@@ -257,7 +258,11 @@ namespace bpkg
 
   template <typename V>
   void
-  map_verb_b (const common_options&, verb_b, V& args, string& verb_arg);
+  map_verb_b (const common_options&,
+              verb_b,
+              bool no_progress,
+              V& args,
+              string& verb_arg);
 
   const char*
   name_b (const common_options&);
@@ -267,15 +272,19 @@ namespace bpkg
 
   template <typename... A>
   void
-  print_b (const common_options&, verb_b, A&&... args);
+  print_b (const common_options&, verb_b, bool no_progress, A&&... args);
 
   template <typename O, typename E, typename... A>
   process
-  start_b (const common_options&, O&& out, E&& err, verb_b, A&&... args);
+  start_b (const common_options&,
+           O&& out, E&& err,
+           verb_b,
+           bool no_progress,
+           A&&... args);
 
   template <typename... A>
   void
-  run_b (const common_options&, verb_b, A&&... args);
+  run_b (const common_options&, verb_b, bool no_progress, A&&... args);
 
   // Read out the data from the specified file descriptor and dump it to
   // stderr. Throw io_error on the underlying OS errors.

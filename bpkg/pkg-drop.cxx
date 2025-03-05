@@ -425,9 +425,10 @@ namespace bpkg
       //
       pkg_disfigure (o, db, t,
                      p,
-                     true /* clean */,
-                     true /* disfigure */,
-                     false /* simulate */);
+                     true     /* clean */,
+                     true     /* disfigure */,
+                     progress /* no_progress */,
+                     false    /* simulate */);
 
       assert (p->state == package_state::unpacked ||
               p->state == package_state::transient);

@@ -3964,7 +3964,11 @@ namespace bpkg
         //       above.
         //
         cstrings verb_args; string verb_arg;
-        map_verb_b (*ops_, verb_b::normal, verb_args, verb_arg);
+        map_verb_b (*ops_,
+                    verb_b::normal,
+                    false /* no_progress */,
+                    verb_args,
+                    verb_arg);
 
         os <<   '\n'
            <<   "%global build2 " << search_b (*ops_).effect_string ();

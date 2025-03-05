@@ -710,6 +710,7 @@ namespace bpkg
 
         run_b (*ops,
                verb_b::normal,
+               false /* no_progress */,
                (ops->jobs_specified ()
                 ? strings ({"--jobs", to_string (ops->jobs ())})
                 : strings ()),

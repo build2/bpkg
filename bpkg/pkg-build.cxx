@@ -7911,6 +7911,7 @@ namespace bpkg
                      sp,
                      !p.keep_out /* clean */,
                      disfigure,
+                     progress /* no_progress */,
                      simulate);
 
       r = true;
@@ -8597,7 +8598,10 @@ namespace bpkg
         });
 
       configure_ctx = pkg_configure_context (
-        o, move (configure_global_vars), vof);
+        o,
+        move (configure_global_vars),
+        vof,
+        progress /* no_progress */);
 
       // Only global in configure_global_vars.
       //
@@ -8651,6 +8655,7 @@ namespace bpkg
                          move (cp.res),
                          configure_ctx,
                          cp.ovrs,
+                         progress /* no_progress */,
                          simulate);
         }
         else // Dependent.
@@ -8662,6 +8667,7 @@ namespace bpkg
                          move (cp.res),
                          configure_ctx,
                          cp.ovrs,
+                         progress /* no_progress */,
                          simulate);
         }
       }

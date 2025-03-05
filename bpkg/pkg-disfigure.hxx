@@ -21,6 +21,10 @@ namespace bpkg
   // possible, for that matter). If disfigure is false, then don't actually
   // disfigure the package in the build system sense.
   //
+  // If no_progress is true, then suppress progress in the underlying build
+  // system invocations (for example, because you are printing your own
+  // progress).
+  //
   void
   pkg_disfigure (const common_options&,
                  database&,
@@ -28,6 +32,7 @@ namespace bpkg
                  const shared_ptr<selected_package>&,
                  bool clean,
                  bool disfigure,
+                 bool no_progress,
                  bool simulate);
 }
 

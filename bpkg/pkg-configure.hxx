@@ -154,6 +154,12 @@ namespace bpkg
   // Note: expects all the non-external packages to be configured to be
   //       already unpacked (for subproject discovery).
   //
+  // If no_progress is true, then suppress progress in the underlying build
+  // system invocations (for example, because you are printing your own
+  // progress). Actually, currently this has to be done before creating
+  // the context (since the value of build2::diag_progress_option is set
+  // as a global scope variable).
+  //
   void
   pkg_configure (const common_options&,
                  database&,
@@ -162,6 +168,7 @@ namespace bpkg
                  configure_prerequisites_result&&,
                  const unique_ptr<build2::context>&,
                  const build2::variable_overrides&,
+                 bool no_progress,
                  bool simulate);
 
   // Create a build context suitable for configuring packages.
@@ -170,11 +177,14 @@ namespace bpkg
   pkg_configure_context (
     const common_options&,
     strings&& cmd_vars,
-    const function<build2::context::var_override_function>& = nullptr);
+    const function<build2::context::var_override_function>&,
+    bool no_progress);
 
   // This is a higher-level version meant for configuring a single package.
   //
   // Note: loads selected packages.
+  //
+  // Note: has no way to suppress build system progress (unlike above).
   //
   void
   pkg_configure (const common_options&,

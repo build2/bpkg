@@ -21,6 +21,7 @@ namespace bpkg
                  const shared_ptr<selected_package>& p,
                  bool clean,
                  bool disfigure,
+                 bool no_progress,
                  bool simulate)
   {
     assert (p->state == package_state::configured ||
@@ -161,6 +162,7 @@ namespace bpkg
                                  1        /* stdout */,
                                  dev_null /* stderr */,
                                  verb_b::quiet,
+                                 no_progress,
                                  bspec));
 
             // If the disfigure meta-operation failed then we report the
@@ -182,7 +184,7 @@ namespace bpkg
             rm_r (out_root);
         }
         else
-          run_b (o, verb_b::quiet, bspec);
+          run_b (o, verb_b::quiet, no_progress, bspec);
 
         // Make sure the out directory is gone unless it is the same as src,
         // or we didn't clean or disfigure it.
@@ -249,9 +251,10 @@ namespace bpkg
     //
     pkg_disfigure (o, db, t,
                    p,
-                   !o.keep_out () /* clean */,
+                   !o.keep_out ()    /* clean */,
                    !o.keep_config () /* disfigure */,
-                   false /* simulate */);
+                   false             /* no_progress */,
+                   false             /* simulate */);
 
     assert (p->state == package_state::unpacked ||
             p->state == package_state::transient);
