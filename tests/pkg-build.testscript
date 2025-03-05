@@ -9197,6 +9197,7 @@ test.arguments += --sys-no-query
             trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 of dependent fux/1.0.0
             trace: collect_build_prerequisites: end fux/1.0.0
             trace: collect_drop: overwrite fex
+            trace: collect_dependents: skip dropped dependent fex/0.1.0
             trace: execute_plan: simulate: yes
             %.*
             trace: evaluate_dependency: fux/1.0.0: unused
@@ -9368,6 +9369,7 @@ test.arguments += --sys-no-query
             trace: collect_build_postponed (1): cfg-negotiate end {fux^ | libfoo->{fux/1,1}}!
             trace: collect_build_postponed (1): end {fux^ | libfoo->{fux/1,1}}
             trace: collect_build_postponed (0): end
+            trace: collect_dependents: skip dropped dependent fex/0.1.0
             trace: execute_plan: simulate: yes
             %.*
             build plan:
@@ -19733,6 +19735,7 @@ test.arguments += --sys-no-query
         trace: collect_build_postponed (2): end {tuz^ | toz->{tuz/1,1}}
         trace: collect_build_postponed (1): end {tix | libbar->{tix/1,1}}
         trace: collect_build_postponed (0): end
+        trace: collect_dependents: skip dropped dependent tez/0.1.0
         trace: execute_plan: simulate: yes
         %.*
         build plan:

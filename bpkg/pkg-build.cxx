@@ -2355,7 +2355,29 @@ namespace bpkg
 
             // See collect_dependents() for details.
             //
-            assert (d != nullptr && d->action);
+            if (d == nullptr || !d->action)
+            {
+              diag_record dr (info);
+
+              dr << "existing dependents must be "
+                 << (d == nullptr ? "in the map" : "collected") <<
+                info << "problematic dependent " << package_key (ddb, pd.name)
+                     << " of dependency " << sp->string (db);
+
+              if (shared_ptr<selected_package> p =
+                  ddb.find<selected_package> (pd.name))
+              {
+                dr << info << "dependent selected: " << *p;
+              }
+
+              dr << info
+                 << "please report in https://github.com/build2/build2/issues/467"
+                 << "try to provide reproducer or log collected with --verbose=5 option";
+
+              dr.flush ();
+
+              assert (d != nullptr && d->action);
+            }
 
             if ((*d->action == build_package::adjust &&
                  (d->flags & build_package::adjust_reconfigure) != 0) ||

@@ -7561,10 +7561,17 @@ namespace bpkg
         {
           build_package& dp (i->second.package);
 
-          // Skip the droped dependent.
+          // Skip the dropped dependent.
           //
           if (dp.action && *dp.action == build_package::drop)
+          {
+            assert (dp.selected != nullptr);
+
+            l5 ([&]{trace << "skip dropped dependent "
+                          << dp.selected->string (ddb);});
+
             continue;
+          }
 
           repointed_dependents::const_iterator j (
             rpt_depts.find (package_key {ddb, dn}));
@@ -7576,7 +7583,14 @@ namespace bpkg
             auto k (prereqs_flags.find (package_key {pdb, n}));
 
             if (k != prereqs_flags.end () && !k->second)
+            {
+              assert (dp.selected != nullptr);
+
+              l5 ([&]{trace << "skip repointed dependent "
+                            << dp.selected->string (ddb);});
+
               continue;
+            }
           }
 
           // There is one tricky aspect: the dependent could be in the process
@@ -7685,10 +7699,21 @@ namespace bpkg
                             data_type {end (), adjustment ()}).first;
         }
 
+        build_package& dp (i->second.package);
+
         if (add)
+        {
           r.insert (i->first);
 
-        build_package& dp (i->second.package);
+          // This one affects too many tests, so let's leave it out for now.
+          //
+#if 0
+          l5 ([&]{trace << "collected dependent "
+                        << (dp.available != nullptr
+                            ? dp.available_name_version_db ()
+                            : dp.selected->string (ddb));});
+#endif
+        }
 
         // Add this dependent's constraint, if present, to the dependency's
         // constraints list for completeness, while suppressing duplicates.
