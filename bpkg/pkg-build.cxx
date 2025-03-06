@@ -2372,7 +2372,7 @@ namespace bpkg
 
               dr << info
                  << "please report in https://github.com/build2/build2/issues/467"
-                 << "try to provide reproducer or log collected with --verbose=5 option";
+                 << " and try to provide reproducer or log collected with --verbose=5";
 
               dr.flush ();
 
