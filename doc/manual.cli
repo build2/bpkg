@@ -2536,11 +2536,12 @@ names and locations of packages that it is allowed to build.|
 \
 [*-build-config]: <args> [; <comment>]
 
-<args> = [[[+|-]<prefix>:](<option>|<config-var>)]* \\
-         [(+|-)<prefix>:]*                          \\
-         [<dependency-spec>]*                       \\
+<args> = [[[+|-]<prefix>:](<option>|<config-var>|<hook>)]* \\
+         [(+|-)<prefix>:]*                                 \\
+         [<dependency-spec>]*                              \\
          [<package-specific-vars>]*
 
+<hook> = <hook-script-path>|<hook-script-arg>
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
 <dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
@@ -2637,6 +2638,32 @@ default-build-config:
 
 Note that options with values can only be specified using the single argument
 notation, for example, \c{--verbose=4}.
+
+The hook arguments specify a shellscript command which needs to be executed at
+the step the arguments are prefixed with. Normally, such command is used to
+amend the outcome of the command executed on the previous or subsequent
+step. The first hook argument specifies the path (relative to the package's
+root directory) to the shellscript file contained in the package. The
+remaining hook arguments specify the shellscript arguments. The build bot
+worker executes the shellscript in the temporary directory as a current
+working directory and, depending on the hook step, may pass additional
+arguments and/or set some environment variables (see the list of
+\l{bbot#arch-worker \cb{bbot} hooks}). Note that since the hook steps are
+disabled by default, one of the hook prefixes needs to be prepended by the
+\c{+} character to enable the hook (see above for details on enabling the
+build bot worker script steps). For example:
+
+\
+bindist-build-config:
+\\
++bpkg.bindist.archive:
++bbot.bindist.upload:
+
+# Bundle extra data into the generated archive.
+#
++bpkg.bindist.archive.post:build/bindist-archive-post.bx
+\\
+\
 
 The package build configuration can override the common build target
 configurations set (specified with \l{#manifest-package-builds \c{builds}} and
