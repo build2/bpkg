@@ -2536,11 +2536,12 @@ names and locations of packages that it is allowed to build.|
 \
 [*-build-config]: <args> [; <comment>]
 
-<args> = [[[+|-]<prefix>:](<option>|<config-var>)]* \\
-         [(+|-)<prefix>:]*                          \\
-         [<dependency-spec>]*                       \\
+<args> = [[[+|-]<prefix>:](<option>|<config-var>|<hook>)]* \\
+         [(+|-)<prefix>:]*                                 \\
+         [<dependency-spec>]*                              \\
          [<package-specific-vars>]*
 
+<hook> = <hook-script>|<hook-script-arg>
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
 <dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
@@ -2637,6 +2638,34 @@ default-build-config:
 
 Note that options with values can only be specified using the single argument
 notation, for example, \c{--verbose=4}.
+
+The \c{*-build-config} values prefixed with a hook step id specify the hook
+script and optional script arguments to be executed at the specified step.
+Such hook scripts are written in the \c{build2} Shellscript language and
+normally used to amend the outcome of the commands executed on the previous or
+subsequent step. The first hook value should specify the path (relative to the
+package's source root directory) to the Shellscript file. The remaining hook
+values specify the script arguments to be passed during the execution. The
+build bot worker executes the script in the temporary directory as its working
+directory and, depending on the step semantics, may pass additional arguments
+and/or set some environment variables (see the list of \l{bbot#arch-worker
+\cb{bbot} hooks} for details). Note that since the hook steps are disabled by
+default, one of the prefixes needs to begin with \c{+} to enable the
+respective hook (see above for details on enabling the build bot worker script
+steps). For example:
+
+\
+windows-bindist-build-config:
+\\
++bpkg.bindist.archive:
++bbot.bindist.upload:
+
+# Bundle extra data into the generated archive.
+#
++bpkg.bindist.archive.post:build/bindist-archive-post.bx
++bpkg.bindist.archive.post:--type=windows
+\\
+\
 
 The package build configuration can override the common build target
 configurations set (specified with \l{#manifest-package-builds \c{builds}} and
