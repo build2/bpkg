@@ -2595,15 +2595,18 @@ namespace bpkg
 
       // Create build context.
       //
+      // Use the build mode to signal this is a package skeleton load.
+      //
       skl.ctx_.reset (
         new context (build2_sched,
                      build2_mutexes,
                      build2_fcache,
-                     nullopt /* match_only */,          // Shouldn't matter.
-                     false   /* no_external_modules */,
-                     false   /* dry_run */,             // Shouldn't matter.
-                     false   /* no_diag_buffer */,      // Shouldn't matter.
-                     false   /* keep_going */,          // Shouldnt' matter.
+                     nullopt    /* match_only */,          // Shouldn't matter.
+                     false      /* no_external_modules */,
+                     false      /* dry_run */,             // Shouldn't matter.
+                     false      /* no_diag_buffer */,      // Shouldn't matter.
+                     false      /* keep_going */,          // Shouldnt' matter.
+                     string ("skeleton") /* build_mode */,
                      cmd_vars));
     }
     catch (const build2::failed&)
@@ -2827,10 +2830,6 @@ namespace bpkg
       ctx.current_oname = oif.name;
 
       gs.assign (ctx.var_build_meta_operation) = ctx.current_mname;
-
-      // Use the build mode to signal this is a package skeleton load.
-      //
-      gs.assign (*ctx.var_pool.find ("build.mode")) = "skeleton";
 
       // Note that it's ok for out_root to not exist (external package).
       //

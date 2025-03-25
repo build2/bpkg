@@ -565,7 +565,9 @@ namespace bpkg
                    false   /* dry_run */,
                    false   /* no_diag_buffer */,
                    false   /* keep_going */,
-                   merge_cmd_vars (),
+                   nullopt /* build_mode */,
+                   merge_cmd_vars () /* cmd_vars */,
+                   false             /* cmd_vars_global_only */,
                    context::reserves {
                      30000 /* targets */,
                      1100  /* variables */},
