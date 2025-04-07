@@ -15,6 +15,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages.manifest
@@ -22,7 +23,7 @@
   cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
   cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
   cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
-end
+}
 
 cfg_create += 2>!
 cfg_link   += 2>!
@@ -71,7 +72,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
 : dependencies-or-dependents
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t4c && $rep_fetch
   +$pkg_build libbaz
 
@@ -88,7 +89,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
   : dependents
   :
-  {
+  {{
     # Prepare the nested tests to use configuration from the enclosing
     # 'dependencies-or-dependents' group scope.
     #
@@ -96,7 +97,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
     : unconfirmed
     :
-    {
+    {{
       test.arguments += --yes
 
       : libfoo
@@ -129,11 +130,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
         error: refusing to drop dependent packages with just --yes
           info: specify --drop-dependent to confirm
         EOE
-    }
+    }}
 
     : confirmed
     :
-    {
+    {{
       test.arguments += --drop-dependent
 
       : libfoo
@@ -162,12 +163,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
         drop libbar
         drop libfoo
         EOO
-    }
-  }
+    }}
+  }}
 
   : dependencies
   :
-  {
+  {{
     # Prepare the nested tests to use configuration from the enclosing
     # 'dependencies-or-dependents' group scope.
     #
@@ -216,7 +217,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       drop libbar
       drop libfoo
       EOO
-  }
+  }}
 
   # Here we combine the test group teardown and the "actual drop" test.
   #
@@ -232,11 +233,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
    -$pkg_status libbar/1.1.0 >'libbar available [1.1.0]'
    -$pkg_status libbaz/1.1.0 >'libbaz available 1.1.0'
    -$pkg_status libfoo/1.1.0 >'libfoo available [1.1.0]'
-}
+}}
 
 : dependencies-and-dependents
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t4d && $rep_fetch
   +$pkg_build libbiz
 
@@ -245,7 +246,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 
   : drop-dependencies-no-dependents
   :
-  {
+  {{
     test.arguments += --yes
 
     : libbiz
@@ -269,11 +270,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       drop libbar
       drop libfoo
       EOO
-  }
+  }}
 
   : drop-dependencies
   :
-  {
+  {{
     test.arguments += --yes --drop-dependent
 
     : libfox
@@ -319,10 +320,10 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       drop libfoo
       drop libfox
       EOO
-  }
+  }}
 
   : keep-dependencies
-  {
+  {{
     test.arguments += --no --drop-dependent
 
     : fox-baz
@@ -362,7 +363,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       drop libbar
       drop libfox
       EOO
-  }
+  }}
 
   -$pkg_drop -d cfg --yes --drop-dependent libbar 2>>EOE
      disfigured libbiz
@@ -382,27 +383,27 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
    -$pkg_status libbar/1.1.0 >'libbar available [1.1.0]'
    -$pkg_status libbaz/1.1.0 >'libbaz available 1.1.0'
    -$pkg_status libbiz/1.0.0 >'libbiz available 1.0.0'
-}
+}}
 
 : keep-drop-options
 :
 : Test --drop-dependent, --keep-dependent, --dependent-exit, --keep-unused
 : options.
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t4b && $rep_fetch
 
   : keep-exit-drop-dependent
   :
   {
-    $clone_cfg && $pkg_build libbar;
+    $clone_cfg && $pkg_build libbar
 
-    $* --keep-dependent libfoo 2>>EOE != 0;
+    $* --keep-dependent libfoo 2>>EOE != 0
       error: following dependent packages will have to be dropped as well:
         libbar (requires libfoo)
       EOE
 
-    $* --dependent-exit 100 libfoo == 100;
+    $* --dependent-exit 100 libfoo == 100
 
     $* --drop-dependent libfoo 2>>EOE
       disfigured libbar
@@ -415,7 +416,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : drop-dependency
   :
   {
-    $clone_cfg && $pkg_build libbar;
+    $clone_cfg && $pkg_build libbar
 
     $* libbar --yes 2>>EOE
       disfigured libbar
@@ -428,46 +429,46 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : keep-dependency
   :
   {
-    $clone_cfg && $pkg_build libbar;
+    $clone_cfg && $pkg_build libbar
 
-    $* --keep-unused libbar 2>>EOE;
+    $* --keep-unused libbar 2>>EOE
       disfigured libbar
       purged libbar
       EOE
 
-    $pkg_status libfoo >'libfoo configured 1.1.0';
+    $pkg_status libfoo >'libfoo configured 1.1.0'
 
     $* libfoo 2>>EOE
       disfigured libfoo
       purged libfoo
       EOE
   }
-}
+}}
 
 : disfigure-only
 :
 : Test --disfigure-only option.
 :
 {
-  $clone_cfg && $rep_add $rep/t4a && $rep_fetch;
-  $pkg_build libfoo;
+  $clone_cfg && $rep_add $rep/t4a && $rep_fetch
+  $pkg_build libfoo
 
-  $* --disfigure-only libfoo 2>'disfigured libfoo';
-  $pkg_status libfoo >'!libfoo unpacked 1.1.0';
+  $* --disfigure-only libfoo 2>'disfigured libfoo'
+  $pkg_status libfoo >'!libfoo unpacked 1.1.0'
 
   $* libfoo 2>'purged libfoo'
 }
 
 : linked-configs
 :
-{
+{{
   # Get rid of -d option.
   #
   pkg_build = [cmdline] $0 pkg-build --yes --sys-no-query 2>!
 
   : 3-configs
   :
-  {
+  {{
     +$clone_root_cfg && $rep_add $rep/t4c && $rep_fetch
 
     +$cfg_create -d cfg-bar &cfg-bar/***
@@ -479,16 +480,16 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     : baz
     :
     {
-      $clone_cfg;
-      cp -pr ../cfg-bar ./;
-      cp -pr ../cfg-foo ./;
+      $clone_cfg
+      cp -pr ../cfg-bar ./
+      cp -pr ../cfg-foo ./
 
       $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes;
+                 --trust-yes
 
-      $pkg_build -d cfg libbaz;
+      $pkg_build -d cfg libbaz
 
-      $pkg_build -d cfg '?libbar' +{ --config-id 1 };
+      $pkg_build -d cfg '?libbar' +{ --config-id 1 }
 
       $* libbaz <<EOI 2>>/~%EOE%
           y
@@ -512,34 +513,34 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     : foo
     :
     {
-      $clone_cfg;
-      cp -pr ../cfg-bar ./;
-      cp -pr ../cfg-foo ./;
+      $clone_cfg
+      cp -pr ../cfg-bar ./
+      cp -pr ../cfg-foo ./
 
       $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes;
+                 --trust-yes
 
-      $pkg_build -d cfg libbaz;
+      $pkg_build -d cfg libbaz
 
       # Make sure that dependents of a package being dropped can be found in
       # implicitly linked configurations recursively. Note that configuring
       # libbar as system, we make libbaz an only dependent of libfoo.
       #
-      $pkg_build -d cfg '?sys:libbar' +{ --config-id 1 };
+      $pkg_build -d cfg '?sys:libbar' +{ --config-id 1 }
 
-      $pkg_status -r libbaz >>/EOO;
+      $pkg_status -r libbaz >>/EOO
         !libbaz configured 1.1.0
           libbar [cfg-bar/] configured,system !* available [1.1.0]
           libfoo [cfg-foo/] configured 1.1.0
         EOO
 
-        $pkg_status -d cfg-bar -r libbar >>EOO;
+        $pkg_status -d cfg-bar -r libbar >>EOO
           libbar configured,system !* available 1.1.0
           EOO
 
-        $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0';
+        $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0'
 
-        $* -d cfg-foo libfoo <<EOI 2>>/~%EOE%;
+        $* -d cfg-foo libfoo <<EOI 2>>/~%EOE%
           y
           y
           y
@@ -558,44 +559,44 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
           purged libfoo
           EOE
 
-      $pkg_status            libbaz >'libbaz available 1.1.0';
-      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0';
+      $pkg_status            libbaz >'libbaz available 1.1.0'
+      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0'
       $pkg_status -d cfg-foo libfoo >'libfoo unknown'
     }
 
     : bar
     :
     {
-      $clone_cfg;
-      cp -pr ../cfg-bar ./;
-      cp -pr ../cfg-foo ./;
+      $clone_cfg
+      cp -pr ../cfg-bar ./
+      cp -pr ../cfg-foo ./
 
       # Test that if we turn implicit links into explicit, then all dependents
       # are still discovered.
       #
-      $cfg_link -d cfg-bar cfg;
-      $cfg_link -d cfg-foo cfg-bar;
+      $cfg_link -d cfg-bar cfg
+      $cfg_link -d cfg-foo cfg-bar
 
       $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes;
+                 --trust-yes
 
-      $pkg_build -d cfg libbaz;
+      $pkg_build -d cfg libbaz
 
-      $pkg_status -r libbaz >>/EOO;
+      $pkg_status -r libbaz >>/EOO
         !libbaz configured 1.1.0
           !libbar [cfg-bar/] configured !1.1.0
             libfoo [cfg-foo/] configured 1.1.0
           libfoo [cfg-foo/] configured 1.1.0
         EOO
 
-      $pkg_status -d cfg-bar -r libbar >>/EOO;
+      $pkg_status -d cfg-bar -r libbar >>/EOO
         !libbar configured !1.1.0
           libfoo [cfg-foo/] configured 1.1.0
         EOO
 
-      $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0';
+      $pkg_status -d cfg-foo libfoo >'libfoo configured 1.1.0'
 
-      $* -d cfg-bar libbar <<EOI 2>>/~%EOE%;
+      $* -d cfg-bar libbar <<EOI 2>>/~%EOE%
         y
         y
         y
@@ -615,16 +616,16 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
         purged libfoo [cfg-foo/]
         EOE
 
-      $pkg_status            libbaz >'libbaz available 1.1.0';
-      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0';
+      $pkg_status            libbaz >'libbaz available 1.1.0'
+      $pkg_status -d cfg-bar libbar >'libbar available 1.1.0'
       $pkg_status -d cfg-foo libfoo >'libfoo unknown'
     }
-  }
-}
+  }}
+}}
 
 : buildtime-dep
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t7a && $rep_fetch
   +$cfg_create -d cfg2 --type host &cfg2/***
   +$cfg_link -d cfg cfg2
@@ -632,12 +633,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : drop-dependent
   :
   {
-    $clone_cfg;
-    cp -pr ../cfg2 ./;
+    $clone_cfg
+    cp -pr ../cfg2 ./
 
-    $pkg_build libbar --yes &cfg2/.bpkg/build2/***;
+    $pkg_build libbar --yes &cfg2/.bpkg/build2/***
 
-    $* libbar <<EOI 2>>/~%EOE%;
+    $* libbar <<EOI 2>>/~%EOE%
       y
       y
       EOI
@@ -669,12 +670,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : drop-dependency
   :
   {
-    $clone_cfg;
-    cp -pr ../cfg2 ./;
+    $clone_cfg
+    cp -pr ../cfg2 ./
 
-    $pkg_build libbar --yes &cfg2/.bpkg/build2/***;
+    $pkg_build libbar --yes &cfg2/.bpkg/build2/***
 
-    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
+    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%
       y
       y
       y
@@ -708,9 +709,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : drop-private-dependency
   :
   {
-    $clone_root_cfg && $rep_add $rep/t7a && $rep_fetch;
+    $clone_root_cfg && $rep_add $rep/t7a && $rep_fetch
 
-    $pkg_build libbar --yes &cfg/.bpkg/host/*** &cfg/.bpkg/build2/***;
+    $pkg_build libbar --yes &cfg/.bpkg/host/*** &cfg/.bpkg/build2/***
 
     $* -d cfg/.bpkg/build2/ libbuild2-bar <<EOI 2>>/~%EOE%
       y
@@ -744,14 +745,14 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : skip-deleted-dependency
   :
   {
-    $clone_cfg;
-    cp -pr ../cfg2 ./;
+    $clone_cfg
+    cp -pr ../cfg2 ./
 
-    $pkg_build libbar --yes &cfg/lib*/*** &cfg/lib* &cfg2/.bpkg/build2/***;
+    $pkg_build libbar --yes &cfg/lib*/*** &cfg/lib* &cfg2/.bpkg/build2/***
 
-    mv cfg cfg.tmp;
+    mv cfg cfg.tmp
 
-    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%;
+    $* -d cfg2 libbaz <<EOI 2>>/~%EOE%
       y
       y
       y
@@ -774,9 +775,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
     # While at it, test that we properly handle the missing prerequisite
     # situation.
     #
-    mv cfg.tmp cfg;
+    mv cfg.tmp cfg
 
-    $* libbar 2>>/EOE != 0;
+    $* libbar 2>>/EOE != 0
       error: unable to find prerequisite package foo in linked configuration cfg2/
       EOE
 
@@ -785,11 +786,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
         info: use --all|-a to see status of all packages
       EOE
   }
-}
+}}
 
 : all-options
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t4b $rep/t4c && $rep_fetch
 
   test.arguments += --yes
@@ -797,9 +798,9 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : all
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build libbaz libbar;
+    $pkg_build libbaz libbar
 
     $* --all 2>>EOO
       disfigured libbaz
@@ -814,11 +815,11 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
   : all-pattern
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build libbaz libbar libfoo;
+    $pkg_build libbaz libbar libfoo
 
-    $* --all-pattern 'libb*' 2>>EOO;
+    $* --all-pattern 'libb*' 2>>EOO
       disfigured libbaz
       disfigured libbar
       purged libbaz
@@ -830,4 +831,4 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       purged libfoo
       EOO
   }
-}
+}}

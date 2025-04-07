@@ -24,6 +24,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rc = [cmdline] $rep_create 2>!
 
   # Create the 'unsigned1' repository.
@@ -120,7 +121,7 @@
   #
   v = 'mnBAsS529NUdNIQy8EB4si/UK26ICaMywbLeHDVvWOB+AsqZ5rj8VjGDamLbmUrDr3ru7BU1gJU='
   sed -i -e "s%^[^ ]{75}=\$%$v%" $out/signature-mismatch/signature.manifest
-end
+}
 
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
@@ -137,7 +138,7 @@ sc = " " # Space character to append to here-document line when required.
 :
 : Test that local repositories do not require authentication by default.
 :
-{
+{{
   r = 1/signed
   +mkdir 1/
   +cp -r $src/unsigned $r
@@ -147,7 +148,7 @@ sc = " " # Space character to append to here-document line when required.
   : rep-fetch
   :
   {
-    $clone_root_cfg && $rep_add ../$r;
+    $clone_root_cfg && $rep_add ../$r
 
     $rep_fetch 2>>/~%EOE%
       %fetching .+/no-auth/signed%
@@ -159,23 +160,23 @@ sc = " " # Space character to append to here-document line when required.
   :
   $clone_root_cfg;
   $rep_info --cert-name ../$r >'name:build2.org'
-}
+}}
 
 : signed
 :
-{
+{{
   : rep-fetch
   :
-  {
+  {{
     +$clone_root_cfg && $rep_add $rep/signed
     rep_fetch += --auth all &?cfg/.bpkg/certs/**
 
     : no-auth
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch 2>>"EOE" != 0;
+      $rep_fetch 2>>"EOE" != 0
         fetching pkg:build2.org/rep-auth/signed
         warning: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         certificate is for build2.org, "Code Synthesis" <info@build2.org>
@@ -191,9 +192,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-fp
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust $cert_fp 2>>EOE;
+      $rep_fetch --trust $cert_fp 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
@@ -204,9 +205,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-fp-no
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-no --trust $cert_fp 2>>EOE;
+      $rep_fetch --trust-no --trust $cert_fp 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
@@ -217,9 +218,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-yes
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-yes 2>>EOE;
+      $rep_fetch --trust-yes 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
@@ -230,9 +231,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-no
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0;
+      $rep_fetch --trust-no 2>>EOE != 0
         fetching pkg:build2.org/rep-auth/signed
         error: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         EOE
@@ -243,9 +244,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-yes-no
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-yes --trust-no 2>>EOE != 0;
+      $rep_fetch --trust-yes --trust-no 2>>EOE != 0
         fetching pkg:build2.org/rep-auth/signed
         error: --trust-yes and --trust-no are mutually exclusive
         EOE
@@ -256,32 +257,32 @@ sc = " " # Space character to append to here-document line when required.
     : already-trusted
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-yes 2>>EOE;
+      $rep_fetch --trust-yes 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
-      $rep_fetch 2>>EOE;
+      $rep_fetch 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
-      $fetched;
+      $fetched
 
-      $rep_fetch --trust-no 2>>EOE;
+      $rep_fetch --trust-no 2>>EOE
         fetching pkg:build2.org/rep-auth/signed
         1 package(s) in 1 repository(s)
         EOE
 
       $fetched
     }
-  }
+  }}
 
   : rep-info
   :
-  {
+  {{
     rep_info += --cert-name --auth all $rep/signed
 
     : no-auth
@@ -312,25 +313,25 @@ sc = " " # Space character to append to here-document line when required.
     : already-trusted
     :
     {
-      $clone_root_cfg;
-      rep_info += -d cfg;
+      $clone_root_cfg
+      rep_info += -d cfg
 
-      $rep_info --trust "$cert_fp" &cfg/.bpkg/certs/** >>EOO;
+      $rep_info --trust "$cert_fp" &cfg/.bpkg/certs/** >>EOO
         name:build2.org
         EOO
 
       $rep_info >'name:build2.org'
     }
-  }
+  }}
 
   : subdomain-wildcard
   :
-  {
+  {{
     rep_info += --auth all --trust-yes --cert-name
 
     : self
     :
-    {
+    {{
       : exact
       :
       $rep_info $rep/self-match >'name:*build2.org'
@@ -338,13 +339,13 @@ sc = " " # Space character to append to here-document line when required.
       : subdomain
       :
       if! $remote
-      {
+      {{
         : first-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/self-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/self-match $r
 
           $rep_info $r/self-match >'name:*build2.org'
         }
@@ -352,21 +353,21 @@ sc = " " # Space character to append to here-document line when required.
         : second-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/self-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/self-match $r
 
           $rep_info $r/self-match 2>>EOE != 0
             error: certificate name mismatch for repository pkg:b.a.build2.org/self-match
               info: certificate name is *build2.org
             EOE
         }
-      }
-    }
+      }}
+    }}
 
     : self-any
     :
-    {
+    {{
       : exact
       :
       $rep_info $rep/self-any-match >'name:**build2.org'
@@ -374,13 +375,13 @@ sc = " " # Space character to append to here-document line when required.
       : subdomain
       :
       if! $remote
-      {
+      {{
         : first-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/self-any-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/self-any-match $r
 
           $rep_info $r/self-any-match >'name:**build2.org'
         }
@@ -388,18 +389,18 @@ sc = " " # Space character to append to here-document line when required.
         : second-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/self-any-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/self-any-match $r
 
           $rep_info $r/self-any-match >'name:**build2.org'
         }
-      }
-    }
+      }}
+    }}
 
     : subdomain
     :
-    {
+    {{
       : exact
       :
       $rep_info $rep/subdomain-match 2>>EOE != 0
@@ -410,13 +411,13 @@ sc = " " # Space character to append to here-document line when required.
       : subdomain
       :
       if! $remote
-      {
+      {{
         : first-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/subdomain-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/subdomain-match $r
 
           $rep_info $r/subdomain-match >'name:*.build2.org'
         }
@@ -424,35 +425,35 @@ sc = " " # Space character to append to here-document line when required.
         : second-level
         :
         {
-          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/);
-          mkdir -p $r;
-          cp -r $rep/subdomain-match $r;
+          r = $canonicalize([dir_path] $~/pkg/1/b.a.build2.org/)
+          mkdir -p $r
+          cp -r $rep/subdomain-match $r
 
           $rep_info $r/subdomain-match 2>>EOE != 0
             error: certificate name mismatch for repository pkg:b.a.build2.org/subdomain-match
               info: certificate name is *.build2.org
             EOE
         }
-      }
-    }
-  }
-}
+      }}
+    }}
+  }}
+}}
 
 : unsigned
 :
-{
+{{
   : rep-fetch
   :
-  {
+  {{
     +$clone_root_cfg && $rep_add $rep/unsigned1
     rep_fetch += --auth all
 
     : no-auth
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch 2>>~%EOE% != 0;
+      $rep_fetch 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/unsigned1
         warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         %continue without authenticating repositories at .+\? \[y/n\] %
@@ -465,9 +466,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-yes
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-yes 2>>EOE;
+      $rep_fetch --trust-yes 2>>EOE
         fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
@@ -478,9 +479,9 @@ sc = " " # Space character to append to here-document line when required.
     : trust-no
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0;
+      $rep_fetch --trust-no 2>>EOE != 0
         fetching pkg:build2.org/rep-auth/unsigned1
         error: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         EOE
@@ -491,30 +492,30 @@ sc = " " # Space character to append to here-document line when required.
     : already-trusted
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $rep_fetch --trust-yes 2>>EOE;
+      $rep_fetch --trust-yes 2>>EOE
         fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
-      $rep_fetch 2>>EOE;
+      $rep_fetch 2>>EOE
         fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
-      $fetched;
+      $fetched
 
-      $rep_fetch --trust-no 2>>EOE;
+      $rep_fetch --trust-no 2>>EOE
         fetching pkg:build2.org/rep-auth/unsigned1
         1 package(s) in 1 repository(s)
         EOE
 
-      $fetched;
+      $fetched
 
-      $rep_add $rep/unsigned2;
+      $rep_add $rep/unsigned2
 
-      $rep_fetch 2>>EOE;
+      $rep_fetch 2>>EOE
         fetching pkg:build2.org/rep-auth/unsigned1
         fetching pkg:build2.org/rep-auth/unsigned2
         1 package(s) in 2 repository(s)
@@ -522,11 +523,11 @@ sc = " " # Space character to append to here-document line when required.
 
       $fetched
     }
-  }
+  }}
 
   : rep-info
   :
-  {
+  {{
     rep_info += --name --auth all $rep/unsigned1
 
     : no-auth
@@ -552,22 +553,22 @@ sc = " " # Space character to append to here-document line when required.
     : already-trusted
     :
     {
-      $clone_root_cfg;
-      rep_info += -d cfg;
+      $clone_root_cfg
+      rep_info += -d cfg
 
-      $rep_info --trust-yes >>"EOO";
+      $rep_info --trust-yes >>"EOO"
         pkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
         EOO
       $rep_info >>"EOO"
         pkg:build2.org/rep-auth/unsigned1 ($rep/unsigned1)
         EOO
     }
-  }
-}
+  }}
+}}
 
 : faulty
 :
-{
+{{
   rep_info += --auth all --trust-yes
 
   : name-mismatch
@@ -599,15 +600,15 @@ sc = " " # Space character to append to here-document line when required.
 
   : create-rep
   :
-  {
+  {{
     : no-email
     :
     {
-      cp -r $src/unsigned rep;
+      cp -r $src/unsigned rep
 
-      echo 'certificate:\'                    >+rep/repositories.manifest;
-      cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories.manifest;
-      echo '\'                                >+rep/repositories.manifest;
+      echo 'certificate:\'                    >+rep/repositories.manifest
+      cat  <<<$src_base/auth/noemail-cert.pem >+rep/repositories.manifest
+      echo '\'                                >+rep/repositories.manifest
 
       $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
         added foo 1
@@ -618,16 +619,16 @@ sc = " " # Space character to append to here-document line when required.
     : expired
     :
     {
-      cp -r $src/unsigned rep;
+      cp -r $src/unsigned rep
 
-      echo 'certificate:\'                    >+rep/repositories.manifest;
-      cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories.manifest;
-      echo '\'                                >+rep/repositories.manifest;
+      echo 'certificate:\'                    >+rep/repositories.manifest
+      cat  <<<$src_base/auth/expired-cert.pem >+rep/repositories.manifest
+      echo '\'                                >+rep/repositories.manifest
 
       $rep_create --key $key rep &rep/packages.manifest 2>>/EOE != 0
         added foo 1
         error: certificate for repository rep/ has expired
         EOE
     }
-  }
-}
+  }}
+}}

@@ -3,7 +3,7 @@
 
 : apt-cache-policy
 :
-{
+{{
   test.arguments += apt-cache-policy
 
   : basics
@@ -71,11 +71,11 @@
     EOE
     pulseaudio '' ''
     EOO
-}
+}}
 
 : apt-cache-show
 :
-{
+{{
   test.arguments += apt-cache-show
 
   # Note: put Depends last to test folded/multiline parsing.
@@ -136,11 +136,11 @@
     EOI
     LC_ALL=C apt-cache show --quiet libssl1.1=1.1.1n-0+deb11u3 <-
     EOE
-}
+}}
 
 : parse-name-value
 :
-{
+{{
   test.arguments += parse-name-value
 
   : basics
@@ -190,11 +190,11 @@
     main: libfoo-dev
     dev: libfoo-dev-dev
     EOO
-}
+}}
 
 : main-from-dev
 :
-{
+{{
   test.arguments += main-from-dev
 
   : first
@@ -220,11 +220,11 @@
   $* libcurl4-openssl-dev 7.87.0-2 <<EOI >''
     libcurl4 (= 7.87.0-2)
     EOI
-}
+}}
 
 : map-package
 :
-{
+{{
   test.arguments += map-package
 
   : default-name
@@ -410,16 +410,16 @@
     version: 20210808
     main: byacc
     EOO
-}
+}}
 
 : build
 :
-{
+{{
   test.arguments += build
 
   : libsqlite3
   :
-  {
+  {{
     : installed
     :
     cat <<EOI >=libsqlite3-dev.policy;
@@ -706,11 +706,11 @@
       LC_ALL=C apt-cache policy --quiet libsqlite3-dev </dev/null
       error: no installed or available system package for libsqlite3
       EOE
-  }
+  }}
 
   : sqlite3
   :
-  {
+  {{
     : installed
     :
     cat <<EOI >=sqlite3.policy;
@@ -772,11 +772,11 @@
       EOE
       sqlite3 3.40.1 (sqlite3 3.40.1-1) not installed
       EOO
-  }
+  }}
 
   : libssl
   :
-  {
+  {{
     +cat <<EOI >=libcrypto.manifest
       : 1
       name: libcrypto
@@ -927,11 +927,11 @@
       libcrypto 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
       libssl 1.1.1 (libssl1.1 1.1.1n-0+deb11u3) not installed
       EOO
-  }
+  }}
 
   : libcurl
   :
-  {
+  {{
     # Note that libcurl3-gnutls libcurl4-gnutls-dev is not a mistake.
     #
     # Note also that there is a third flavor, libcurl3-nss libcurl4-nss-dev,
@@ -1010,7 +1010,6 @@
       EOE
       libcurl 7.85.0 (libcurl4 7.85.0-1) installed
       EOO
-
 
     : one-part-installed
     :
@@ -1173,5 +1172,5 @@
         info: candidate: libcurl3-gnutls 7.87.0-2, missing components: libcurl4-gnutls-dev
         info: consider fully installing the desired package manually and retrying the bpkg command
       EOE
-  }
-}
+  }}
+}}

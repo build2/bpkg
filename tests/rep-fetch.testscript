@@ -71,6 +71,7 @@ posix = ($cxx.target.class != 'windows')
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   # Create the signed 'hello' repository.
@@ -127,7 +128,7 @@ posix = ($cxx.target.class != 'windows')
   $git_extract $src/git/state1/libbaz.tar
   $git_extract $src/git/state1/style.tar
   $git_extract $src/git/state1/style-basic.tar &$out_git/state1/***
-end
+}
 
 rep_add      += -d cfg 2>!
 rep_list     += -d cfg --prerequisites --complements
@@ -149,15 +150,15 @@ $* 2>>/EOE != 0
 
 : pkg-rep
 :
-{
+{{
   test.options += --auth all
 
   : hello
   :
   {
-    $clone_root_cfg && $rep_add $rep/hello;
+    $clone_root_cfg && $rep_add $rep/hello
 
-    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/**;
+    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/hello
       1 package(s) in 1 repository(s)
       EOE
@@ -171,9 +172,9 @@ $* 2>>/EOE != 0
   : bar-unstable
   :
   {
-    $clone_root_cfg && $rep_add $rep/bar/unstable;
+    $clone_root_cfg && $rep_add $rep/bar/unstable
 
-    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**;
+    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
@@ -195,9 +196,9 @@ $* 2>>/EOE != 0
   : both
   :
   {
-    $clone_root_cfg && $rep_add $rep/hello $rep/bar/unstable;
+    $clone_root_cfg && $rep_add $rep/hello $rep/bar/unstable
 
-    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**;
+    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
@@ -221,9 +222,9 @@ $* 2>>/EOE != 0
   : location-args
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
-    $* --trust-yes $rep/bar/unstable 2>>EOE &cfg/.bpkg/certs/**;
+    $* --trust-yes $rep/bar/unstable 2>>EOE &cfg/.bpkg/certs/**
       added pkg:build2.org/rep-fetch/bar/unstable
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
@@ -232,7 +233,7 @@ $* 2>>/EOE != 0
       5 package(s) in 5 repository(s)
       EOE
 
-    $* 'pkg:build2.org/rep-fetch/bar/unstable' 2>>EOE;
+    $* 'pkg:build2.org/rep-fetch/bar/unstable' 2>>EOE
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
@@ -255,9 +256,9 @@ $* 2>>/EOE != 0
   : prerequisites-cycle
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
-    $* --trust-yes $rep/cycle/stable 2>>EOE;
+    $* --trust-yes $rep/cycle/stable 2>>EOE
       added pkg:build2.org/rep-fetch/cycle/stable
       fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
       fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
@@ -274,7 +275,7 @@ $* 2>>/EOE != 0
 
   : unreferenced-prerequisite
   :
-  {
+  {{
     +$clone_root_cfg
 
     # Create the no-cycle repository as the new state of the cycle repository.
@@ -295,16 +296,16 @@ $* 2>>/EOE != 0
     : remove
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $* --trust-yes $rep/cycle/stable 2>>EOE;
+      $* --trust-yes $rep/cycle/stable 2>>EOE
         added pkg:build2.org/rep-fetch/cycle/stable
         fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
         3 package(s) in 3 repository(s)
         EOE
 
-      $* --trust-yes $stable_rep 2>>EOE;
+      $* --trust-yes $stable_rep 2>>EOE
         updated pkg:build2.org/rep-fetch/cycle/stable
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
         2 package(s) in 2 repository(s)
@@ -319,16 +320,16 @@ $* 2>>/EOE != 0
     : no-remove
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $* --trust-yes $rep/cycle/stable 2>>EOE;
+      $* --trust-yes $rep/cycle/stable 2>>EOE
         added pkg:build2.org/rep-fetch/cycle/stable
         fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
         3 package(s) in 3 repository(s)
         EOE
 
-      $* --trust-yes $math_rep $stable_rep 2>>EOE;
+      $* --trust-yes $math_rep $stable_rep 2>>EOE
         added pkg:build2.org/rep-fetch/cycle/math
         updated pkg:build2.org/rep-fetch/cycle/stable
         fetching pkg:build2.org/rep-fetch/cycle/math
@@ -343,11 +344,11 @@ $* 2>>/EOE != 0
           prerequisite pkg:build2.org/rep-fetch/cycle/extra ($nc_rep/extra)
         EOO
     }
-  }
+  }}
 
   : use-auth
   :
-  {
+  {{
     : dependent-trust
     :
     : Test that the certificate of foo/stable complement repository is
@@ -357,9 +358,9 @@ $* 2>>/EOE != 0
     : persisted (otherwise cleanup of non-empty cfg/ directory would fail).
     :
     {
-      $clone_root_cfg;
+      $clone_root_cfg
 
-      $* -v $rep/foo/testing <'y' 2>>~%EOE%;
+      $* -v $rep/foo/testing <'y' 2>>~%EOE%
         added pkg:build2.org/rep-fetch/foo/testing
         %.*
         warning: repository pkg:build2.org/rep-fetch/foo/testing is unsigned
@@ -384,7 +385,7 @@ $* 2>>/EOE != 0
     : and the filesystem) rather than dependent trust.
     :
     {
-      $clone_root_cfg;
+      $clone_root_cfg
 
       $* -v --trust $cert_fp $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/testing
@@ -408,7 +409,7 @@ $* 2>>/EOE != 0
     {
       yy = 'y
 y'
-      $clone_root_cfg;
+      $clone_root_cfg
 
       $* -v $rep/foo/testing $rep/foo/stable <$yy 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/testing
@@ -434,7 +435,7 @@ y'
     : authentication for use by the dependent foo/test is noop.
     :
     {
-      $clone_root_cfg;
+      $clone_root_cfg
 
       $* -v --trust $cert_fp $rep/foo/stable $rep/foo/testing <'y' 2>>~%EOE% &cfg/.bpkg/certs/**
         added pkg:build2.org/rep-fetch/foo/stable
@@ -451,8 +452,8 @@ y'
         2 package(s) in 2 repository(s)
         EOE
     }
-  }
-}
+  }}
+}}
 
 : dir-rep
 :
@@ -460,7 +461,7 @@ y'
 : same repository structure.
 :
 if! $remote
-{
+{{
   rep_add += --type dir
 
   +cp -r $out_git/state0 $~/state0
@@ -483,14 +484,13 @@ if! $remote
   #
   if! $posix
     d = [dir_path] $string.lcase($d)
-  end
 
   : prerequisites
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $* 2>>"EOE";
+    $* 2>>"EOE"
       fetching dir:($d/libbar.git)
       fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)
@@ -508,10 +508,10 @@ if! $remote
   : (dir:/...) is not confused with the repository URL.
   :
   {
-    $clone_cfg;
-    $* 2>!;
+    $clone_cfg
+    $* 2>!
 
-    $* "dir:($d/libbar.git)" 2>>"EOE";
+    $* "dir:($d/libbar.git)" 2>>"EOE"
       fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)
       EOE
@@ -524,16 +524,16 @@ if! $remote
 
   : shallow
   :
-  {
+  {{
     +$clone_cfg
 
     : respected
     :
     {
-      $clone_cfg;
-      $* 2>!;
+      $clone_cfg
+      $* 2>!
 
-      $* --shallow "dir:($d/libbar.git)" 2>>"EOE";
+      $* --shallow "dir:($d/libbar.git)" 2>>"EOE"
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -546,9 +546,9 @@ if! $remote
     : ignored
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $* --shallow 2>>"EOE";
+      $* --shallow 2>>"EOE"
         fetching dir:($d/libbar.git)
         fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
         3 package\(s\) in 2 repository\(s\)
@@ -559,21 +559,21 @@ if! $remote
         %  prerequisite dir:.+style-basic\.git dir\+file:///.+style-basic\.git%
         EOO
     }
-  }
-}
+  }}
+}}
 
 : iter
 :
-{
+{{
   rep_add += --type dir
 
   : multiple-repos
   :
   {
-    cp -r $src/libhello-1.0.0 libhello1;
-    cp -r $src/libhello-1.0.0 libhello2;
+    cp -r $src/libhello-1.0.0 libhello1
+    cp -r $src/libhello-1.0.0 libhello2
 
-    $clone_root_cfg && $rep_add libhello1 libhello2;
+    $clone_root_cfg && $rep_add libhello1 libhello2
 
     $* 2>>~%EOE% != 0
       %fetching dir:.+libhello1%
@@ -586,21 +586,21 @@ if! $remote
 
   : inc
   :
-  {
+  {{
     : path-changed
     :
     {
-      $clone_root_cfg && $rep_add $src/libhello-1.0.0;
+      $clone_root_cfg && $rep_add $src/libhello-1.0.0
 
-      $* 2>!;
-      $pkg_unpack libhello/1.0.0;
+      $* 2>!
+      $pkg_unpack libhello/1.0.0
 
-      $rep_remove --all;
+      $rep_remove --all
 
-      cp -r $src/libhello-1.0.0 libhello;
-      $rep_add libhello;
+      cp -r $src/libhello-1.0.0 libhello
+      $rep_add libhello
 
-      $* 2>!;
+      $* 2>!
 
       $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
     }
@@ -608,21 +608,21 @@ if! $remote
     : manifest-changed
     :
     {
-      cp -r $src/libhello-1.0.0 libhello;
+      cp -r $src/libhello-1.0.0 libhello
 
-      $clone_root_cfg && $rep_add libhello;
+      $clone_root_cfg && $rep_add libhello
 
-      $* 2>!;
-      $pkg_unpack libhello/1.0.0;
+      $* 2>!
+      $pkg_unpack libhello/1.0.0
 
-      echo "" >+ libhello/manifest;
-      $* 2>!;
+      echo "" >+ libhello/manifest
+      $* 2>!
 
       $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
     }
 
     : pkg-rep
-    {
+    {{
       +$clone_root_cfg
 
       +$* --auth all --trust-yes $rep/hello &cfg/.bpkg/certs/** 2>!
@@ -636,8 +636,8 @@ if! $remote
       : package.
       :
       {
-        $clone_cfg && $rep_add $src/libhello-1.0.0;
-        $* 2>!;
+        $clone_cfg && $rep_add $src/libhello-1.0.0
+        $* 2>!
 
         $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
       }
@@ -645,17 +645,17 @@ if! $remote
       : changed-external
       :
       {
-        cp -r $src/libhello-1.0.0 libhello;
-        echo "" >+ libhello/manifest;
+        cp -r $src/libhello-1.0.0 libhello
+        echo "" >+ libhello/manifest
 
-        $clone_cfg && $rep_add libhello;
-        $* 2>!;
+        $clone_cfg && $rep_add libhello
+        $* 2>!
 
         $pkg_status libhello >'libhello unpacked 1.0.0 available 1.0.0#1'
       }
 
       -$pkg_purge libhello 2>'purged libhello/1.0.0'
-    }
+    }}
 
     : git-rep
     :
@@ -664,110 +664,110 @@ if! $remote
     :
     if ($git_supported && !$remote)
     {
-      rep = $canonicalize([dir_path] $out_git/state0);
+      rep = $canonicalize([dir_path] $out_git/state0)
 
-      $clone_root_cfg;
+      $clone_root_cfg
 
-      $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***;
+      $* "$rep/style.git#master" 2>! &cfg/.bpkg/repos/*/***
 
-      $pkg_checkout "style/1.0.0" 2>!;
+      $pkg_checkout "style/1.0.0" 2>!
 
-      $rep_add $rep/style.git;
-      $* 2>!;
+      $rep_add $rep/style.git
+      $* 2>!
 
-      $pkg_status style >"style unpacked 1.0.0 available 1.0.0#1";
+      $pkg_status style >"style unpacked 1.0.0 available 1.0.0#1"
 
       $pkg_purge style 2>"purged style/1.0.0"
     }
-  }
+  }}
 
   : no-inc
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
-    $pkg_unpack -e $src/libhello-1.0.0;
+    $pkg_unpack -e $src/libhello-1.0.0
 
-    $rep_add $src/libhello-1.0.0;
+    $rep_add $src/libhello-1.0.0
 
-    $* 2>>~%EOE%;
+    $* 2>>~%EOE%
       %fetching dir:.+libhello-1.0.0%
       1 package(s) in 1 repository(s)
       EOE
 
     $pkg_status libhello >'libhello unpacked 1.0.0'
   }
-}
+}}
 
 : git-rep
 :
 if! $git_supported
-{
+{{
   # Skip git repository tests.
   #
-}
+}}
 else
-{
+{{
   : proto
   :
   if! $remote
-  {
+  {{
     git_protocol = 'local'
     .include rep-fetch-git.testscript
-  }
+  }}
   else
-  {
+  {{
     : https-dumb
     :
-    {
+    {{
       git_protocol = 'https-dumb'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : https-smart
     :
-    {
+    {{
       git_protocol = 'https-smart'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : https-smart-unadv
     :
-    {
+    {{
       git_protocol = 'https-smart-unadv'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : git
     :
-    {
+    {{
       git_protocol = 'git'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : git-unadv
     :
-    {
+    {{
       git_protocol = 'git-unadv'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : ssh
     :
     if $git_ssh
-    {
+    {{
       git_protocol = 'ssh'
       .include rep-fetch-git.testscript
-    }
+    }}
 
     : ssh-unadv
     :
     if $git_ssh
-    {
+    {{
       git_protocol = 'ssh-unadv'
       .include rep-fetch-git.testscript
-    }
-  }
+    }}
+  }}
 
   : strip-ext
   :
@@ -777,18 +777,18 @@ else
   :
   if! $remote
   {
-    cp -r $out_git/state0/libbar.git libbar.git;
-    cp -r $out_git/state0/style-basic.git style-basic;
+    cp -r $out_git/state0/libbar.git libbar.git
+    cp -r $out_git/state0/style-basic.git style-basic
 
-    $clone_root_cfg;
+    $clone_root_cfg
 
     rep = ($posix \
            ? "file:$~" \
-           : "file:/$regex.replace($~, '\\', '/')");
+           : "file:/$regex.replace($~, '\\', '/')")
 
-    rep = "$regex.replace($rep, ' ', '%20')";
+    rep = "$regex.replace($rep, ' ', '%20')"
 
-    $* "$rep/libbar.git#master" 2>>~%EOE% &cfg/.bpkg/repos/*/***;
+    $* "$rep/libbar.git#master" 2>>~%EOE% &cfg/.bpkg/repos/*/***
       %added git:.+libbar#master%
       %querying .+libbar\.git%
       %fetching from .+libbar\.git%
@@ -810,7 +810,7 @@ else
   : submodules directory, then rep-fetch checks out submoodules.
   :
   {
-    $clone_root_cfg && $rep_add "$rep_git/state0/libfox.git#master";
+    $clone_root_cfg && $rep_add "$rep_git/state0/libfox.git#master"
 
     $* 2>>~%EOE% &cfg/.bpkg/repos/*/***
       %fetching git:.+libfox#master%
@@ -836,9 +836,9 @@ else
   :
   if $remote
   {
-    $clone_root_cfg && $rep_add "$rep_git_git/state0/libfoo.git#master";
-    $* 2>! &cfg/.bpkg/repos/*/***;
-    $rep_add "$rep_git_https_smart/state0/libfoo.git#master";
+    $clone_root_cfg && $rep_add "$rep_git_git/state0/libfoo.git#master"
+    $* 2>! &cfg/.bpkg/repos/*/***
+    $rep_add "$rep_git_https_smart/state0/libfoo.git#master"
 
     $* 2>>~%EOE%
       %fetching git:.+libfoo#master%
@@ -856,7 +856,7 @@ else
   : filesystem state is changed.
   :
   {
-    $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master";
+    $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
 
     # Extract the repository path from the output line like this:
     #
@@ -865,13 +865,13 @@ else
     $* -v 2>&1                                         | \
       sed -n -e "s/fetching from .+ in '\(.+\)'/\$1/p" | \
       sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p'  | \
-      set r;
+      set r
 
     # Break the repo (drop the remote repository URL) and try to re-fetch.
     #
-    rm "$r/.git/config";
+    rm "$r/.git/config"
 
-    $* 2>>~%EOE% != 0;
+    $* 2>>~%EOE% != 0
       %.+
       warning: repository state is now broken and will be cleaned up
         info: run 'bpkg rep-fetch' to update
@@ -882,16 +882,16 @@ else
 
   : ref-filters
   :
-  {
+  {{
     test.cleanups += &?cfg/.bpkg/repos/*/***
 
     : pattern
     :
-    {
+    {{
       : matching
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git#v**" 2>>~%EOE%
           %added .+libfoo#v\*\*%
@@ -905,7 +905,7 @@ else
       : non-matching
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git#tags/mast*" 2>>~%EOE%
           %added .+libfoo#tags/mast\*%
@@ -913,15 +913,15 @@ else
           0 package(s) in 1 repository(s)
           EOE
       }
-    }
+    }}
 
     : name
     :
-    {
+    {{
       : non-matching
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git#foo" 2>>~%EOE% != 0
           %added .+libfoo#foo%
@@ -929,15 +929,15 @@ else
           error: reference 'foo' is not found
           EOE
       }
-    }
+    }}
 
     : commit
     :
-    {
+    {{
       : non-matching-pattern
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
           %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
@@ -949,7 +949,7 @@ else
       : unexisting
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
           %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
@@ -959,12 +959,12 @@ else
           error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
           EOE
       }
-    }
+    }}
 
     : exclusion
     :
     {
-      $clone_root_cfg;
+      $clone_root_cfg
 
       $* "$rep_git/state0/libfoo.git#mast*,-master" 2>>~%EOE%
         %added .+libfoo#mast\*,-master%
@@ -976,7 +976,7 @@ else
     : inclusion
     :
     {
-      $clone_root_cfg;
+      $clone_root_cfg
 
       $* "$rep_git/state0/libfoo.git#tags/mast*,+master" 2>>~%EOE%
         %added .+libfoo#tags/mast\*,\+master%
@@ -989,11 +989,11 @@ else
 
     : default
     :
-    {
+    {{
       : no-fragment
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git" 2>>~%EOE%
           %added .+libfoo%
@@ -1007,7 +1007,7 @@ else
       : with-exclusion
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
         $* "$rep_git/state0/libfoo.git##-/tags/v1*" 2>>~%EOE%
           %added .+libfoo##-/tags/v1\*%
@@ -1021,15 +1021,15 @@ else
       : latest-revision
       :
       {
-        $clone_root_cfg;
+        $clone_root_cfg
 
-        $* "$rep_git/state0/libbar.git" 2>>~%EOE%;
+        $* "$rep_git/state0/libbar.git" 2>>~%EOE%
           %.+
           3 package(s) in 2 repository(s)
           EOE
 
         $pkg_status libbar >'libbar available 1.0.0+1'
       }
-    }
-  }
-}
+    }}
+  }}
+}}

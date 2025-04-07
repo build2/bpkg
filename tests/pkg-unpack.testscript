@@ -29,6 +29,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   # Create the signed 'hello' repository.
@@ -46,7 +47,7 @@
   # Create git repositories.
   #
   $git_extract $src/git/style-basic.tar &$out_git/state0/***
-end
+}
 
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
@@ -95,27 +96,27 @@ $* 2>>EOE != 0
 
 : fetched-rep
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t1 && $rep_fetch --trust-yes
 
   : package-exists
   :
   {
-    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+    $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $pkg_purge  libfoo       2>'purged libfoo/1.0.0';
-    $*  -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
-    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0';
+    $pkg_purge  libfoo       2>'purged libfoo/1.0.0'
+    $*  -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
-    $pkg_configure libfoo  2>'configured libfoo/1.1.0';
-    test    -d cfg/libfoo;
-    $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0';
+    $pkg_configure libfoo  2>'configured libfoo/1.1.0'
+    test    -d cfg/libfoo
+    $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -123,16 +124,16 @@ $* 2>>EOE != 0
   : replace-fetched
   :
   {
-    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+    $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
-    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0';
+    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -140,18 +141,18 @@ $* 2>>EOE != 0
   : replace-unpacked
   :
   {
-    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+    $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* libfoo 2>'unpacked libfoo/1.0.0';
+    $* libfoo 2>'unpacked libfoo/1.0.0'
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0;
+    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: unpacked, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
-    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0';
+    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -159,15 +160,15 @@ $* 2>>EOE != 0
   : wrong-state
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $* libfoo 2>>/EOE != 0;
+    $* libfoo 2>>/EOE != 0
       error: package libfoo does not exist in configuration cfg/
       EOE
 
-    $* -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
+    $* -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
 
-    $* libfoo 2>>EOE != 0;
+    $* libfoo 2>>EOE != 0
       error: package libfoo is unpacked
         info: expected it to be fetched
       EOE
@@ -178,15 +179,15 @@ $* 2>>EOE != 0
   : right-state
   :
   {
-    $clone_cfg && $pkg_fetch libfoo/1.0.0;
+    $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0';
-    $*          libfoo       2>'unpacked libfoo/1.0.0';
-    $pkg_status libfoo/1.0.0 1>'libfoo unpacked 1.0.0';
+    $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0'
+    $*          libfoo       2>'unpacked libfoo/1.0.0'
+    $pkg_status libfoo/1.0.0 1>'libfoo unpacked 1.0.0'
 
-    $pkg_configure libfoo        2>'configured libfoo/1.0.0';
-    test    -d cfg/libfoo-1.0.0;
-    $pkg_disfigure libfoo        2>'disfigured libfoo/1.0.0';
+    $pkg_configure libfoo        2>'configured libfoo/1.0.0'
+    test    -d cfg/libfoo-1.0.0
+    $pkg_disfigure libfoo        2>'disfigured libfoo/1.0.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }
@@ -194,24 +195,24 @@ $* 2>>EOE != 0
   : purge-existing
   :
   {
-    $clone_cfg;
-    cp --no-cleanup -r $src/libfoo-1.1.0 ./;
+    $clone_cfg
+    cp --no-cleanup -r $src/libfoo-1.1.0 ./
 
-    $* --purge --existing libfoo-1.1.0 2>'using libfoo/1.1.0 (external)';
+    $* --purge --existing libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
-}
+}}
 
 : dir-rep
 :
-{
+{{
   rep_add += --type dir
 
   : no-repos
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
     $* libfoo/1.1.0 2>>/EOE != 0
       error: configuration cfg/ has no repositories
@@ -222,7 +223,7 @@ $* 2>>EOE != 0
   : unfetched
   :
   {
-    $clone_root_cfg && $rep_add $src/libfoo-1.1.0;
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0
 
     $* libfoo/1.1.0 2>>/EOE != 0
       error: configuration cfg/ has no available packages
@@ -233,7 +234,7 @@ $* 2>>EOE != 0
   : unavailable
   :
   {
-    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch;
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch
 
     $* libfoo/1.0.0 2>>EOE != 0
       error: package libfoo 1.0.0 is not available
@@ -243,7 +244,7 @@ $* 2>>EOE != 0
   : unavailable-dir-based
   :
   {
-    $clone_root_cfg && $rep_add $rep/t1 --type pkg && $rep_fetch --trust-yes;
+    $clone_root_cfg && $rep_add $rep/t1 --type pkg && $rep_fetch --trust-yes
 
     $* libfoo/1.0.0 2>>EOE != 0
       error: package libfoo 1.0.0 is not available from a directory-based repository
@@ -253,23 +254,23 @@ $* 2>>EOE != 0
   : available
   :
   {
-    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch;
+    $clone_root_cfg && $rep_add $src/libfoo-1.1.0 && $rep_fetch
 
-    $* libfoo/1.1.0 2>>EOE;
+    $* libfoo/1.1.0 2>>EOE
       using libfoo/1.1.0 (external)
       EOE
 
-    $pkg_status libfoo 1>'libfoo unpacked 1.1.0';
+    $pkg_status libfoo 1>'libfoo unpacked 1.1.0'
 
-    $pkg_configure libfoo  2>'configured libfoo/1.1.0';
-    test    -d cfg/libfoo;
+    $pkg_configure libfoo  2>'configured libfoo/1.1.0'
+    test    -d cfg/libfoo
     $pkg_disfigure libfoo  2>'disfigured libfoo/1.1.0'
   }
-}
+}}
 
 : existing
 :
-{
+{{
   : version-fixup
   :
   : Test that the version is populated with the snapshot information for the
@@ -277,24 +278,24 @@ $* 2>>EOE != 0
   :
   if! $remote
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
-    rep = $canonicalize([dir_path] $out_git/state0);
+    rep = $canonicalize([dir_path] $out_git/state0)
 
     $* -e $rep/style-basic.git 2>>~%EOE%
       %using style-basic/1\.1\.0-a\.0\.\d+\..+ \(external\)%
       EOE
   }
-}
+}}
 
 : hello
 :
 {
-  $clone_cfg;
-  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**;
-  $pkg_fetch libhello/1.0.0;
+  $clone_cfg
+  $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**
+  $pkg_fetch libhello/1.0.0
 
-  $* libhello 2>'unpacked libhello/1.0.0';
+  $* libhello 2>'unpacked libhello/1.0.0'
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }

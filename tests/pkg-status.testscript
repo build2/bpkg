@@ -35,6 +35,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   cp -r $src/extra    $out/extra
   cp -r $src/stable   $out/stable
   cp -r $src/testing  $out/testing
@@ -52,7 +53,7 @@
   $git_extract $src/git/style.tar
   $git_extract $src/git/libbar.tar
   $git_extract $src/git/style-basic.tar &$out_git/state0/***
-end
+}
 
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
@@ -63,17 +64,17 @@ pkg_drop   += -d cfg --yes 2>!
 
 : lines
 :
-{
+{{
   +$clone_cfg
 
   : basics
   :
-  {
+  {{
     +$clone_cfg
 
     : not-fetched
     :
-    {
+    {{
       +$clone_cfg
 
       : libfoo-1.0.0
@@ -85,11 +86,11 @@ pkg_drop   += -d cfg --yes 2>!
       :
       $clone_cfg;
       $* libfoo >'libfoo unknown'
-    }
+    }}
 
     : rep-fetched
     :
-    {
+    {{
       +$clone_cfg && $rep_add $rep/stable && $rep_fetch
 
       +cp -r cfg ./fetched
@@ -112,7 +113,7 @@ pkg_drop   += -d cfg --yes 2>!
 
       : pkg-fetched
       :
-      {
+      {{
         clone_cfg = cp -r ../../fetched cfg
 
         : libfoo-1.0.0
@@ -124,12 +125,12 @@ pkg_drop   += -d cfg --yes 2>!
         :
         $clone_cfg;
         $* libfoo >'libfoo fetched 1.0.0'
-      }
-    }
-  }
+      }}
+    }}
+  }}
 
   : multiple-versions
-  {
+  {{
     # Prepare the nested tests to copy the root configuration. Note that they
     # must provide the destination directory name as an argument.
     #
@@ -137,7 +138,7 @@ pkg_drop   += -d cfg --yes 2>!
 
     : extra
     :
-    {
+    {{
       # Here we, first, prepare 2 configurations that derive from each other,
       # and then spawn 2 tests on them.
       #
@@ -153,11 +154,11 @@ pkg_drop   += -d cfg --yes 2>!
       : libbar-stable
       :
       $* -d ../extra-stable libbar >'libbar available 1.1.0+1 1.0.0'
-    }
+    }}
 
     : testing
     :
-    {
+    {{
       +$clone_cfg ./ && $rep_add $rep/testing && $rep_fetch
 
       clone_cfg = cp -r ../cfg ./
@@ -165,43 +166,43 @@ pkg_drop   += -d cfg --yes 2>!
       : no-version
       :
       {
-        $clone_cfg;
+        $clone_cfg
         $* libbar >'libbar available [1.1.0+1] 1.1.0 1.0.0+1 1.0.0'
       }
 
       : no-revision
       :
       {
-        $clone_cfg;
+        $clone_cfg
         $* libbar/1.0.0 >'libbar available 1.0.0+1 1.0.0'
       }
 
       : zero-revision
       :
       {
-        $clone_cfg;
+        $clone_cfg
         $* libbar/1.0.0+0 >'libbar available 1.0.0'
       }
 
       : recursive
       :
       {
-        $clone_cfg;
+        $clone_cfg
 
-        $pkg_build libbar;
+        $pkg_build libbar
 
-        $* libbar --recursive >>EOO;
+        $* libbar --recursive >>EOO
           !libbar configured 1.1.0 available [1.1.0+1]
             libbaz configured 1.0.0
           EOO
 
         $pkg_drop libbar
       }
-    }
+    }}
 
     : unstable
     :
-    {
+    {{
       # Here we, first, prepare 3 configurations that derive from each other,
       # and then spawn 3 tests on them.
       #
@@ -225,18 +226,18 @@ pkg_drop   += -d cfg --yes 2>!
       : fetched-2
       :
       $* -d ../fetched2 libbar >'libbar fetched 2.0.0'
-    }
-  }
+    }}
+  }}
 
   : git-rep
   :
   if! $git_supported
-  {
+  {{
     # Skip git repository tests.
     #
-  }
+  }}
   else
-  {
+  {{
     rep = "$rep_git/state0"
     test.cleanups += &cfg/.bpkg/repos/*/***
 
@@ -255,19 +256,19 @@ pkg_drop   += -d cfg --yes 2>!
     $rep_fetch 2>!;
 
     $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
-  }
-}
+  }}
+}}
 
 : json
 :
-{
+{{
   test.arguments += --stdout-format json
 
   +$clone_cfg
 
   : not-fetched
   :
-  {
+  {{
     +$clone_cfg
 
     : libfoo-1.0.0
@@ -294,11 +295,11 @@ pkg_drop   += -d cfg --yes 2>!
         }
       ]
       EOO
-  }
+  }}
 
   : fetched
   :
-  {
+  {{
     +$clone_cfg
 
     +$rep_add $rep/testing && $rep_fetch
@@ -306,11 +307,11 @@ pkg_drop   += -d cfg --yes 2>!
     : recursive
     :
     {
-      $clone_cfg;
+      $clone_cfg
 
-      $pkg_build libbar;
+      $pkg_build libbar
 
-      $* libbar --recursive --constraint >>EOO;
+      $* libbar --recursive --constraint >>EOO
         [
           {
             "name": "libbar",
@@ -337,5 +338,5 @@ pkg_drop   += -d cfg --yes 2>!
 
       $pkg_drop libbar
     }
-  }
-}
+  }}
+}}

@@ -31,4 +31,3 @@ rep  = ($remote ? [string] "$rep_root/$cmd" : $out)
 
 +if! $remote
   mkdir -p $out
-end

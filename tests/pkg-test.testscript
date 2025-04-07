@@ -20,10 +20,11 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   cp -r $src/t0a $out/t0a && $rep_create $out/t0a &$out/t0a/packages.manifest
-end
+}
 
 cfg_create += -d cfg 2>! &cfg/***
 pkg_build  += -d cfg --yes --auth all --trust-yes 2>!
@@ -34,7 +35,7 @@ test.options += --build-option -s
 
 : args
 :
-{
+{{
   : no-name
   :
   $* 2>>EOE != 0
@@ -69,12 +70,12 @@ test.options += --build-option -s
       error: both --immediate|-i and --recursive|-r specified
         info: run 'bpkg help pkg-test' for more information
       EOE
-}
+}}
 
 : package
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
   $* libbaz 2>>~%EOE%
       %info: .+ has nothing to test%
@@ -84,11 +85,11 @@ test.options += --build-option -s
 
 : all
 :
-{
+{{
   : src
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
     $* --all 2>>~%EOE%
         %info: .+ has nothing to test%
@@ -99,20 +100,20 @@ test.options += --build-option -s
   : sys
   :
   {
-    $cfg_create;
-    $pkg_build "sys:libbaz@$rep/t0a";
+    $cfg_create
+    $pkg_build "sys:libbaz@$rep/t0a"
 
     $* --all 2>'info: nothing to test'
   }
-}
+}}
 
 : all-pattern
 :
-{
+{{
   : match
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
     $* --all-pattern 'libf*' --all-pattern 'lib*' --all-pattern 'libz*' 2>>~%EOE%
         %info: .+ has nothing to test%
@@ -123,16 +124,16 @@ test.options += --build-option -s
   : not-match
   :
   {
-    $clone_root_cfg;
+    $clone_root_cfg
 
     $* --all-pattern 'libf*' 2>'info: nothing to test'
   }
-}
+}}
 
 : immediate
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
   $* libbaz --immediate 2>>~%EOE%
       %info: .+ has nothing to test%{2}
@@ -144,7 +145,7 @@ test.options += --build-option -s
 : recursive
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
   $* libbaz --recursive 2>>~%EOE%
       %info: .+ has nothing to test%{3}
@@ -157,7 +158,7 @@ test.options += --build-option -s
 : package-cwd
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
   $* libbaz --recursive --package-cwd -v 2>>/~%EOE%
       %(.+ test\('\./'\)|info: .+ has nothing to test)%{6}

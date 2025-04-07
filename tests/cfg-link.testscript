@@ -20,7 +20,7 @@ sp = ' '
 : self
 :
 {
-  $cfg_create -d cfg1 --uuid "$uuid1" &cfg1/***;
+  $cfg_create -d cfg1 --uuid "$uuid1" &cfg1/***
 
   $* -d cfg1 cfg1 2>>/"EOE" != 0
     error: linking configuration $~/cfg1/ with itself
@@ -31,8 +31,8 @@ sp = ' '
 : same-name
 :
 {
-  $cfg_create -d cfg1 --name 'main'   &cfg1/***;
-  $cfg_create -d cfg2 --name 'shared' &cfg2/***;
+  $cfg_create -d cfg1 --name 'main'   &cfg1/***
+  $cfg_create -d cfg2 --name 'shared' &cfg2/***
 
   $* -d cfg1 cfg2 --name 'main' 2>>/"EOE" != 0
     error: linking configuration $~/cfg2/ using current configuration name 'main'
@@ -43,9 +43,9 @@ sp = ' '
 : basic
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>>/"EOE";
+  $* -d cfg1 cfg2 2>>/"EOE"
     linked with configuration $~/cfg2/
       uuid: $uuid2
       type: target
@@ -53,7 +53,7 @@ sp = ' '
       id:   1
     EOE
 
-  $cfg_info -d cfg1 >>/"EOO";
+  $cfg_info -d cfg1 >>/"EOO"
     path: $~/cfg1/
     uuid: $uuid1
     type: target
@@ -65,7 +65,7 @@ sp = ' '
     name: shared
     EOO
 
-  $cfg_info -d cfg2 --backlink >>/"EOO";
+  $cfg_info -d cfg2 --backlink >>/"EOO"
     path: $~/cfg2/
     uuid: $uuid2
     type: target
@@ -79,7 +79,7 @@ sp = ' '
 
   # While at it, test that an implicit link is unnamed.
   #
-  mv cfg1 cfg1.tmp;
+  mv cfg1 cfg1.tmp
 
   $cfg_info -d cfg2 --dangling >>/"EOO"
     path: $~/cfg2/
@@ -97,14 +97,14 @@ sp = ' '
 : implicit-relink
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  rm -r cfg1/;
-  $cfg_create -d cfg1 --name 'foo' --uuid "$uuid1";
+  rm -r cfg1/
+  $cfg_create -d cfg1 --name 'foo' --uuid "$uuid1"
 
-  $* -d cfg1 cfg2 2>>/"EOE";
+  $* -d cfg1 cfg2 2>>/"EOE"
     warning: current configuration $~/cfg1/ is already implicitly linked with $~/cfg2/
     linked with configuration $~/cfg2/
       uuid: $uuid2
@@ -129,11 +129,11 @@ sp = ' '
 : turn-implicit-explicit
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  $* -d cfg2 cfg1 2>>/"EOE";
+  $* -d cfg2 cfg1 2>>/"EOE"
     linked with configuration $~/cfg1/
       uuid: $uuid1
       type: target
@@ -141,7 +141,7 @@ sp = ' '
       id:   1
     EOE
 
-  $cfg_info -d cfg2 >>/"EOO";
+  $cfg_info -d cfg2 >>/"EOO"
     path: $~/cfg2/
     uuid: $uuid2
     type: target
@@ -153,7 +153,7 @@ sp = ' '
     name: main
     EOO
 
-  $cfg_info -d cfg1 >>/"EOO";
+  $cfg_info -d cfg1 >>/"EOO"
     path: $~/cfg1/
     uuid: $uuid1
     type: target
@@ -175,9 +175,9 @@ sp = ' '
 : uuid-clash
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
   $* -d cfg1 cfg2 2>>/"EOE" != 0
     error: configuration with uuid $uuid2 is already linked as ../cfg2/
@@ -187,12 +187,12 @@ sp = ' '
 : path-clash
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  mv cfg2 cfg2.tmp;
-  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3" &cfg2/***;
+  mv cfg2 cfg2.tmp
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3" &cfg2/***
 
   $* -d cfg1 cfg2 2>>/"EOE" != 0
     error: configuration with path $~/cfg2/ is already linked
@@ -202,13 +202,13 @@ sp = ' '
 : name-clash
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  $cfg_create -d cfg3 --name 'shared' --uuid "$uuid3" &cfg3/***;
+  $cfg_create -d cfg3 --name 'shared' --uuid "$uuid3" &cfg3/***
 
-  $* -d cfg1 cfg3 --name 'shared' 2>>/"EOE" != 0;
+  $* -d cfg1 cfg3 --name 'shared' 2>>/"EOE" != 0
     error: configuration with name shared is already linked as ../cfg2/
       info: consider specifying alternative name with --name
     EOE
@@ -225,13 +225,13 @@ sp = ' '
 : implicit-link-path-clash
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
-  $* -d cfg2 cfg1 2>!;
+  $* -d cfg1 cfg2 2>!
+  $* -d cfg2 cfg1 2>!
 
-  mv cfg1 cfg1.tmp;
-  $cfg_create -d cfg1 --name 'main' --uuid "$uuid3" &cfg1/***;
+  mv cfg1 cfg1.tmp
+  $cfg_create -d cfg1 --name 'main' --uuid "$uuid3" &cfg1/***
 
   $* -d cfg1 cfg2 2>>/"EOE" != 0
     error: current configuration $~/cfg1/ is already linked with $~/cfg2/
@@ -241,22 +241,22 @@ sp = ' '
 : uuid-mismatch
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  mv cfg2 cfg2.tmp;
+  mv cfg2 cfg2.tmp
 
-  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3";
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid3"
 
-  $cfg_info -d cfg1 >- 2>>/"EOE" != 0;
+  $cfg_info -d cfg1 >- 2>>/"EOE" != 0
     error: configuration cfg2/ uuid mismatch
       info: uuid $uuid3
       info: linked with cfg1/ as $uuid2
     EOE
 
-  rm -r cfg2;
-  mv cfg2.tmp cfg2;
+  rm -r cfg2
+  mv cfg2.tmp cfg2
 
   $cfg_info -d cfg1 >>/"EOO"
     path: $~/cfg1/
@@ -274,13 +274,13 @@ sp = ' '
 : type-mismatch
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg1 cfg2 2>!;
+  $* -d cfg1 cfg2 2>!
 
-  rm -r cfg2;
+  rm -r cfg2
 
-  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid2" --type 'shared';
+  $cfg_create -d cfg2 --name 'shared' --uuid "$uuid2" --type 'shared'
 
   $cfg_info -d cfg1 >- 2>>/"EOE" != 0
     error: configuration cfg2/ type mismatch

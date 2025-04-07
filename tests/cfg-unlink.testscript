@@ -11,10 +11,11 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
-end
+}
 
 cfg_create +=             2>!
 cfg_info   += --link
@@ -35,11 +36,11 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
 
 : unlink
 :
-{
+{{
   : name-dir
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
     $* -d cfg1 cfg2 --name 'host' 2>/'error: both --name and directory argument specified' != 0
   }
@@ -47,13 +48,13 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : dir
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $* -d cfg1 cfg1 2>/"error: no configuration with path $~/cfg1/ is linked with cfg1/" != 0;
+    $* -d cfg1 cfg1 2>/"error: no configuration with path $~/cfg1/ is linked with cfg1/" != 0
 
-    $* -d cfg1 cfg2 2>/"unlinked configuration $~/cfg2/";
+    $* -d cfg1 cfg2 2>/"unlinked configuration $~/cfg2/"
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
@@ -71,13 +72,13 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : name
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $* -d cfg1 --name 'target' 2>/"error: no configuration with name 'target' is linked with cfg1/" != 0;
+    $* -d cfg1 --name 'target' 2>/"error: no configuration with name 'target' is linked with cfg1/" != 0
 
-    $* -d cfg1 --name 'shared' 2>/"unlinked configuration $~/cfg2/";
+    $* -d cfg1 --name 'shared' 2>/"unlinked configuration $~/cfg2/"
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
@@ -95,13 +96,13 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : id
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $* -d cfg1 --id 2 2>/"error: no configuration with id 2 is linked with cfg1/" != 0;
+    $* -d cfg1 --id 2 2>/"error: no configuration with id 2 is linked with cfg1/" != 0
 
-    $* -d cfg1 --id 1 2>/"unlinked configuration $~/cfg2/";
+    $* -d cfg1 --id 1 2>/"unlinked configuration $~/cfg2/"
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
@@ -119,13 +120,13 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : uuid
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $* -d cfg1 --uuid $cfg1_uuid 2>/"error: no configuration with uuid $cfg1_uuid is linked with cfg1/" != 0;
+    $* -d cfg1 --uuid $cfg1_uuid 2>/"error: no configuration with uuid $cfg1_uuid is linked with cfg1/" != 0
 
-    $* -d cfg1 --uuid $cfg2_uuid 2>/"unlinked configuration $~/cfg2/";
+    $* -d cfg1 --uuid $cfg2_uuid 2>/"unlinked configuration $~/cfg2/"
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
@@ -143,16 +144,16 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : mutual
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $cfg_link -d cfg2 cfg1 2>!;
+    $cfg_link -d cfg2 cfg1 2>!
 
-    $* -d cfg1 cfg2 2>>/"EOE";
+    $* -d cfg1 cfg2 2>>/"EOE"
       info: configurations cfg2/ and cfg1/ are mutually linked, turning the link to cfg2/ into implicit backlink
       unlinked configuration $~/cfg2/
       EOE
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
@@ -175,32 +176,32 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
   : dependency
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $rep_add -d cfg1 $rep/t7a && $rep_fetch -d cfg1;
+    $rep_add -d cfg1 $rep/t7a && $rep_fetch -d cfg1
 
-    $pkg_build -d cfg1 libbar &cfg2/.bpkg/build2/***;
+    $pkg_build -d cfg1 libbar &cfg2/.bpkg/build2/***
 
-    $* -d cfg1 cfg2 2>>/EOE != 0;
+    $* -d cfg1 cfg2 2>>/EOE != 0
       error: configuration cfg1/ still depends on configuration cfg2/
         info: package foo [cfg2/] has dependents:
         info: package libbar on foo ^1.0.0
       EOE
 
-    $pkg_drop -d cfg1 --keep-unused libbar;
+    $pkg_drop -d cfg1 --keep-unused libbar
 
-    $* -d cfg1 cfg2 2>>/"EOE";
+    $* -d cfg1 cfg2 2>>/"EOE"
       unlinked configuration $~/cfg2/
       EOE
 
-    $cfg_info -d cfg1 >>/"EOO";
+    $cfg_info -d cfg1 >>/"EOO"
       path: $~/cfg1/
       uuid: $cfg1_uuid
       type: target
       name: main
       EOO
 
-    $cfg_info -d cfg2 >>/~"%EOO%";
+    $cfg_info -d cfg2 >>/~"%EOO%"
       path: $~/cfg2/
       uuid: $cfg2_uuid
       type: host
@@ -212,64 +213,65 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
       name: build2
       EOO
 
-    $pkg_drop -d cfg1 libbaz;
+    $pkg_drop -d cfg1 libbaz
     $pkg_drop -d cfg2 foo
   }
 
   : dependency-private
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2;
+    $rep_add -d cfg2 $rep/t7a && $rep_fetch -d cfg2
 
-    $pkg_build -d cfg2 foo;
+    $pkg_build -d cfg2 foo
 
-    $* -d cfg2 --name build2 2>>/EOE != 0;
+    $* -d cfg2 --name build2 2>>/EOE != 0
       error: configuration cfg2/ still depends on private configuration cfg2/.bpkg/build2/
         info: package libbuild2-bar [cfg2/.bpkg/build2/] has dependents:
         info: package foo on libbuild2-bar ^1.0.0
       EOE
 
-    $pkg_drop -d cfg2 --keep-unused foo;
+    $pkg_drop -d cfg2 --keep-unused foo
 
-    test -d cfg2/.bpkg/build2/;
+    test -d cfg2/.bpkg/build2/
 
-    $* -d cfg2 --name build2 2>>/"EOE";
+    $* -d cfg2 --name build2 2>>/"EOE"
       unlinked and removed configuration $~/cfg2/.bpkg/build2/
       EOE
 
-    $cfg_info -d cfg2 >>/"EOO";
+    $cfg_info -d cfg2 >>/"EOO"
       path: $~/cfg2/
       uuid: $cfg2_uuid
       type: host
       name: shared
       EOO
 
-    test -d cfg2/.bpkg/build2/ == 1;
+    test -d cfg2/.bpkg/build2/ == 1
 
     $pkg_drop -d cfg2 libbaz
   }
-}
+}}
+
 : remove-dangling
 :
-{
+{{
   : success
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
-    mv cfg1 cfg3;
+    mv cfg1 cfg3
 
-    $* -d cfg2 --dangling 2>'removed 1 dangling implicit backlink(s)';
+    $* -d cfg2 --dangling 2>'removed 1 dangling implicit backlink(s)'
     $* -d cfg2 --dangling 2>'removed 0 dangling implicit backlink(s)'
   }
 
   : error
   :
   {
-    $clone_root_cfgs;
+    $clone_root_cfgs
 
     $* -d cfg1 --dangling --name 'host' 2>'error: both --dangling and --name specified' != 0
   }
-}
+}}

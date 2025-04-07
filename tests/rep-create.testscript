@@ -15,7 +15,7 @@
 
 : unsigned
 :
-{
+{{
   # Make sure the cloned repository has a valid location, so we can use
   # rep-info command to validate the repository info.
   #
@@ -24,9 +24,9 @@
   : without-key
   :
   {
-    $clone_rep;
+    $clone_rep
 
-    $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
+    $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest
       added bar 1
       added foo 1
       %2 package\(s\) in .+/stable/%
@@ -68,9 +68,9 @@
   : with-key
   :
   {
-    $clone_rep;
+    $clone_rep
 
-    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest;
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest
       added bar 1
       added foo 1
       warning: --key option ignored
@@ -111,14 +111,14 @@
       sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
       EOO
   }
-}
+}}
 
 : signed
 :
 : Here we sign the 'stable' repository with the certificate prior to running
 : tests.
 :
-{
+{{
   +cp -r $src/stable ./ && cat <<<$cert_manifest >+stable/repositories.manifest
 
   # Make sure the cloned repository has a valid location, so we can use
@@ -133,10 +133,10 @@
   : why we do not match it exactly.
   :
   {
-    $clone_rep;
+    $clone_rep
 
     $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest \
-                                       &1/stable/signature.manifest;
+                                       &1/stable/signature.manifest
       added bar 1
       added foo 1
       %2 package\(s\) in .+/stable/%
@@ -181,12 +181,12 @@
   : Test that bpkg-rep-create fails for the remote --key option.
   :
   {
-    $clone_rep;
+    $clone_rep
 
-    touch .git; # Pretend we are in the git repository.
+    touch .git # Pretend we are in the git repository.
 
-    mkdir .build2;
-    echo "--key $key" >=.build2/bpkg-rep-create.options;
+    mkdir .build2
+    echo "--key $key" >=.build2/bpkg-rep-create.options
 
     $* 1/stable/ 2>>/~%EOE% != 0
       %.+/bpkg-rep-create.options: error: --key <name> in remote default options file%
@@ -203,13 +203,13 @@
       info: repository manifest contains a certificate
       info: run 'bpkg help rep-create' for more information
     EOE
-}
+}}
 
 : unknown-name
 :
 : Test that package manifest that contains an unknown name is properly handled.
 :
-{
+{{
   clone_rep = [cmdline] cp -r $src/testing ./
 
   : fail
@@ -227,20 +227,20 @@
     added foo 2
     %1 package\(s\) in .+/testing/%
     EOE
-}
+}}
 
 : broken-repo
 :
 : Here we break the 'stable' repository prior to running a test.
 :
-{
+{{
   clone_rep = [cmdline] cp -r $src/stable ./
 
   : no-repositories-manifest
   :
   {
-    $clone_rep &!stable/repositories.manifest;
-    rm stable/repositories.manifest;
+    $clone_rep &!stable/repositories.manifest
+    rm stable/repositories.manifest
 
     $* stable/ 2>/'error: file stable/repositories.manifest does not exist' != 0
   }
@@ -248,11 +248,11 @@
   : unexpected-file
   :
   {
-    $clone_rep;
-    touch stable/foo;
+    $clone_rep
+    touch stable/foo
 
     $* stable/ 2>>/EOE != 0
       error: unknown compression method in stable/foo
       EOE
   }
-}
+}}

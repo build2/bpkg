@@ -36,7 +36,6 @@ elif ($git_protocol == 'ssh-unadv')
   rep = "$rep_git_ssh_unadv"
 else
   exit "unexpected git protocol '$git_protocol'"
-end
 
 # Repository URL prefix for use with git commands.
 #
@@ -47,38 +46,37 @@ end
   rep_git = "$regex.replace($rep, '^file:/', 'file://')"
 else
   rep_git = "$rep"
-end
 
 : branch
 :
-{
+{{
   fragment = '#master'
   .include rep-fetch-git-refname.testscript
-}
+}}
 
 : ltag
 :
-{
+{{
   fragment = '#ltag'
   .include rep-fetch-git-refname.testscript
-}
+}}
 
 : atag
 :
-{
+{{
   fragment = '#atag'
   .include rep-fetch-git-refname.testscript
-}
+}}
 
 : list
 :
-{
+{{
   fragment = '#master,ltag,atag'
   .include rep-fetch-git-refname.testscript
-}
+}}
 
 : commit
 :
-{
+{{
   .include rep-fetch-git-commit.testscript
-}
+}}

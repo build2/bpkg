@@ -3,7 +3,7 @@
 
 : system-package-names
 :
-{
+{{
   test.arguments += system-package-names
 
   : basics
@@ -61,11 +61,11 @@
   $* debian 10 -- --non-native libcurl libcurl.manifest >>EOO
     libcurl libcurl-dev
     EOO
-}
+}}
 
 : system-package-version
 :
-{
+{{
   test.arguments += system-package-version
 
   : basics
@@ -100,11 +100,11 @@
   $* rhel 7.8 fedora -- libssl libssl1.1.1+19.manifest >>EOO
     1:1.1.1q-1
     EOO
-}
+}}
 
 : downstream-package-version
 :
-{
+{{
   test.arguments += downstream-package-version
 
   : basics
@@ -155,4 +155,4 @@
   $* debian 10 -- 1 libssl libssl1.manifest libssl3.manifest >'10';
   $* debian  9 -- 1 libssl libssl1.manifest libssl3.manifest >'9';
   $* debian  8 -- 1 libssl libssl1.manifest libssl3.manifest >'0'
-}
+}}

@@ -33,12 +33,13 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
   cp -r $src/t2 $out/t2 && $rep_create $out/t2 &$out/t2/packages.manifest
   cp -r $src/t3 $out/t3 && $rep_create $out/t3 &$out/t3/packages.manifest
-end
+}
 
 pkg_build  += -d cfg --yes
 pkg_drop   += -d cfg --yes 2>!
@@ -50,20 +51,20 @@ rep_remove += -d cfg 2>!
 : no-repo
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
-  $pkg_build 'sys:libbar' 2>>EOE != 0;
+  $pkg_build 'sys:libbar' 2>>EOE != 0
     error: unknown package sys:libbar
       info: consider specifying sys:libbar/*
     EOE
 
-  $pkg_build 'sys:libbar/1' 2>>EOE;
+  $pkg_build 'sys:libbar/1' 2>>EOE
     configured sys:libbar/1
     EOE
 
-  $pkg_status libbar >'!libbar configured,system !1';
+  $pkg_status libbar >'!libbar configured,system !1'
 
-  $pkg_build 'sys:libbar/*' 2>>EOE;
+  $pkg_build 'sys:libbar/*' 2>>EOE
     purged libbar/1
     configured sys:libbar/*
     EOE
@@ -77,7 +78,7 @@ rep_remove += -d cfg 2>!
 #
 : t1
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t1 && $rep_fetch
 
   : dup
@@ -87,33 +88,33 @@ rep_remove += -d cfg 2>!
   : (and not to think of too many ids for almost identical tests :-)).
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build 'sys:libbar' 'sys:libbar/1.0.0' 2>>EOE != 0;
+    $pkg_build 'sys:libbar' 'sys:libbar/1.0.0' 2>>EOE != 0
       error: duplicate package libbar
         info: first mentioned as sys:libbar
         info: second mentioned as sys:libbar/1.0.0
       EOE
 
-    $pkg_build '?sys:libbar' '?sys:libbar/1.0.0' 2>>EOE != 0;
+    $pkg_build '?sys:libbar' '?sys:libbar/1.0.0' 2>>EOE != 0
       error: duplicate package libbar
         info: first mentioned as ?sys:libbar
         info: second mentioned as ?sys:libbar/1.0.0
       EOE
 
-    $pkg_build 'sys:libbar' libbar 2>>EOE != 0;
+    $pkg_build 'sys:libbar' libbar 2>>EOE != 0
       error: duplicate package libbar
         info: first mentioned as sys:libbar
         info: second mentioned as libbar
       EOE
 
-    $pkg_build ?libbar '?sys:libbar' +{ --config-id 0 } 2>>EOE != 0;
+    $pkg_build ?libbar '?sys:libbar' +{ --config-id 0 } 2>>EOE != 0
       error: duplicate package libbar
         info: first mentioned as ?libbar
         info: second mentioned as ?sys:libbar +{ --config-id 0 }
       EOE
 
-    $pkg_build 'sys:libbar' libbar 2>>EOE != 0;
+    $pkg_build 'sys:libbar' libbar 2>>EOE != 0
       error: duplicate package libbar
         info: first mentioned as sys:libbar
         info: second mentioned as libbar
@@ -132,17 +133,17 @@ rep_remove += -d cfg 2>!
   : sys:libbar/* to sys:libbar/2 and afterwards to libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/*.
     #
-    $pkg_build 'sys:libbar' 2>'configured sys:libbar/*';
-    $pkg_status libbar      1>'!libbar configured,system !* available 2 1';
-    $pkg_status libbaz      1>'libbaz available 2';
+    $pkg_build 'sys:libbar' 2>'configured sys:libbar/*'
+    $pkg_status libbar      1>'!libbar configured,system !* available 2 1'
+    $pkg_status libbaz      1>'libbaz available 2'
 
     # Build foo with preconfigured sys:libbar/*.
     #
-    $pkg_build foo 2>>~%EOE%;
+    $pkg_build foo 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -151,13 +152,13 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !* available 2 1';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !* available 2 1'
+    $pkg_status libbaz >'libbaz available 2'
 
     # Reconfigure sys:libbar/* to 2.
     #
-    $pkg_build 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build 'sys:libbar/2' 2>>~%EOE%
       disfigured foo/2
       purged libbar/*
       configured sys:libbar/2
@@ -166,13 +167,13 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     # Reconfigure sys:libbar/2 to libbar/2.
     #
-    $pkg_build libbar/2 2>>~%EOE%;
+    $pkg_build libbar/2 2>>~%EOE%
       disfigured foo/2
       purged libbar/2
       %.*
@@ -189,9 +190,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured !2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured !2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     $pkg_drop foo libbar
   }
@@ -201,9 +202,9 @@ rep_remove += -d cfg 2>!
   : Build foo and sys:libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -213,9 +214,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -225,9 +226,9 @@ rep_remove += -d cfg 2>!
   : Build sys:libbar/2 and foo.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build 'sys:libbar/2' foo 2>>~%EOE%;
+    $pkg_build 'sys:libbar/2' foo 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -237,9 +238,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -249,11 +250,11 @@ rep_remove += -d cfg 2>!
   : The overall plan is to build libbar/2, then foo and sys:libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build libbar/2.
     #
-    $pkg_build libbar/2 2>>~%EOE%;
+    $pkg_build libbar/2 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
@@ -266,12 +267,12 @@ rep_remove += -d cfg 2>!
       updated libbar/2
       EOE
 
-    $pkg_status libbar >'!libbar configured !2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status libbar >'!libbar configured !2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     # Build foo and sys:libbar/2.
     #
-    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%
       disfigured libbar/2
       disfigured libbaz/2
       purged libbaz/2
@@ -285,9 +286,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -297,11 +298,11 @@ rep_remove += -d cfg 2>!
   : The overall plan is to build libbar/2, then foo and sys:libbar.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build libbar/2.
     #
-    $pkg_build libbar/2 2>>~%EOE%;
+    $pkg_build libbar/2 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
@@ -314,12 +315,12 @@ rep_remove += -d cfg 2>!
       updated libbar/2
       EOE
 
-    $pkg_status libbar >'!libbar configured !2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status libbar >'!libbar configured !2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     # Build foo and sys:libbar.
     #
-    $pkg_build foo 'sys:libbar' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar' 2>>~%EOE%
       disfigured libbar/2
       disfigured libbaz/2
       purged libbaz/2
@@ -333,9 +334,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !* available 2 1';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !* available 2 1'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -346,16 +347,16 @@ rep_remove += -d cfg 2>!
   : reconfigure to sys:libbar/2 and afterwards to libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/2.
     #
-    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2';
-    $pkg_status libbar         >'!libbar configured,system !2';
+    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2'
+    $pkg_status libbar         >'!libbar configured,system !2'
 
     # Build foo and libbar/2.
     #
-    $pkg_build foo libbar/2 2>>~%EOE%;
+    $pkg_build foo libbar/2 2>>~%EOE%
       purged libbar/2
       %.*
       %.*fetched libbaz/2%
@@ -374,13 +375,13 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured !2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured !2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     # Build sys:libbar/2.
     #
-    $pkg_build 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build 'sys:libbar/2' 2>>~%EOE%
       disfigured foo/2
       disfigured libbar/2
       disfigured libbaz/2
@@ -392,13 +393,13 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     # Build libbar/2.
     #
-    $pkg_build libbar/2 2>>~%EOE%;
+    $pkg_build libbar/2 2>>~%EOE%
       disfigured foo/2
       purged libbar/2
       %.*
@@ -415,9 +416,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured !2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured !2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     $pkg_drop foo libbar
   }
@@ -428,17 +429,17 @@ rep_remove += -d cfg 2>!
   : succeed to build foo libbar.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/1.
     #
-    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
-    $pkg_status libbar        1>'!libbar configured,system !1 available 2';
-    $pkg_status libbaz        1>'libbaz available 2';
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1'
+    $pkg_status libbar        1>'!libbar configured,system !1 available 2'
+    $pkg_status libbaz        1>'libbaz available 2'
 
     # Fail to build foo.
     #
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: package foo dependency on (libbar >= 2) is forcing upgrade of sys:libbar/1 to libbar/2
         info: package version sys:libbar/1 is held
         info: explicitly request version upgrade to continue
@@ -447,7 +448,7 @@ rep_remove += -d cfg 2>!
 
     # Build foo and libbar.
     #
-    $pkg_build foo libbar 2>>~%EOE%;
+    $pkg_build foo libbar 2>>~%EOE%
       purged libbar/1
       %.*
       %.*fetched libbaz/2%
@@ -466,9 +467,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured 2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured 2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     $pkg_drop foo libbar
   }
@@ -478,9 +479,9 @@ rep_remove += -d cfg 2>!
   : Build foo and ?sys:libbar.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -490,9 +491,9 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !* available 2 1';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !* available 2 1'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -503,11 +504,11 @@ rep_remove += -d cfg 2>!
   : succeed to build foo ?sys:libbar/2, and then foo sys:libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build libbar/1.
     #
-    $pkg_build libbar/1 2>>~%EOE%;
+    $pkg_build libbar/1 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
       unpacked libbaz/2
@@ -520,12 +521,12 @@ rep_remove += -d cfg 2>!
       updated libbar/1
       EOE
 
-    $pkg_status libbar >'!libbar configured !1 available 2';
-    $pkg_status libbaz >'libbaz configured 2';
+    $pkg_status libbar >'!libbar configured !1 available 2'
+    $pkg_status libbaz >'libbaz configured 2'
 
     # Fail to build foo.
     #
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: package foo dependency on (libbar >= 2) is forcing upgrade of libbar/1 to 2
         info: package version libbar/1 is held
         info: explicitly request version upgrade to continue
@@ -534,7 +535,7 @@ rep_remove += -d cfg 2>!
 
     # Build foo and ?sys:libbar/2.
     #
-    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%
       disfigured libbar/1
       disfigured libbaz/2
       purged libbaz/2
@@ -548,20 +549,20 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     # Build foo and sys:libbar/2.
     #
-    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%
       %info: .+ is up to date%
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
-    $pkg_status libbaz >'libbaz available 2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
+    $pkg_status libbaz >'libbaz available 2'
 
     $pkg_drop foo libbar
   }
@@ -569,18 +570,18 @@ rep_remove += -d cfg 2>!
   : upgrade-held
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build libbar 2>!;
+    $pkg_build libbar 2>!
 
-    $rep_remove $rep/t1 && $rep_fetch $rep/t2;
+    $rep_remove $rep/t1 && $rep_fetch $rep/t2
 
-    $pkg_build --upgrade 2>>EOE != 0;
+    $pkg_build --upgrade 2>>EOE != 0
       error: libbar is not available in source
         info: consider building it as sys:libbar if it is available from the system
       EOE
 
-    $pkg_build 'sys:libbar' 2>>EOE;
+    $pkg_build 'sys:libbar' 2>>EOE
       disfigured libbar/2
       disfigured libbaz/2
       purged libbaz/2
@@ -588,15 +589,15 @@ rep_remove += -d cfg 2>!
       configured sys:libbar/*
       EOE
 
-    $pkg_build --upgrade 2>'info: nothing to build';
+    $pkg_build --upgrade 2>'info: nothing to build'
 
     $pkg_drop libbar
   }
-}
+}}
 
 : t2
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t2 && $rep_fetch
 
   : no-libbar
@@ -605,20 +606,20 @@ rep_remove += -d cfg 2>!
   : in source.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: specify ?sys:libbar if it is available from the system
       info: while satisfying foo/2
       EOE
 
-    $pkg_build foo libbar 2>>EOE != 0;
+    $pkg_build foo libbar 2>>EOE != 0
       error: libbar is not available in source
         info: specify sys:libbar if it is available from the system
       EOE
 
-    $pkg_status foo    >'foo available 2';
+    $pkg_status foo    >'foo available 2'
     $pkg_status libbar >'libbar unknown'
   }
 
@@ -627,9 +628,9 @@ rep_remove += -d cfg 2>!
   : Build foo configuring sys:libbar.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build foo 'sys:libbar' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -639,8 +640,8 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !*';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !*'
 
     $pkg_drop foo libbar
   }
@@ -651,16 +652,16 @@ rep_remove += -d cfg 2>!
   : succeed to build foo sys:libbar/2.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/1.
     #
-    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
-    $pkg_status libbar        1>'!libbar configured,system !1';
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1'
+    $pkg_status libbar        1>'!libbar configured,system !1'
 
     # Fail to build foo.
     #
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1 does not satisfy the constrains
       info: while satisfying foo/2
@@ -668,7 +669,7 @@ rep_remove += -d cfg 2>!
 
     # Build foo and sys:libbar/2.
     #
-    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo 'sys:libbar/2' 2>>~%EOE%
       purged libbar/1
       %.*
       %.*fetched foo/2%
@@ -679,8 +680,8 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'!libbar configured,system !2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'!libbar configured,system !2'
 
     $pkg_drop foo libbar
   }
@@ -691,11 +692,11 @@ rep_remove += -d cfg 2>!
   : sys:libbar/2 but still fail to build foo sys:libbar/1.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Fail to build foo and sys:libbar/1.
     #
-    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1 does not satisfy the constrains
       info: while satisfying foo/2
@@ -703,12 +704,12 @@ rep_remove += -d cfg 2>!
 
     # Build sys:libbar/2.
     #
-    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2';
-    $pkg_status libbar        1>'!libbar configured,system !2';
+    $pkg_build 'sys:libbar/2' 2>'configured sys:libbar/2'
+    $pkg_status libbar        1>'!libbar configured,system !2'
 
     # Still fail to build foo and sys:libbar/1.
     #
-    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0
       error: unable to satisfy constraints on package libbar
         info: command line depends on (libbar == 1)
         info: foo/2 depends on (libbar >= 2)
@@ -727,16 +728,16 @@ rep_remove += -d cfg 2>!
   : sys:libbar/1.1 foo.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/2.
     #
-    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
-    $pkg_status libbar        1>'!libbar configured,system !1';
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1'
+    $pkg_status libbar        1>'!libbar configured,system !1'
 
     # Fail to build sys:libbar/1.1 and foo.
     #
-    $pkg_build 'sys:libbar/1.1' foo 2>>EOE != 0;
+    $pkg_build 'sys:libbar/1.1' foo 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1.1 does not satisfy the constrains
       info: while satisfying foo/2
@@ -751,11 +752,11 @@ rep_remove += -d cfg 2>!
   : libbar is purged as well.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build foo and ?sys:libbar.
     #
-    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -765,18 +766,18 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !*';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !*'
 
     # Drop foo.
     #
-    $pkg_drop foo 2>>EOE;
+    $pkg_drop foo 2>>EOE
       disfigured foo
       purged libbar
       purged foo
       EOE
 
-    $pkg_status foo    >'foo available 2';
+    $pkg_status foo    >'foo available 2'
     $pkg_status libbar --system >'libbar available sys:?'
   }
 
@@ -786,16 +787,16 @@ rep_remove += -d cfg 2>!
   : succeed to build foo ?sys:libbar, then drop foo and make sure libbar stays.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build sys:libbar/1.
     #
-    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1';
-    $pkg_status libbar        1>'!libbar configured,system !1';
+    $pkg_build 'sys:libbar/1' 2>'configured sys:libbar/1'
+    $pkg_status libbar        1>'!libbar configured,system !1'
 
     # Fail to build foo.
     #
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1 does not satisfy the constrains
       info: while satisfying foo/2
@@ -803,7 +804,7 @@ rep_remove += -d cfg 2>!
 
     # Build foo and '?sys:libbar/2'.
     #
-    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%
       purged libbar/1
       %.*
       %.*fetched foo/2%
@@ -814,25 +815,25 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !2'
 
     # Drop foo.
     #
-    $pkg_drop foo 2>>EOE;
+    $pkg_drop foo 2>>EOE
       disfigured foo
       purged libbar
       purged foo
       EOE
 
-    $pkg_status foo             >'foo available 2';
+    $pkg_status foo             >'foo available 2'
     $pkg_status libbar --system >'libbar available sys:?'
   }
-}
+}}
 
 : t3
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t3 && $rep_fetch
 
   : no-libbar
@@ -841,21 +842,21 @@ rep_remove += -d cfg 2>!
   : in source.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build foo 2>>EOE != 0;
+    $pkg_build foo 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: specify ?sys:libbar if it is available from the system
       info: while satisfying foo/2
       EOE
 
-    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0;
+    $pkg_build foo 'sys:libbar/1' 2>>EOE != 0
       error: dependency libbar >= 2 of package foo is not available in source
         info: sys:libbar/1 does not satisfy the constrains
       info: while satisfying foo/2
       EOE
 
-    $pkg_build foo '?sys:libbar/1' 2>>EOE != 0;
+    $pkg_build foo '?sys:libbar/1' 2>>EOE != 0
       error: unable to satisfy constraints on package libbar
         info: foo/2 depends on (libbar >= 2)
         info: command line depends on (libbar == 1)
@@ -863,7 +864,7 @@ rep_remove += -d cfg 2>!
         info: explicitly specify libbar version to manually satisfy both constraints
       EOE
 
-    $pkg_status foo    >'foo available 2';
+    $pkg_status foo    >'foo available 2'
     $pkg_status libbar >'libbar unknown'
   }
 
@@ -874,9 +875,9 @@ rep_remove += -d cfg 2>!
   : repository.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build 'sys:libbar' 2>>EOE;
+    $pkg_build 'sys:libbar' 2>>EOE
       configured sys:libbar/*
       EOE
 
@@ -889,11 +890,11 @@ rep_remove += -d cfg 2>!
   : and then foo ?sys:libbar.
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
     # Build foo '?sys:libbar/2'.
     #
-    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar/2' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
       unpacked foo/2
@@ -903,12 +904,12 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !2';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !2'
 
     # Build foo and ?sys:libbar/3.
     #
-    $pkg_build foo '?sys:libbar/3' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar/3' 2>>~%EOE%
       disfigured foo/2
       purged libbar/2
       configured sys:libbar/3
@@ -917,12 +918,12 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !3';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !3'
 
     # Build foo and ?sys:libbar.
     #
-    $pkg_build foo '?sys:libbar' 2>>~%EOE%;
+    $pkg_build foo '?sys:libbar' 2>>~%EOE%
       disfigured foo/2
       purged libbar/3
       configured sys:libbar/*
@@ -931,8 +932,8 @@ rep_remove += -d cfg 2>!
       updated foo/2
       EOE
 
-    $pkg_status foo    >'!foo configured 2';
-    $pkg_status libbar >'libbar configured,system !*';
+    $pkg_status foo    >'!foo configured 2'
+    $pkg_status libbar >'libbar configured,system !*'
 
     $pkg_drop foo
   }
@@ -943,10 +944,10 @@ rep_remove += -d cfg 2>!
   : no dependencies).
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $pkg_build 'sys:foo' 2>'configured sys:foo/*';
+    $pkg_build 'sys:foo' 2>'configured sys:foo/*'
 
     $pkg_build ?foo 2>'purged foo/*'
   }
-}
+}}

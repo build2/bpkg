@@ -3,7 +3,7 @@
 
 : dnf-list
 :
-{
+{{
   test.arguments += dnf-list
 
   : basics
@@ -89,11 +89,11 @@
     LC_ALL=C dnf list --cacheonly --quiet openssl-libs rpm <-
     error: rpm package doesn't exist
     EOE
-}
+}}
 
 : dnf-repoquery-requires
 :
-{
+{{
   test.arguments += dnf-repoquery-requires
 
   : basics
@@ -179,11 +179,11 @@
   $* glibg 2.34-38.fc35 x86_64 false <:'' 2>>EOE >:''
     LC_ALL=C dnf repoquery --quiet --cacheonly --providers-of requires --queryformat "%{name} %{arch} %{epoch}:%{version}-%{release}\n" glibg-2.34-38.fc35.x86_64 <-
     EOE
-}
+}}
 
 : parse-name-value
 :
-{
+{{
   test.arguments += parse-name-value
 
   : basics
@@ -233,11 +233,11 @@
     main: libfoo-devel
     devel: libfoo-devel-devel
     EOO
-}
+}}
 
 : main-from-devel
 :
-{
+{{
   test.arguments += main-from-devel
 
   : libs
@@ -258,11 +258,11 @@
   : no-dependencies
   :
   $* boost-http-server-devel 0-1.20220116gitcd5245f.fc35 <:'' >''
-}
+}}
 
 : map-package
 :
-{
+{{
   test.arguments += map-package
 
   : default-name
@@ -421,16 +421,16 @@
     version: 20210808~beta.1-4
     main: byacc
     EOO
-}
+}}
 
 : build
 :
-{
+{{
   test.arguments += build
 
   : libpq
   :
-  {
+  {{
     : installed
     :
     cat <<EOI >=libpq-devel+pq-devel.info;
@@ -735,11 +735,11 @@
       LC_ALL=C dnf list --cacheonly --quiet libpq-devel pq-devel rpm <libpq-devel+pq-devel.info
       error: no installed or available system package for libpq
       EOE
-  }
+  }}
 
   : libsqlite3
   :
-  {
+  {{
     +cat <<EOI >=libsqlite3.manifest
       : 1
       name: libsqlite3
@@ -875,11 +875,11 @@
       EOE
       libsqlite3 3.36.0 (sqlite-libs 3.36.0-3.fc35) not installed
       EOO
-  }
+  }}
 
   : sqlite3
   :
-  {
+  {{
     +cat <<EOI >=sqlite3.manifest
       : 1
       name: sqlite3
@@ -977,11 +977,11 @@
       EOE
       sqlite3 3.36.0 (sqlite 3.36.0-3.fc35) not installed
       EOO
-  }
+  }}
 
   : libncurses
   :
-  {
+  {{
     +cat <<EOI >=libncurses.manifest
       : 1
       name: libncurses
@@ -1222,11 +1222,11 @@
       libncurses 6.2.0 (ncurses-libs 6.2-8.20210508.fc35) not installed
       libncurses-c++ 6.2.0 (ncurses-c++-libs 6.2-8.20210508.fc35) not installed
       EOO
-  }
+  }}
 
   : libsigc++
   :
-  {
+  {{
     +cat <<EOI >=libsigc++.manifest
       : 1
       name: libsigc++
@@ -1406,5 +1406,5 @@
         info: candidate: libsigc++20 2.10.7-3.fc35, missing components: libsigc++20-devel
         info: consider fully installing the desired package manually and retrying the bpkg command
       EOE
-  }
-}
+  }}
+}}

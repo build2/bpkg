@@ -36,7 +36,7 @@ EOE
 
 : not-a-package
 :
-{
+{{
   : verbose
   :
   $* $src/not-a-package.tar.gz 2>>/~%EOE% != 0
@@ -47,13 +47,13 @@ EOE
   : silent
   :
   $* --silent $src/not-a-package.tar.gz != 0
-}
+}}
 
 : unknown-name
 :
 : Test that package manifest that contains an unknown name is properly handled.
 :
-{
+{{
   : verbose
   :
   $* $src/foo-2.tar.gz 2>>/~%EOE% != 0
@@ -68,7 +68,7 @@ EOE
   : ignore
   :
   $* --ignore-unknown $src/foo-2.tar.gz 2>'valid package foo 2'
-}
+}}
 
 : manifest-expand
 :
@@ -119,7 +119,7 @@ $* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
 
 : no-bootstrap-build
 :
-{
+{{
   : no-deep
   :
   $* --manifest $src/foo-3.tar.gz >>EOO
@@ -140,11 +140,11 @@ $* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
   $* --deep --manifest $src/foo-3.tar.gz 2>>/~%EOE% != 0
     %error: unable to find bootstrap.build file in package archive .+/foo-3.tar.gz%
     EOE
-}
+}}
 
 : compatibility
 :
-{
+{{
   : fail
   :
   $* --manifest $src/libbaz-1.0.0.tar.gz 2>>/~%EOE% != 0
@@ -166,4 +166,4 @@ $* --ignore-unknown --manifest $src/foo-2.tar.gz >>EOO
     depends: * build2 >= 65536.0.0
     depends: * bpkg >= 65536.0.0
     EOO
-}
+}}

@@ -22,6 +22,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rc = [cmdline] $rep_create 2>!
 
   # Create the unsigned 'testing' repository.
@@ -46,7 +47,7 @@
   #
   $git_extract $src/git/libbar.tar
   $git_extract $src/git/style-basic.tar &$out_git/state0/***
-end
+}
 
 test.options += --auth all --trust-yes
 
@@ -61,7 +62,7 @@ $* 2>>EOE != 0
 
 : default
 :
-{
+{{
   : unsigned
   :
   $* $rep/testing >>"EOO"
@@ -83,7 +84,7 @@ $* 2>>EOE != 0
 
     foo/1
     EOO
-}
+}}
 
 : name
 :
@@ -91,7 +92,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
 : packages
 :
-{
+{{
   test.arguments += --packages # Should go after the rep-info command argument.
 
   : list
@@ -103,7 +104,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
   : manifest
   :
-  {
+  {{
     test.arguments += --manifest
 
     : basic
@@ -127,7 +128,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
     : deep
     :
-    {
+    {{
       test.arguments += --deep
 
       : dir
@@ -137,9 +138,9 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         # the later fails for dangling symlinks and we have such symlinks in
         # this repository archive.
         #
-        tar ($posix ? : --force-local) -xf $src/git/libbar.tar &state0/***;
+        tar ($posix ? : --force-local) -xf $src/git/libbar.tar &state0/***
 
-        $* --type dir "state0/libbar.git" >>~%EOO%d;
+        $* --type dir "state0/libbar.git" >>~%EOO%d
           : 1
           name: libbar
           version: 1.0.0+1
@@ -164,7 +165,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           %.+
           EOO
 
-        rm state0/libbar.git/libbar/README;
+        rm state0/libbar.git/libbar/README
 
         $* --type dir "state0/libbar.git" 2>>/~%EOE% != 0
           %error: unable to read from libbar/README referenced by description-file manifest value in libbar/manifest: .+%
@@ -226,12 +227,12 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
           %.+
           EOO
       }
-    }
-  }
+    }}
+  }}
 
   : to-file
   :
-  {
+  {{
     : no-manifest
     :
     $* --packages-file m $rep/testing 2>>EOE != 0
@@ -242,7 +243,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : manifest
     :
     {
-      $* --manifest --packages-file m $rep/testing &m;
+      $* --manifest --packages-file m $rep/testing &m
 
       cat m >>EOO
         : 1
@@ -261,12 +262,12 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         sha256sum: 1d88df336611286cdbd84f5c1d87bedc774bc833e200de675e34d9b219c66cfc
         EOO
     }
-  }
-}
+  }}
+}}
 
 : repositories
 :
-{
+{{
   # Should go after the rep-info command argument.
   #
   test.arguments += --repositories
@@ -294,7 +295,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
   : to-file
   :
-  {
+  {{
     : no-manifest
     :
     $* --repositories-file m $rep/testing 2>>EOE != 0
@@ -305,7 +306,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : manifest
     :
     {
-      $* --manifest --repositories-file m $rep/testing &m;
+      $* --manifest --repositories-file m $rep/testing &m
 
       cat m >>EOO
         : 1
@@ -319,29 +320,29 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
         :
         EOO
     }
-  }
-}
+  }}
+}}
 
 : cert
 :
-{
+{{
   test.arguments += $rep/signed
 
   $* --cert-fingerprint  >"$cert_fp"        : fingerprint
   $* --cert-name         >'name:build2.org' : name
   $* --cert-organization >'Code Synthesis'  : organization
   $* --cert-email        >'info@build2.org' : email
-}
+}}
 
 : git-rep
 :
 if! $git_supported
-{
+{{
   # Skip git repository tests.
   #
-}
+}}
 else
-{
+{{
   rep = "$rep_git/state0"
   test.redirects += 2>!
 
@@ -405,21 +406,21 @@ else
     location: libmbar
     %fragment: \.+%
     EOO
-}
+}}
 
 : default-options-files
 :
-{
+{{
   : specified-dir
   :
   {
-    $cfg_create -d cfg 2>! &cfg/***;
+    $cfg_create -d cfg 2>! &cfg/***
 
-    mkdir cfg/.build2;
+    mkdir cfg/.build2
 
-    echo '--directory .' >= cfg/.build2/bpkg-rep-info.options;
+    echo '--directory .' >= cfg/.build2/bpkg-rep-info.options
 
-    $* $rep/testing -d cfg 2>>/~%EOE%d != 0;
+    $* $rep/testing -d cfg 2>>/~%EOE%d != 0
       %\.+/specified-dir/cfg/.build2/bpkg-rep-info.options: error: --directory\|-d in default options file%
       EOE
 
@@ -433,14 +434,14 @@ else
   : current-dir
   :
   {
-    mkdir .bpkg;   # Pretend we are in the configuration directory.
-    mkdir .build2;
+    mkdir .bpkg    # Pretend we are in the configuration directory.
+    mkdir .build2
 
-    echo '--directory .' >= .build2/bpkg-rep-info.options;
+    echo '--directory .' >= .build2/bpkg-rep-info.options
 
     # Load options from the current (configuration) directory.
     #
-    $* $rep/testing 2>>/~%EOE%d != 0;
+    $* $rep/testing 2>>/~%EOE%d != 0
       %\.+/current-dir/.build2/bpkg-rep-info.options: error: --directory\|-d in default options file%
       EOE
 
@@ -450,11 +451,11 @@ else
       pkg:build2.org/rep-info/testing ($rep/testing)
       EOO
   }
-}
+}}
 
 : compatibility
 :
-{
+{{
   : packages
   :
   {
@@ -507,4 +508,4 @@ else
       %  info: available build2 version is .+%
       EOE
   }
-}
+}}

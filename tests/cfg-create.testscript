@@ -19,20 +19,20 @@ EOE
 
 : dir
 :
-{
+{{
   test.arguments += -d cfg
   test.cleanups  += &cfg/***
 
   : no-vars-mods
   :
   {
-    $* 2>>/~%EOE%;
+    $* 2>>/~%EOE%
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
@@ -45,20 +45,20 @@ EOE
   : conf-var
   :
   {
-    $* "config.install.root='$~/opt'" 2>>/~%EOE%;
+    $* "config.install.root='$~/opt'" 2>>/~%EOE%
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
       %name: %
       EOO
 
-    $pkg_status libfoo >'libfoo unknown';
+    $pkg_status libfoo >'libfoo unknown'
 
     cat cfg/build/config.build >>/~"%EOO%"
       %.+
@@ -70,20 +70,20 @@ EOE
   : module
   :
   {
-    $* cxx $config_cxx 2>>/~%EOE%;
+    $* cxx $config_cxx 2>>/~%EOE%
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
       %name: %
       EOO
 
-    $pkg_status libfoo >'libfoo unknown';
+    $pkg_status libfoo >'libfoo unknown'
 
     cat cfg/build/config.build >>/~"%EOO%"
       %.+
@@ -95,15 +95,15 @@ EOE
   : wipe
   :
   {
-    mkdir -p cfg/foo/bar &!cfg/ &!cfg/foo/ &!cfg/foo/bar/;
+    mkdir -p cfg/foo/bar &!cfg/ &!cfg/foo/ &!cfg/foo/bar/
 
-    $* --wipe 2>>/~%EOE%;
+    $* --wipe 2>>/~%EOE%
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
@@ -116,15 +116,15 @@ EOE
   : existing
   :
   {
-    $build 'create(cfg/,cc)' $config_cxx 2>!;
+    $build 'create(cfg/,cc)' $config_cxx 2>!
 
-    $* --existing 2>>/~%EOE%;
+    $* --existing 2>>/~%EOE%
       %initialized existing configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
@@ -133,24 +133,24 @@ EOE
 
     $pkg_status libfoo >'libfoo unknown'
   }
-}
+}}
 
 : name
 :
-{
+{{
   test.arguments += -d cfg
 
   : valid
   :
   {
-    $* --name foo 2>>/~%EOE% &cfg/***;
+    $* --name foo 2>>/~%EOE% &cfg/***
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
         name: foo
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
@@ -167,23 +167,23 @@ EOE
   $* --name 123 2>>EOE != 0
     error: invalid --name option value '123': illegal first character (must be alphabetic or underscore)
     EOE
-}
+}}
 
 : type
 :
-{
+{{
   test.arguments += -d cfg
 
   : valid
   :
   {
-    $* --type host 2>>/~%EOE% &cfg/***;
+    $* --type host 2>>/~%EOE% &cfg/***
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: host
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: host
@@ -200,26 +200,26 @@ EOE
   $* --type '' 2>>EOE != 0
     error: empty --type option value
     EOE
-}
+}}
 
 : uuid
 :
-{
+{{
   test.arguments += -d cfg
 
   : valid
   :
   {
-    uuid='18f48b4b-b5d9-4712-b98c-1930df1c4228';
+    uuid='18f48b4b-b5d9-4712-b98c-1930df1c4228'
 
-    $* --uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***;
+    $* --uuid $uuid --name foo 2>>/~"%EOE%" &cfg/***
       %created new configuration in .+/cfg/%
         uuid: $uuid
         type: target
         name: foo
       EOE
 
-    $cfg_info >>/~"%EOO%";
+    $cfg_info >>/~"%EOO%"
       %path: .+/cfg/%
       uuid: $uuid
       type: target
@@ -236,26 +236,26 @@ EOE
   $* --uuid '123' 2>>EOE != 0
     error: invalid value '123' for option '--uuid'
     EOE
-}
+}}
 
 : link-config
 :
-{
+{{
   test.arguments += -d cfg
 
   : valid-type
   :
   {
-    $cfg_create -d host   --type 'host'   &host/***;
-    $cfg_create -d build2 --type 'build2' &build2/***;
+    $cfg_create -d host   --type 'host'   &host/***
+    $cfg_create -d build2 --type 'build2' &build2/***
 
-    $* --host-config host --build2-config build2 2>>/~%EOE% &cfg/***;
+    $* --host-config host --build2-config build2 2>>/~%EOE% &cfg/***
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
       EOE
 
-    $cfg_info --link >>/~"%EOO%";
+    $cfg_info --link >>/~"%EOO%"
       %path: .+/cfg/%
       %uuid: .{36}%
       type: target
@@ -278,9 +278,9 @@ EOE
   : invalid-type
   :
   {
-    $cfg_create -d cfg2 &cfg2/***;
+    $cfg_create -d cfg2 &cfg2/***
 
-    $* --host-config cfg2 2>>/~%EOE% != 0;
+    $* --host-config cfg2 2>>/~%EOE% != 0
       %error: host configuration .+/cfg2/ is of 'target' type%
       EOE
 
@@ -288,4 +288,4 @@ EOE
       %error: build2 configuration .+/cfg2/ is of 'target' type%
       EOE
   }
-}
+}}

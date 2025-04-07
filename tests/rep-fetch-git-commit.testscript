@@ -6,7 +6,7 @@
 
 : unadvertised
 :
-{
+{{
   +git -C ../style-basic log '--pretty=format:%H' --all --grep='README' | \
    set commit
 
@@ -15,13 +15,12 @@
   : Here we also test that a commit can be specified without leading '@'.
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#$commit"
 
     if ($git_protocol == 'https-dumb')
       info = "$info_repo_hist$reason_dumb$info_dumb"
     elif ($git_protocol != 'https-smart-unadv')
       info = "$info_repo_hist$reason_unadv"
-    end;
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#$commit%
@@ -35,13 +34,12 @@
   : refname
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit"
 
     if ($git_protocol == 'https-dumb')
       info = "$info_ref_hist$reason_dumb$info_dumb"
     elif ($git_protocol != 'https-smart-unadv')
       info = "$info_ref_hist$reason_unadv"
-    end;
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#stable@$commit%
@@ -51,22 +49,21 @@
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
-}
+}}
 
 : advertised
 :
-{
+{{
   +git -C ../style-basic log '--pretty=format:%H' --all --grep='INSTALL' | \
    set commit
 
   +if ($git_protocol == 'https-dumb')
      info = "$info_ref_hist$reason_dumb$info_dumb"
-   end
 
   : no-refname
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#@$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#@$commit"
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#@$commit%
@@ -81,7 +78,7 @@
   : refname
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/style-basic.git#stable@$commit"
 
     $* 2>>~"%EOE%"
       %fetching git:.+style-basic#stable@$commit%
@@ -92,13 +89,12 @@
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
-}
+}}
 
 : peeled
 :
-{
-  +git -C ../libbar log '--pretty=format:%H' --all --grep='Create' | \
-   set commit
+{{
+  +git -C ../libbar log '--pretty=format:%H' --all --grep='Create' | set commit
 
   : remap
   :
@@ -106,7 +102,7 @@
   : reference.
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#@$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#@$commit"
 
     $* 2>>~"%EOE%"
       %fetching git:.+libbar#@$commit%
@@ -119,11 +115,11 @@
   : Test that the tag reference is properly peeled into the commit id.
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#v1.0.0,-$commit";
+    $clone_root_cfg && $rep_add "$rep/state0/libbar.git#v1.0.0,-$commit"
 
     $* 2>>~%EOE%
       %.+
       0 package(s) in 1 repository(s)
       EOE
   }
-}
+}}

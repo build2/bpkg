@@ -32,6 +32,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   cp -r $src/extra   $out/extra
   cp -r $src/math    $out/math
   cp -r $src/stable  $out/stable
@@ -48,7 +49,7 @@
   #
   $git_extract $src/git/libbar.tar
   $git_extract $src/git/style-basic.tar &$out_git/state0/***
-end
+}
 
 rep_add   += -d cfg 2>!
 rep_fetch += -d cfg --auth all --trust-yes 2>!
@@ -56,7 +57,7 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : unexpected-arg
 :
 {
-  $clone_cfg;
+  $clone_cfg
 
   $* unexpected 2>>EOE != 0
     error: unexpected argument 'unexpected'
@@ -67,8 +68,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : top-level
 :
 {
-  $clone_cfg;
-  $rep_add $rep/stable && $rep_add $rep/testing && $rep_fetch;
+  $clone_cfg
+  $rep_add $rep/stable && $rep_add $rep/testing && $rep_fetch
 
   $* >>"EOO"
     pkg:build2.org/rep-list/stable ($rep/stable)
@@ -81,8 +82,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : Note that here we also test that the prerequisites cycle is handled properly.
 :
 {
-  $clone_cfg;
-  $rep_add $rep/stable && $rep_fetch;
+  $clone_cfg
+  $rep_add $rep/stable && $rep_fetch
 
   $* --prerequisites >>"EOO"
     pkg:build2.org/rep-list/stable ($rep/stable)
@@ -95,8 +96,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : complements
 :
 {
-  $clone_cfg;
-  $rep_add $rep/testing && $rep_fetch;
+  $clone_cfg
+  $rep_add $rep/testing && $rep_fetch
 
   $* --complements >>"EOO"
     pkg:build2.org/rep-list/testing ($rep/testing)
@@ -107,8 +108,8 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : all
 :
 {
-  $clone_cfg;
-  $rep_add $rep/testing && $rep_fetch;
+  $clone_cfg
+  $rep_add $rep/testing && $rep_fetch
 
   $* --prerequisites --complements >>"EOO"
     pkg:build2.org/rep-list/testing ($rep/testing)
@@ -126,12 +127,12 @@ rep_fetch += -d cfg --auth all --trust-yes 2>!
 : git-rep
 :
 if! $git_supported
-{
+{{
   # Skip git repository tests.
   #
-}
+}}
 else
-{
+{{
   rep = "$rep_git/state0"
   test.cleanups += &cfg/.bpkg/repos/*/***
 
@@ -146,4 +147,4 @@ else
     %git:.+libbar#master .+libbar\.git#master%
     %  prerequisite git:.+style-basic#stable .+style-basic\.git#stable \(heads/master\)%
     EOO
-}
+}}

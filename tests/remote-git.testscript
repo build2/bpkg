@@ -20,7 +20,6 @@
 
 +if ("$git_version" == "")
   exit "unable to obtain git version from '$git_version_out'"
-end
 
 +echo "$git_version" | sed -e 's/(\d+).*/\1/'      | set git_version_major
 +echo "$git_version" | sed -e 's/\d+\.(\d+).*/\1/' | set git_version_minor
@@ -37,6 +36,7 @@ git_supported = ($git_version_major >  2 || \
 out_git = $canonicalize([dir_path] $~/git/$cmd)
 
 +if! $remote
+{
   rep_git_local = ($cxx.target.class != 'windows' \
                    ? "file://$out_git" \
                    : "file:/$regex.replace($out_git, '\\', '/')")
@@ -46,7 +46,9 @@ out_git = $canonicalize([dir_path] $~/git/$cmd)
   rep_git = $rep_git_local # Default local repository URL.
 
   mkdir -p $out_git
+}
 else
+{
   rep_git_https_dumb        = "https://build2.org/bpkg/git/$cmd"
   rep_git_https_smart       = "https://git.build2.org/testing/bpkg/advonly/$cmd"
   rep_git_https_smart_unadv = "https://git.build2.org/testing/bpkg/unadv/$cmd"
@@ -63,7 +65,7 @@ else
   rep_git_ssh_unadv         = "ssh://git.build2.org/var/scm/testing/bpkg/unadv/$cmd"
 
   rep_git = $rep_git_https_dumb # Default remote repository URL.
-end
+}
 
 # Command for extracting the git repository from a tarball into the output
 # directory (see above). Note: should only be used for .tar, not .tar.gz.

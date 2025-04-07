@@ -17,6 +17,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   # Create the signed 'hello' repository.
@@ -30,7 +31,7 @@
   # Create the 't1' repository.
   #
   cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
-end
+}
 
 pkg_purge  += -d cfg
 pkg_status += -d cfg
@@ -92,7 +93,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
 : no-packages
 :
 {
-  $clone_cfg && $rep_add $rep/t1;
+  $clone_cfg && $rep_add $rep/t1
 
   $* libfoo/1.0.0 2>>/EOE != 0
     error: configuration cfg/ has no available packages
@@ -102,7 +103,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
 : fetched-rep
 :
-{
+{{
   +$clone_cfg && $rep_add $rep/t1 && $rep_fetch --trust-yes
 
   : package-not-available
@@ -115,19 +116,19 @@ $* libfoo/1.0.0 2>>/EOE != 0
   : package-available
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $* libfoo/1.0.0 2>'fetched libfoo/1.0.0';
+    $* libfoo/1.0.0 2>'fetched libfoo/1.0.0'
 
-    $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0';
+    $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0'
 
-    $* libfoo/1.0.0 2>>/EOE != 0;
+    $* libfoo/1.0.0 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-fetch --replace|-r' to replace
       EOE
 
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>>/EOE != 0;
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-fetch --replace|-r' to replace
@@ -139,33 +140,33 @@ $* libfoo/1.0.0 2>>/EOE != 0
   : package-replace
   :
   {
-    $clone_cfg;
+    $clone_cfg
 
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
-    $pkg_unpack   libfoo              2>'unpacked libfoo/1.0.0';
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)'
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0'
+    $pkg_unpack   libfoo              2>'unpacked libfoo/1.0.0'
 
-    test.arguments += --replace; # Replace existing package.
+    test.arguments += --replace # Replace existing package.
 
-    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0';
+    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0'
 
-    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
-    $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0';
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
+    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0'
+    $pkg_unpack   libfoo              2>'unpacked libfoo/1.1.0'
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)'
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0'
 
-    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0';
+    $* libfoo/1.1.0 2>'fetched libfoo/1.1.0'
 
-    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0';
-    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
-    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0';
+    $pkg_status   libfoo/1.1.0        1>'libfoo fetched 1.1.0'
+    $* -e $src/t1/libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)'
+    $pkg_status   libfoo/1.0.0        1>'libfoo fetched 1.0.0'
 
-    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0';
-    $pkg_unpack   libfoo        2>'unpacked libfoo/1.1.0';
-    test -d   cfg/libfoo-1.1.0;
-    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0';
-    test -d   cfg/libfoo-1.1.0                             == 1;
-    $pkg_status   libfoo/1.1.0  1>'libfoo fetched 1.1.0';
+    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0'
+    $pkg_unpack   libfoo        2>'unpacked libfoo/1.1.0'
+    test -d   cfg/libfoo-1.1.0
+    $*            libfoo/1.1.0  2>'fetched libfoo/1.1.0'
+    test -d   cfg/libfoo-1.1.0                             == 1
+    $pkg_status   libfoo/1.1.0  1>'libfoo fetched 1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -173,25 +174,25 @@ $* libfoo/1.0.0 2>>/EOE != 0
   : purge-existing
   :
   {
-    $clone_cfg;
-    cp --no-cleanup $src/t1/libfoo-1.0.0.tar.gz ./;
+    $clone_cfg
+    cp --no-cleanup $src/t1/libfoo-1.0.0.tar.gz ./
 
-    $* --purge --existing libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)';
+    $* --purge --existing libfoo-1.0.0.tar.gz 2>'using libfoo/1.0.0 (external)'
 
     $pkg_purge libfoo 2>'purged libfoo/1.0.0'
   }
-}
+}}
 
 : hello
 :
 {
-  $clone_cfg;
-  $rep_add $rep/hello;
-  $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**;
+  $clone_cfg
+  $rep_add $rep/hello
+  $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**
 
-  $* libhello/1.0.0 2>'fetched libhello/1.0.0';
+  $* libhello/1.0.0 2>'fetched libhello/1.0.0'
 
-  $pkg_status libhello/1.0.0 1>'libhello fetched 1.0.0';
+  $pkg_status libhello/1.0.0 1>'libhello fetched 1.0.0'
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }

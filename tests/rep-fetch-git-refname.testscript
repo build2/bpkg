@@ -4,11 +4,10 @@
 : fetch
 :
 {
-  $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
+  $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment"
 
   if ($git_protocol == 'https-dumb')
     info = "$info_ref_hist$reason_dumb$info_dumb"
-  end;
 
   $* 2>>~"%EOE%"
     %fetching git:.+libfoo$fragment%
@@ -21,13 +20,13 @@
 
 : re-fetch
 :
-{
+{{
   : unchanged
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
+    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment"
 
-    $* 2>!;
+    $* 2>!
 
     $* 2>>~"%EOE%"
       %fetching git:.+libfoo$fragment%
@@ -43,7 +42,7 @@
     u = "$rep_git/state1"
     d = cfg/libfoo-1.0.0
 
-    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
+    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment"
 
     # Extract the repository path from the output line like this:
     #
@@ -52,15 +51,15 @@
     $* -v 2>&1                                         | \
       sed -n -e "s/fetching from .+ in '\(.+\)'/\$1/p" | \
       sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p'  | \
-      set r;
+      set r
 
     # Note that the commit for doc/style/basic submodule is not at the branch
     # tip and so is not advertised.
     #
-    info1 = '%.{0}';
-    info2 = '%.{0}';
-    info3 = '%.{0}';
-    info4 = '%.{0}';
+    info1 = '%.{0}'
+    info2 = '%.{0}'
+    info3 = '%.{0}'
+    info4 = '%.{0}'
 
     if ($git_protocol == 'local'       || \
         $git_protocol == 'https-smart' || \
@@ -68,15 +67,18 @@
         $git_protocol == 'git-unadv'   || \
         $git_protocol == 'ssh'         || \
         $git_protocol == 'ssh-unadv')
+    {
       info2 = "$info_repo_hist for submodule 'doc/style/basic'$reason_unadv"
+    }
     elif ($git_protocol == 'https-dumb')
+    {
       info1 = "$info_ref_hist for submodule 'doc/style'$reason_dumb$info_dumb"
       info2 = "$info_repo_hist for submodule 'doc/style/basic'$reason_dumb$info_dumb"
       info3 = "$info_ref_hist for submodule 'libbar'$reason_dumb$info_dumb"
       info4 = "$info_ref_hist for submodule 'libbar/extras'$reason_dumb$info_dumb"
-    end;
+    }
 
-    $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
+    $pkg_checkout libfoo/1.0.0 2>>~"%EOE%"
       checking out libfoo/1.0.0
       %querying .+style\.git%?
       %fetching submodule 'doc/style' from .+style\.git%
@@ -106,22 +108,20 @@
       $g "$r" log '--pretty=format:%d %s' >>:~%EOO%
         % \(.+\) .+%
         EOO
-    end;
 
-    $g "$r" config remote.origin.url "$u/libfoo.git";
+    $g "$r" config remote.origin.url "$u/libfoo.git"
 
     # Preconditions.
     #
-    test -f $d/tests/TODO;
-    test -f $d/libbar/libbar/manifest;
-    test -f $d/doc/style/README != 0;
-    test -d $d/libbaz != 0;
+    test -f $d/tests/TODO
+    test -f $d/libbar/libbar/manifest
+    test -f $d/doc/style/README != 0
+    test -d $d/libbaz != 0
 
     if ($git_protocol == 'https-dumb')
       info = "$info_ref_hist$reason_dumb$info_dumb"
-    end;
 
-    $* 2>>~"%EOE%" 1>&2;
+    $* 2>>~"%EOE%" 1>&2
       %fetching git:.+libfoo$fragment%
       %querying .+libfoo\.git%
       %fetching from .+libfoo\.git%
@@ -130,17 +130,18 @@
       1 package\(s\) in 1 repository\(s\)
       EOE
 
-    $pkg_drop libfoo;
+    $pkg_drop libfoo
 
-    info1 = '%.{0}';
-    info2 = '%.{0}';
+    info1 = '%.{0}'
+    info2 = '%.{0}'
 
     if ($git_protocol == 'https-dumb')
+    {
       info1 = "$info_ref_hist for submodule 'doc/style'$reason_dumb$info_dumb"
       info2 = "$info_ref_hist for submodule 'libbaz'$reason_dumb$info_dumb"
-    end;
+    }
 
-    $pkg_checkout libfoo/1.0.0 2>>~"%EOE%";
+    $pkg_checkout libfoo/1.0.0 2>>~"%EOE%"
       checking out libfoo/1.0.0
       %querying .+style\.git%?
       %fetching submodule 'doc/style' from .+style\.git%
@@ -159,10 +160,10 @@
 
     # Postconditions.
     #
-    test -d $d/tests != 0;
-    test -d $d/libbar != 0;
-    test -f $d/doc/style/README;
-    test -f $d/libbaz/manifest;
+    test -d $d/tests != 0
+    test -d $d/libbar != 0
+    test -f $d/doc/style/README
+    test -f $d/libbaz/manifest
 
     $pkg_drop libfoo
   }
@@ -170,17 +171,17 @@
   : no-progress
   :
   {
-    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment";
+    $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment"
 
-    $* --no-progress 2>>~"%EOE%";
+    $* --no-progress 2>>~"%EOE%"
       %fetching git:.+libfoo$fragment%
       1 package\(s\) in 1 repository\(s\)
       EOE
 
-    $pkg_checkout --no-progress libfoo/1.0.0 2>>EOE;
+    $pkg_checkout --no-progress libfoo/1.0.0 2>>EOE
       checked out libfoo/1.0.0
       EOE
 
     $pkg_drop libfoo
   }
-}
+}}

@@ -26,7 +26,7 @@ sp = ' '
 : self
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
   $* -d cfg1 >>/"EOO"
     path: $~/cfg1/
@@ -39,7 +39,7 @@ sp = ' '
 : links
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
   $* -d cfg1 --link >>/"EOO"
     path: $~/cfg1/
@@ -57,7 +57,7 @@ sp = ' '
 : links-recursive
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
   $* -d cfg1 --link --recursive >>/"EOO"
     path: $~/cfg1/
@@ -80,9 +80,9 @@ sp = ' '
 : backlinks
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
-  $* -d cfg3 --backlink >>/"EOO";
+  $* -d cfg3 --backlink >>/"EOO"
     path: $~/cfg3/
     uuid: $uuid3
     type: host
@@ -99,11 +99,11 @@ sp = ' '
     name: t2
     EOO
 
-  mv cfg2 cfg2.tmp;
+  mv cfg2 cfg2.tmp
 
   # Make sure that dangling links are silently skipped.
   #
-  $* -d cfg3 --backlink >>/"EOO";
+  $* -d cfg3 --backlink >>/"EOO"
     path: $~/cfg3/
     uuid: $uuid3
     type: host
@@ -117,7 +117,7 @@ sp = ' '
 
   # While at it, test printing dangling links.
   #
-  $* -d cfg3 --dangling >>/"EOO";
+  $* -d cfg3 --dangling >>/"EOO"
     path: $~/cfg3/
     uuid: $uuid3
     type: host
@@ -150,7 +150,7 @@ sp = ' '
 : all-links-recursive
 :
 {
-  $clone_cfgs;
+  $clone_cfgs
 
   $* -d cfg1 --link --backlink --recursive >>/"EOO"
     path: $~/cfg1/

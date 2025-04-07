@@ -36,6 +36,7 @@
 # Prepare repositories used by tests if running in the local mode.
 #
 +if! $remote
+{
   rep_create += 2>!
 
   # Create the signed 'hello' repository.
@@ -45,7 +46,7 @@
 
   $rep_create --key $key $out/hello &$out/hello/packages.manifest \
                                     &$out/hello/signature.manifest
-end
+}
 
 pkg_configure += -d cfg config.cxx=$quote($recall($cxx.path) $cxx.config.mode, true) 2>!
 pkg_disfigure += -d cfg
@@ -66,7 +67,7 @@ $* 2>>EOE != 0
 
 : fetched
 :
-{
+{{
   +$clone_cfg
   +$rep_add $rep/hello
   +$rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**
@@ -81,9 +82,9 @@ $* 2>>EOE != 0
   : wrong-state
   :
   {
-    $clone_cfg && $pkg_fetch libhello/1.0.0;
+    $clone_cfg && $pkg_fetch libhello/1.0.0
 
-    $* libhello 2>>EOE != 0;
+    $* libhello 2>>EOE != 0
       error: package libhello is fetched
         info: expected it to be configured
       EOE
@@ -94,42 +95,42 @@ $* 2>>EOE != 0
   : src-eq-out
   :
   {
-    $clone_cfg;
-    $pkg_fetch     libhello/1.0.0 && $pkg_unpack libhello;
-    $pkg_configure libhello       && $pkg_update libhello;
+    $clone_cfg
+    $pkg_fetch     libhello/1.0.0 && $pkg_unpack libhello
+    $pkg_configure libhello       && $pkg_update libhello
 
-    $* libhello 2>>~%EOE%;
+    $* libhello 2>>~%EOE%
       %rm .+%{6}
       cleaned libhello/1.0.0
       EOE
 
-    $* libhello 2>>~%EOE%;
+    $* libhello 2>>~%EOE%
       %info: .+ is clean%
       cleaned libhello/1.0.0
       EOE
 
-    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
     $pkg_purge     libhello 2>'purged libhello/1.0.0'
   }
-}
+}}
 
 : src-ne-out
 :
 {
-  $clone_cfg;
-  $pkg_unpack -e $src/libhello-1.0.0;
-  $pkg_configure libhello && $pkg_update libhello;
+  $clone_cfg
+  $pkg_unpack -e $src/libhello-1.0.0
+  $pkg_configure libhello && $pkg_update libhello
 
-  $* libhello 2>>~%EOE%;
+  $* libhello 2>>~%EOE%
     %(rm|rmdir) .+%{8}
     cleaned libhello/1.0.0
     EOE
 
-  $* libhello 2>>~%EOE%;
+  $* libhello 2>>~%EOE%
     %info: .+ is clean%
     cleaned libhello/1.0.0
     EOE
 
-  $pkg_disfigure libhello 2>'disfigured libhello/1.0.0';
+  $pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
   $pkg_purge     libhello 2>'purged libhello/1.0.0'
 }
