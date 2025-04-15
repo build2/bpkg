@@ -120,6 +120,7 @@
 # |   |-- libfix-1.0.0.tar.gz   -> libfox
 # |   |-- libfox-1.1.0.tar.gz   -> libbar >= 1.0.0
 # |   |-- libfox-2.0.0.tar.gz   -> libbar >= 2.0.0
+# |   |-- libfux-2.0.0.tar.gz   -> libbax
 # |   `-- repositories.manifest
 # |
 # |-- t4i
@@ -6282,6 +6283,75 @@ test.arguments += --sys-no-query
             EOE
 
           $pkg_drop libfoo libbar
+        }
+
+        : collect-remaining-dependents
+        :
+        : This test reproduced an assertion failure (info: existing dependents
+        : must be in the map) in the try_replace_dependency() function
+        : (GH #467).
+        :
+        {
+          $clone_cfg
+
+          $* libbox/1.0.0 libfux ?libbax/1.0.0 2>!
+
+          $pkg_status -ar >>EOO
+            libbax configured !1.0.0 available 2.0.0
+            !libbox configured !1.0.0 available 2.0.0
+              libbax configured !1.0.0 available 2.0.0
+            !libfux configured 2.0.0
+              libbax configured !1.0.0 available 2.0.0
+            EOO
+
+          $* libbox/2.0.0 libbix ?libbax 2>>~%EOE%
+            %.*
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build: add libbix/2.0.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: skip configured libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbix/2.0.0
+            trace: collect_build: postpone failure for dependent libbix unsatisfied with dependency libbax/1.0.0 (== 2.0.0)
+            trace: collect_build: pick libbax/1.0.0 over libbax/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbix/2.0.0
+            trace: collect_build_prerequisites: end libbix/2.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+            trace: pkg_build: try to replace unsatisfactory dependency libbax/1.0.0 with some other version
+            trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/1.0.0 with some other version
+            trace: try_replace_dependency: replace unsatisfied dependent version libbix/2.0.0 with 1.0.0 by adding constraint 'libbix' -> 'libbix == 1.0.0' on command line
+            trace: pkg_build: refine package collection/plan execution from scratch
+            trace: collect_build: add libbox/2.0.0
+            trace: collect_build: add libbix/1.0.0
+            trace: collect_build_prerequisites: begin libbox/2.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbox/2.0.0
+            trace: collect_build_prerequisites: skip configured libbax/1.0.0
+            trace: collect_build_prerequisites: end libbox/2.0.0
+            trace: collect_build_prerequisites: begin libbix/1.0.0
+            trace: collect_build_prerequisites: no cfg-clause for dependency libbax/1.0.0 of dependent libbix/1.0.0
+            trace: collect_build_prerequisites: end libbix/1.0.0
+            trace: execute_plan: simulate: yes
+            %.*
+              upgrade libbox/2.0.0
+              new libbix/1.0.0
+            trace: execute_plan: simulate: no
+            %.*
+            EOE
+
+          $pkg_status -ar >>EOO
+            libbax configured 1.0.0 available 2.0.0
+            !libbox configured !2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            !libfux configured 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            !libbix configured 1.0.0 available 2.0.0
+              libbax configured 1.0.0 available 2.0.0
+            EOO
+
+          $pkg_drop libbox libbix libfux
         }
       }}
     }}

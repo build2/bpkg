@@ -7045,6 +7045,25 @@ namespace bpkg
                       nullopt /* name */,
                       true    /* sys_rep */);
 
+          // While we are in the database transaction, check if there is an
+          // unsatisfied constraint which we will try to resolve. If that's
+          // the case, make sure that version constraints imposed by all the
+          // configured dependents are taken into account (see
+          // try_replace_dependency() for details).
+          //
+          // Note that such a dependents collection is actually excessive and
+          // may add some unrelated dependents to the map. There is no harm in
+          // that and it doesn't feel like affects the performance too much.
+          // However, in the future we may decide to optimize this by, for
+          // example, collecting existing dependents in
+          // try_replace_dependency() by demand and for only those
+          // dependencies which are considered for replacement.
+          //
+          if (!refine && !unsatisfied_depts.empty () && !cmdline_refine_index)
+            pkgs.collect_dependents (rpt_depts,
+                                     unsatisfied_depts,
+                                     false /* reconfigured_packages */);
+
           t.commit ();
         }
 
