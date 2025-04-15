@@ -7479,7 +7479,8 @@ namespace bpkg
 
   set<package_key> build_packages::
   collect_dependents (const repointed_dependents& rpt_depts,
-                      unsatisfied_dependents& unsatisfied_depts)
+                      unsatisfied_dependents& unsatisfied_depts,
+                      bool reconfigured_packages)
   {
     set<package_key> r;
 
@@ -7495,11 +7496,16 @@ namespace bpkg
     {
       build_package& d (p.second.package);
 
-      // Prune if this is not a configured package being up/down-graded
-      // or reconfigured.
+      // Prune if the up/down-grade/reconfiguration status for the configured
+      // package differs from the requested one.
       //
-      if (d.action && *d.action != build_package::drop && d.reconfigure ())
+      if (d.action && *d.action != build_package::drop   &&
+          d.selected != nullptr                          &&
+          d.selected->state == package_state::configured &&
+          d.reconfigure () == reconfigured_packages)
+      {
         deps.push_back (&d);
+      }
     }
 
     // Note: the pointer is stable (see above for details).
@@ -7705,7 +7711,8 @@ namespace bpkg
         {
           r.insert (i->first);
 
-          // This one affects too many tests, so let's leave it out for now.
+          // Adding this tracing affects too many tests, so let's not add it
+          // for now.
           //
 #if 0
           l5 ([&]{trace << "collected dependent "

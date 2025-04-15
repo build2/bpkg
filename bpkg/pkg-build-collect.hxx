@@ -1646,13 +1646,13 @@ namespace bpkg
 
     // If a configured package is being up/down-graded or reconfigured then
     // that means all its configured dependents could be affected and we have
-    // to reconfigure them. This function examines every such a package that
-    // is already in the map and collects all its configured dependents. We
-    // also need to make sure the dependents are ok with the up/downgrade. If
-    // some dependency constraints are not satisfied, then cache them and
-    // proceed further as if no problematic constraints are imposed (see
-    // unsatisfied_dependents for details). Return the set of the collected
-    // dependents.
+    // to reconfigure them. By default, this function examines every such a
+    // package that is already in the map and collects all its configured
+    // dependents. We also need to make sure the dependents are ok with the
+    // up/downgrade. If some dependency constraints are not satisfied, then
+    // cache them and proceed further as if no problematic constraints are
+    // imposed (see unsatisfied_dependents for details). Return the set of the
+    // collected dependents.
     //
     // Should we reconfigure just the direct depends or also include indirect,
     // recursively? Consider this plausible scenario as an example: We are
@@ -1662,8 +1662,21 @@ namespace bpkg
     // make sense to let its own dependents (which would be our original
     // package's indirect ones) to also notice this.
     //
+    // If reconfigured_packages is false, then collect configured dependents
+    // of all the configured packages present in the map, which are not being
+    // up/down-graded or reconfigured. In other words, collect configured
+    // dependents of all the configured packages, which have been skipped by
+    // this function call in the default mode. Such a collection is normally
+    // performed by the unsatisfied dependency constraints resolution logic to
+    // make sure that when the replacement versions for a configured
+    // unsatisfactory dependency are considered, the version constraints
+    // imposed by all its dependents (new and existing) are taken into account
+    // (see try_replace_dependency() in pkg-build.cxx for details).
+    //
     std::set<package_key>
-    collect_dependents (const repointed_dependents&, unsatisfied_dependents&);
+    collect_dependents (const repointed_dependents&,
+                        unsatisfied_dependents&,
+                        bool reconfigured_packages = true);
 
     // Order the previously-collected package with the specified name and
     // configuration returning its position.
