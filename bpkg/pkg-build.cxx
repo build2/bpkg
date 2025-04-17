@@ -6582,17 +6582,26 @@ namespace bpkg
           refine = need_refinement ();
 
           // If no further refinement is necessary, then perform the
-          // diagnostics run. Otherwise, if any dependency configuration
-          // negotiation has been performed during the current plan refinement
-          // iteration, then rebuild the plan from scratch (see above for
-          // details). Also rebuild it from from scratch if any unsatisfied
-          // dependents have been ignored, since their unsatisfied constraints
-          // are now added to the dependencies' build_package::constraints
-          // lists.
+          // diagnostics run. Otherwise, rebuild the plan, performing that
+          // from scratch (see above for details) for any of the following
+          // reasons:
+          //
+          // - If any dependency configuration negotiation has been performed
+          //   during the current plan refinement iteration.
+          //
+          // - If any unsatisfied dependents have been ignored, since their
+          //   unsatisfied constraints are now added to the dependencies'
+          //   build_package::constraints lists.
+          //
+          // - If any packages are re-collected (deviated dependents, etc),
+          //   since otherwise they may not be ordered on the next plan
+          //   refinement iteration.
           //
           if (!refine)
             need_refinement (true /* diag */);
-          else if (!postponed_cfgs.empty () || !unsatisfied_depts.empty ())
+          else if (!postponed_cfgs.empty ()    ||
+                   !unsatisfied_depts.empty () ||
+                   !postponed_recs.empty ())
             scratch_exe = true;
         }
 
@@ -7905,6 +7914,11 @@ namespace bpkg
       // plan, etc), then initialize it now. Whether the skeleton is newly
       // initialized or not, make sure that the current configuration is
       // loaded, unless the package project is not being disfigured.
+      //
+      // Note though, that loading the current configuration prior to
+      // disfigure in the simulation mode is not really necessary, since the
+      // configuration file stays intact and thus the configuration stays
+      // loadable for the skeleton on demand.
       //
       if (*p.action != build_package::drop && !p.system)
       {
