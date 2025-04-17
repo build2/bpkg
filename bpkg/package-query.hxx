@@ -154,10 +154,13 @@ namespace bpkg
 
   // Try to find an available package corresponding to the specified selected
   // package and, if not found, return a transient one. The search is
-  // performed in the ultimate dependent configurations of the selected
-  // package (see dependent_repo_configs() for details).
+  // performed in the dependent configurations of the selected package.
   //
-  // NOTE: repo_configs needs to be filled prior to the function call.
+  // Note that we used to search in the ultimate dependent configurations
+  // (subset of dependent configurations, potentially empty; see
+  // dependent_repo_configs() for details). However, since the selected
+  // package is normally configured on some previous bpkg run such a subset
+  // can be too restrictive.
   //
   shared_ptr<available_package>
   find_available (const common_options&,
@@ -168,8 +171,6 @@ namespace bpkg
   // the available package comes from. Note that the package locations list is
   // left empty and that the returned repository fragment could be NULL if the
   // package is an orphan.
-  //
-  // NOTE: repo_configs needs to be filled prior to the function call.
   //
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
