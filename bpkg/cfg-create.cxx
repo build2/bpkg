@@ -53,7 +53,7 @@ namespace bpkg
     auto norm = [&trace] (const dir_path& d, const string& t)
     {
       dir_path r (normalize (d, string (t + " configuration").c_str ()));
-      database db (r, trace, false /* pre_attach */);
+      database db (r, trace, false /* pre_attach */, false /* sys_rep */);
       if (db.type != t)
         fail << t << " configuration " << r << " is of '" << db.type
              << "' type";
@@ -215,10 +215,22 @@ namespace bpkg
     db.persist (rep);
 
     if (hc)
-      cfg_link (db, *hc, host_config->relative (), nullopt /* name */);
+    {
+      cfg_link (db,
+                *hc,
+                host_config->relative (),
+                nullopt /* name */,
+                false /* sys_rep */);
+    }
 
     if (bc)
-      cfg_link (db, *bc, build2_config->relative (), nullopt /* name */);
+    {
+      cfg_link (db,
+                *bc,
+                build2_config->relative (),
+                nullopt /* name */,
+                false /* sys_rep */);
+    }
 
     t.commit ();
 

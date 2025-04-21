@@ -1884,7 +1884,7 @@ namespace bpkg
     // Pre-attach the explicitly linked databases since we call
     // package_iteration().
     //
-    database db (c, trace, true /* pre_attach */);
+    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
 
     transaction t (db);
     session s; // Repository dependencies can have cycles.

@@ -3023,7 +3023,9 @@ namespace bpkg
                 ddb->type != buildtime_dependency_type (dn))
             {
               database*  db (nullptr);
-              database& sdb (ddb->private_ () ? ddb->parent_config () : *ddb);
+              database& sdb (ddb->private_ ()
+                             ? ddb->parent_config (true /* sys_rep */)
+                             : *ddb);
 
               const string& type (buildtime_dependency_type (dn));
 
@@ -7545,7 +7547,7 @@ namespace bpkg
             ? sp->version.compare (p.available_version ())
             : 0);
 
-    for (database& ddb: pdb.dependent_configs ())
+    for (database& ddb: pdb.dependent_configs (true /* sys_rep */))
     {
       for (auto& pd: query_dependents_cache (ddb, n, pdb))
       {
@@ -7933,7 +7935,7 @@ namespace bpkg
     const build_package* dep (nullptr);
     int ud (0);
 
-    for (database& ddb: db.dependent_configs ())
+    for (database& ddb: db.dependent_configs (true /* sys_rep */))
     {
       for (auto& pd: query_dependents (ddb, name, db))
       {

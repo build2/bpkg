@@ -110,7 +110,7 @@ namespace bpkg
                         const shared_ptr<selected_package>& p,
                         dependent_names& dns)
     {
-      for (database& ddb: db.dependent_configs ())
+      for (database& ddb: db.dependent_configs (false /* sys_rep */))
       {
         for (auto& pd: query_dependents_cache (ddb, p->name, db))
         {
@@ -262,7 +262,7 @@ namespace bpkg
           // Get our dependents (which, BTW, could only have been before us
           // on the list). If they are all in the map, then we can be dropped.
           //
-          for (database& ddb: db.dependent_configs ())
+          for (database& ddb: db.dependent_configs (false /* sys_rep */))
           {
             for (auto& pd: query_dependents (ddb, p->name, db))
             {
@@ -554,7 +554,7 @@ namespace bpkg
     }
 
 
-    database db (c, trace, true /* pre_attach */);
+    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
 
     // Note that the session spans all our transactions. The idea here is
     // that drop_package objects in the drop_packages list below will be

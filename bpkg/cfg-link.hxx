@@ -29,12 +29,15 @@ namespace bpkg
   // attached, then also pre-attach explicit links of the newly linked
   // database.
   //
+  // If sys_rep is true, then load the system repositories for the being
+  // attached databases.
+  //
   shared_ptr<configuration>
   cfg_link (database&,
             const dir_path&,
             bool relative,
             optional<string> name,
-            bool sys_rep = false);
+            bool sys_rep);
 }
 
 #endif // BPKG_CFG_LINK_HXX

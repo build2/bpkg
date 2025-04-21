@@ -195,7 +195,7 @@ namespace bpkg
         // belong to.
         //
         for (const dir_path& d: pre_link)
-          attach (d).migrate ();
+          attach (d, false /* sys_rep */).migrate ();
 
         t.commit ();
       }
@@ -383,7 +383,7 @@ namespace bpkg
           continue;
         }
 
-        attach (d).migrate ();
+        attach (d, false /* sys_rep */).migrate ();
       }
     }
   }
@@ -781,7 +781,8 @@ namespace bpkg
       //
       if (db.private_ () && db.type == host_config_type)
       {
-        const linked_configs& lcs (db.parent_config ().explicit_links ());
+        const linked_configs& lcs (
+          db.parent_config (true /* sys_rep */).explicit_links ());
 
         for (auto i (lcs.begin_linked ()); i != lcs.end (); ++i)
         {

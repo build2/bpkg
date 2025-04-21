@@ -310,7 +310,7 @@ namespace bpkg
 
     vector<pkg_command_vars> ps;
     {
-      database db (c, trace, true /* pre_attach */);
+      database db (c, trace, true /* pre_attach */, false /* sys_rep */);
 
       if (!allow_host_type && (db.type == host_config_type ||
                                db.type == build2_config_type))

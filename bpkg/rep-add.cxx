@@ -65,7 +65,7 @@ namespace bpkg
       fail << "repository location argument expected" <<
         info << "run 'bpkg help rep-add' for more information";
 
-    database db (c, trace, false /* pre_attach */);
+    database db (c, trace, false /* pre_attach */, false /* sys_rep */);
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 

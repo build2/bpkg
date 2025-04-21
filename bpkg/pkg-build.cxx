@@ -543,7 +543,7 @@ namespace bpkg
 
     if (copy_dep)
     {
-      for (database& db: i->db->dependent_configs ())
+      for (database& db: i->db->dependent_configs (true /* sys_rep */))
       {
         if (find (cur_dbs.begin (), cur_dbs.end (), db) != cur_dbs.end ())
           dep_dbs.push_back (db);
@@ -558,7 +558,7 @@ namespace bpkg
       }
     }
     else
-      dep_dbs = db.dependent_configs ();
+      dep_dbs = db.dependent_configs (true /* sys_rep */);
 
     // Collect the dependents but bail out if the dependency is used but there
     // are no user expectations regarding it.
@@ -1396,7 +1396,7 @@ namespace bpkg
       }
     }
 
-    for (database& ddb: db.dependent_configs ())
+    for (database& ddb: db.dependent_configs (true /* sys_rep */))
     {
       for (auto& pd: query_dependents_cache (ddb, nm, db))
       {
@@ -1472,7 +1472,7 @@ namespace bpkg
     //
     upgrade_deorphan ud {nullopt /* upgrade */, false /* deorphan */};
 
-    for (database& ddb: db.dependent_configs ())
+    for (database& ddb: db.dependent_configs (true /* sys_rep */))
     {
       for (auto& pd: query_dependents_cache (ddb, sp->name, db))
       {
@@ -2347,7 +2347,7 @@ namespace bpkg
       //
       if (sp != nullptr)
       {
-        for (database& ddb: db.dependent_configs ())
+        for (database& ddb: db.dependent_configs (true /* sys_rep */))
         {
           for (const auto& pd: query_dependents (ddb, nm, db))
           {
@@ -6832,7 +6832,8 @@ namespace bpkg
 
               // Add the module and its cluster to the list.
               //
-              build2_mods.emplace_back (pk, pk.db.get ().cluster_configs ());
+              build2_mods.emplace_back (
+                pk, pk.db.get ().cluster_configs (true /* sys_rep */));
             }
           }
         }
