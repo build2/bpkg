@@ -75,10 +75,12 @@
 # |
 # |-- t2
 # |   |-- libbar-1.0.0.tar.gz               -> libfoo
+# |   |-- libbax-1.0.0.tar.gz
 # |   |-- libfoo-0.1.0.tar.gz
 # |   |-- libfoo-1.0.0.tar.gz
 # |   |-- libbiz-1.3.0.tar.gz       (tests) -> libbiz-tests
 # |   |-- libbiz-tests-1.3.0.tar.gz         -> libfoo
+# |   |                                     -> libbar ? ($config.libbiz-tests.libbar)
 # |   |-- libbuz-1.0.0.tar.gz               -> libfoo == 0.1.0
 # |   `-- repositories.manifest
 # |
@@ -26881,176 +26883,303 @@ test.arguments += --sys-no-query
     $pkg_purge     libfoo 2>'purged libfoo/1.1.0'
   }
 
-  : tests
+  : external-tests
   :
-  : Regression test for GH issue #318
-  :
-  : Previously, on the second build libbiz-tests was reconfigured as an
-  : existing dependent of being upgraded libfoo. The available package for
-  : libbiz-tests was searched in the repository info stored in ultimate
-  : dependent directories of libbiz-tests and was not found. As a result, the
-  : available package was created on the fly and, thus, was missing the libbiz
-  : reversed depends clause. From that moment things went sideways.
-  :
-  {
-    $cfg_create -d cfg1 --name cfg1 &cfg1/***
-    $cfg_create -d cfg2 --name cfg2 &cfg2/***
-    $cfg_create -d cfg3 --name cfg3 &cfg3/***
+  {{
+    +$cfg_create -d cfg1 --name cfg1 &cfg1/***
+    +$cfg_create -d cfg2 --name cfg2 &cfg2/***
+    +$cfg_create -d cfg3 --name cfg3 &cfg3/***
 
-    $cfg_link -d cfg1 cfg3
-    $cfg_link -d cfg1 cfg2
-    $cfg_link -d cfg2 cfg3
+    +$cfg_link -d cfg1 cfg3
+    +$cfg_link -d cfg1 cfg2
+    +$cfg_link -d cfg2 cfg3
 
-    $rep_fetch -d cfg1 $rep/t2
-    $rep_fetch -d cfg2 $rep/t2
+    +$rep_fetch -d cfg1 $rep/t2
+    +$rep_fetch -d cfg2 $rep/t2
 
-    $pkg_build --yes -d cfg1 libbiz-tests \
-               { --config-name cfg2 }+ ?libbiz \
-               { --config-name cfg3 }+ ?libfoo 2>-
+    : has-available-package
+    :
+    : Regression test for GH issue #318
+    :
+    : Previously, on the second build libbiz-tests was reconfigured as an
+    : existing dependent of being upgraded libfoo. The available package for
+    : libbiz-tests was searched in the repository info stored in ultimate
+    : dependent directories of libbiz-tests and was not found. As a result, the
+    : available package was created on the fly and, thus, was missing the
+    : libbiz reversed depends clause. From that moment things went sideways.
+    :
+    {
+      cp -pr ../cfg1 ../cfg2 ../cfg3 ./
 
-    $pkg_status -d cfg1 -ar >>/EOO
-      !libbiz-tests configured 1.3.0
-        libbiz [cfg2/] configured 1.3.0
-        libfoo [cfg3/] configured 1.0.0
-      EOO
+      $pkg_build --yes -d cfg1 libbiz-tests \
+                 { --config-name cfg2 }+ ?libbiz \
+                 { --config-name cfg3 }+ ?libfoo 2>-
 
-    $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
-      %.*
-      trace: pkg_build: refine package collection/plan execution from scratch
-      trace: collect_build: add libbuz/1.0.0
-      trace: collect_build_prerequisites: begin libbuz/1.0.0
-      %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
-      %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
-      %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
-      %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build_prerequisites: pre-reevaluated libbiz-tests/1.3.0 \[cfg1.\]: end reached%
-      %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
-      trace: collect_build_prerequisites: end libbuz/1.0.0
-      trace: execute_plan: simulate: yes
-      %.*
-      %  downgrade libfoo/0.1.0 \[cfg3.\] \(required by libbuz\)%
-      %  reconfigure libbiz-tests \[cfg1.\] \(dependent of libfoo \[cfg3.\]\)%
-        new libbuz/1.0.0
-      trace: execute_plan: simulate: no
-      %.*
-      EOE
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libbiz [cfg2/] configured 1.3.0
+          libfoo [cfg3/] configured 1.0.0
+        EOO
 
-    $pkg_status -d cfg1 -ar >>/EOO
-      !libbiz-tests configured 1.3.0
-        libbiz [cfg2/] configured 1.3.0
-        libfoo [cfg3/] configured 0.1.0 available 1.0.0
-      EOO
+      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbuz/1.0.0
+        trace: collect_build_prerequisites: begin libbuz/1.0.0
+        %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
+        %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
+        %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
+        %.*
+        %trace: collect_build_prerequisites: pre-reevaluated libbiz-tests/1.3.0 \[cfg1.\]: end reached%
+        %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
+        trace: collect_build_prerequisites: end libbuz/1.0.0
+        trace: execute_plan: simulate: yes
+        %.*
+        %  downgrade libfoo/0.1.0 \[cfg3.\] \(required by libbuz\)%
+        %  reconfigure libbiz-tests \[cfg1.\] \(dependent of libfoo \[cfg3.\]\)%
+          new libbuz/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
 
-    $pkg_status -d cfg2 -ar >>/EOO
-      libbiz configured 1.3.0
-      !libbuz configured 1.0.0
-        libfoo [cfg3/] configured 0.1.0 available 1.0.0
-      EOO
-  }
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libbiz [cfg2/] configured 1.3.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        EOO
 
-  : tests-rep-remove
-  :
-  : As above but also removes the repository from cfg1.
-  :
-  : This test actually demonstrates that there is still a problem when the
-  : available package is created on the fly (see 're-evaluation of dependent
-  : libbiz-tests/1.3.0 [cfg1/] deviated' and the subsequent 'drop libbiz/1.3.0
-  : (unused)' log records).
-  :
-  : The possible solution is to store the special reverted depends clause (or
-  : even the whole manifest data stored in available package) in the selected
-  : package. This way it will be possible to restore the available package
-  : completely while creating it on the fly.
-  :
-  {
-    $cfg_create -d cfg1 --name cfg1 &cfg1/***
-    $cfg_create -d cfg2 --name cfg2 &cfg2/***
-    $cfg_create -d cfg3 --name cfg3 &cfg3/***
+      $pkg_status -d cfg2 -ar >>/EOO
+        libbiz configured 1.3.0
+        !libbuz configured 1.0.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        EOO
 
-    $cfg_link -d cfg1 cfg3
-    $cfg_link -d cfg1 cfg2
-    $cfg_link -d cfg2 cfg3
+      $pkg_drop -d cfg1 libbiz-tests
+      $pkg_drop -d cfg2 libbuz
+    }
 
-    $rep_fetch -d cfg1 $rep/t2
-    $rep_fetch -d cfg2 $rep/t2
+    : no-available-package
+    :
+    : As above but also removes the repository from cfg1.
+    :
+    : This test actually demonstrates that there is still a problem when the
+    : available package is created on the fly (see 're-evaluation of dependent
+    : libbiz-tests/1.3.0 [cfg1/] deviated' and the subsequent 'drop
+    : libbiz/1.3.0 (unused)' log records).
+    :
+    : The possible solution is to store the special reverted depends clause (or
+    : even the whole manifest data stored in available package) in the selected
+    : package. This way it will be possible to restore the available package
+    : completely while creating it on the fly.
+    :
+    {
+      cp -pr ../cfg1 ../cfg2 ../cfg3 ./
 
-    $pkg_build --yes -d cfg1 libbiz-tests \
-               { --config-name cfg2 }+ ?libbiz \
-               { --config-name cfg3 }+ ?libfoo 2>-
+      $pkg_build --yes -d cfg1 libbiz-tests \
+                 { --config-name cfg2 }+ ?libbiz \
+                 { --config-name cfg3 }+ ?libfoo 2>-
 
-    $pkg_status -d cfg1 -ar >>/EOO
-      !libbiz-tests configured 1.3.0
-        libbiz [cfg2/] configured 1.3.0
-        libfoo [cfg3/] configured 1.0.0
-      EOO
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libbiz [cfg2/] configured 1.3.0
+          libfoo [cfg3/] configured 1.0.0
+        EOO
 
-    $rep_remove -d cfg1 $rep/t2
+      $rep_remove -d cfg1 $rep/t2
 
-    $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
-      %.*
-      trace: pkg_build: refine package collection/plan execution from scratch
-      trace: collect_build: add libbuz/1.0.0
-      trace: collect_build_prerequisites: begin libbuz/1.0.0
-      %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
-      %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
-      %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
-      %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated: number of depends clauses changed to 1 from 2%
-      %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
-      trace: collect_build_prerequisites: end libbuz/1.0.0
-      trace: collect_build_postponed (0): begin
-      %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
-      trace: collect_build_postponed (0): end
-      trace: execute_plan: simulate: yes
-      %.*
-      trace: evaluate_dependency: libbiz/1.3.0: unused
-      trace: pkg_build: refine package collection/plan execution from scratch
-      trace: collect_build: add libbuz/1.0.0
-      trace: collect_build_prerequisites: begin libbuz/1.0.0
-      %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
-      %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
-      %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
-      %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated: number of depends clauses changed to 1 from 2%
-      %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
-      trace: collect_build_prerequisites: end libbuz/1.0.0
-      trace: collect_drop: add libbiz
-      trace: collect_build_postponed (0): begin
-      %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
-      %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
-      %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
-      trace: collect_build_postponed (0): end
-      trace: execute_plan: simulate: yes
-      %.*
-        drop libbiz/1.3.0 (unused)
-      %  downgrade libfoo/0.1.0 \[cfg3.\] \(required by libbiz-tests \[cfg1.\], libbuz\)%
-      %  reconfigure/update libbiz-tests/1.3.0 \[cfg1.\] \(dependent of libfoo \[cfg3.\]\)%
-        new libbuz/1.0.0
-      trace: execute_plan: simulate: no
-      %.*
-      EOE
+      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbuz/1.0.0
+        trace: collect_build_prerequisites: begin libbuz/1.0.0
+        %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
+        %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
+        %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated: number of depends clauses changed to 2 from 3%
+        %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: end libbuz/1.0.0
+        trace: collect_build_postponed (0): begin
+        %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
+        %.*
+        %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libbiz/1.3.0: unused
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbuz/1.0.0
+        trace: collect_build_prerequisites: begin libbuz/1.0.0
+        %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
+        %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
+        %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated: number of depends clauses changed to 2 from 3%
+        %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: end libbuz/1.0.0
+        trace: collect_drop: add libbiz
+        trace: collect_build_postponed (0): begin
+        %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
+        %.*
+        %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+          drop libbiz/1.3.0 (unused)
+        %  downgrade libfoo/0.1.0 \[cfg3.\] \(required by libbiz-tests \[cfg1.\], libbuz\)%
+        %  reconfigure/update libbiz-tests/1.3.0 \[cfg1.\] \(dependent of libfoo \[cfg3.\]\)%
+          new libbuz/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
 
-    $pkg_status -d cfg1 -ar >>/EOO
-      !libbiz-tests configured 1.3.0
-        libfoo [cfg3/] configured 0.1.0
-      EOO
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libfoo [cfg3/] configured 0.1.0
+        EOO
 
-    $pkg_status -d cfg2 -ar >>/EOO
-      !libbuz configured 1.0.0
-        libfoo [cfg3/] configured 0.1.0 available 1.0.0
-      EOO
-  }
+      $pkg_status -d cfg2 -ar >>/EOO
+        !libbuz configured 1.0.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        EOO
+
+      $pkg_drop -d cfg1 libbiz-tests
+      $pkg_drop -d cfg2 libbuz
+    }
+
+    : deviated-available-package
+    :
+    : This test, in particular, makes sure that a deviated dependent which
+    : belongs to a configuration not pre-attached initially (see pkg-build for
+    : details) can be properly re-collected (its configuration is attached on
+    : demand, etc).
+    :
+    {
+      cp -pr ../cfg1 ../cfg2 ../cfg3 ./
+
+      $pkg_build --yes -d cfg1 \
+                 { config.libbiz_tests.libbar=false }+ libbiz-tests \
+                 { --config-name cfg2 }+ { libbax ?libbiz } \
+                 { --config-name cfg3 }+ ?libfoo 2>-
+
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libbiz [cfg2/] configured 1.3.0
+          libfoo [cfg3/] configured 1.0.0
+        EOO
+
+      sed -i -e 's/^(config.libbiz_tests.libbar) = false$/\1 = true/' cfg1/libbiz-tests-1.3.0/build/config.build
+
+      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz ?libbax 2>>~%EOE%
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbuz/1.0.0
+        trace: collect_build_prerequisites: begin libbuz/1.0.0
+        %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
+        %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
+        %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
+        %.*
+        %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated for depends clause 3: now cannot select alternative, previously 0 was selected%
+        %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: end libbuz/1.0.0
+        trace: collect_build_postponed (0): begin
+        %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build: add libbiz/1.3.0
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libbiz/1.3.0 of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: skip configured libbiz/1.3.0
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
+        %.*
+        %trace: collect_build: add libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 \[cfg1.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: end libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libbax/1.0.0: unused
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbuz/1.0.0
+        trace: collect_build_prerequisites: begin libbuz/1.0.0
+        %trace: collect_build: add libfoo/0.1.0 \[cfg3.\]%
+        %info: package libbuz dependency on \(libfoo == 0.1.0\) is forcing downgrade of libfoo/1.0.0 \[cfg3.\] to 0.1.0%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbuz/1.0.0%
+        %trace: collect_build_prerequisites: pre-reeval libbiz-tests/1.3.0 \[cfg1.\]%
+        %.*
+        %trace: collect_build_prerequisites: re-evaluation of dependent libbiz-tests/1.3.0 \[cfg1.\] deviated for depends clause 3: now cannot select alternative, previously 0 was selected%
+        %trace: collect_build_prerequisites: schedule re-collection of deviated existing dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build: add libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: end libbuz/1.0.0
+        trace: collect_drop: overwrite libbax
+        trace: collect_build_postponed (0): begin
+        %trace: collect_build_prerequisites: begin libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build: add libbiz/1.3.0
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libbiz/1.3.0 of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_prerequisites: skip configured libbiz/1.3.0
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libfoo/0.1.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: end libfoo/0.1.0 \[cfg3.\]%
+        %.*
+        %trace: collect_build: add libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 \[cfg1.\] of dependent libbiz-tests/1.3.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: begin libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build: pick libfoo/0.1.0 \[cfg3.\] over libfoo/1.0.0 \[cfg3.\]%
+        %trace: collect_build_prerequisites: no cfg-clause for dependency libfoo/0.1.0 \[cfg3.\] of dependent libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: end libbar/1.0.0 \[cfg1.\]%
+        %trace: collect_build_prerequisites: end libbiz-tests/1.3.0 \[cfg1.\]%
+        trace: collect_build_postponed (0): end
+        trace: execute_plan: simulate: yes
+        %.*
+          drop libbax/1.0.0 (unused)
+        %  downgrade libfoo/0.1.0 \[cfg3.\] \(required by libbar \[cfg1.\], libbiz-tests \[cfg1.\], libbuz\)%
+        %  new libbar/1.0.0 \[cfg1.\] \(required by libbiz-tests \[cfg1.\]\)%
+        %  reconfigure/update libbiz-tests/1.3.0 \[cfg1.\] \(dependent of libfoo \[cfg3.\]\)%
+            config.libbiz_tests.libbar=true (user configuration)
+          new libbuz/1.0.0
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -d cfg1 -ar >>/EOO
+        !libbiz-tests configured 1.3.0
+          libbar configured 1.0.0
+            libfoo [cfg3/] configured 0.1.0 available 1.0.0
+          libbiz [cfg2/] configured 1.3.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        libbar configured 1.0.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        EOO
+
+      $pkg_status -d cfg2 -ar >>/EOO
+        libbiz configured 1.3.0
+        !libbuz configured 1.0.0
+          libfoo [cfg3/] configured 0.1.0 available 1.0.0
+        EOO
+
+      $pkg_drop -d cfg1 libbiz-tests
+      $pkg_drop -d cfg2 libbuz
+    }
+  }}
 }}
 
 : dependency-cycle

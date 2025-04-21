@@ -121,7 +121,7 @@ namespace bpkg
     package_name n (parse_package_name (args.next (),
                                         false /* allow_version */));
 
-    database db (c, trace, true /* pre_attach */);
+    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
     transaction t (db);
 
     shared_ptr<selected_package> p (db.find<selected_package> (n));

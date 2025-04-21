@@ -254,7 +254,8 @@ namespace bpkg
     // also cache the current database, unless it is already there (see above
     // for the dead link case).
     //
-    linked_databases& lds (ldb.implicit_links (false /* attach */));
+    linked_databases& lds (
+      ldb.implicit_links (false /* attach */, false /* sys_rep */));
 
     if (!lds.empty () && find (lds.begin (), lds.end (), db) == lds.end ())
       lds.push_back (db);
@@ -294,7 +295,8 @@ namespace bpkg
       cfg_link (db,
                 ld,
                 rel,
-                o.name_specified () ? o.name () : optional<string> ()));
+                o.name_specified () ? o.name () : optional<string> (),
+                false /* sys_rep */));
 
     t.commit ();
 

@@ -762,7 +762,7 @@ namespace bpkg
     }
     else
     {
-      database db (*conf, trace, false /* pre_attach */);
+      database db (*conf, trace, false /* pre_attach */, false /* sys_rep */);
       transaction t (db);
       r = auth_cert (co, db, pem, rl, dependent_trust);
       t.commit ();

@@ -430,7 +430,7 @@ namespace bpkg
     const dir_path& c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (c, trace, true /* pre_attach */);
+    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
     transaction t (db);
 
     shared_ptr<selected_package> p;

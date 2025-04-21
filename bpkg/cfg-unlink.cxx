@@ -21,7 +21,7 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database mdb (c, trace, true /* pre_attach */);
+    database mdb (c, trace, true /* pre_attach */, false /* sys_rep */);
     transaction t (mdb);
 
     // Find the configuration to be unlinked.
@@ -64,7 +64,7 @@ namespace bpkg
       // Also note that this call also verifies integrity of the implicit
       // links of the configuration being unlinked, which we rely upon below.
       //
-      linked_databases dcs (udb.dependent_configs ());
+      linked_databases dcs (udb.dependent_configs (false /* sys_rep */));
 
       // Unlink the configuration in the in-memory model, so we can evaluate
       // if the dependent configurations are still linked with it.
@@ -226,7 +226,7 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (c, trace, false /* pre_attach */);
+    database db (c, trace, false /* pre_attach */, false /* sys_rep */);
     transaction t (db);
 
     using query = query<configuration>;

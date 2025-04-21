@@ -141,7 +141,7 @@ namespace bpkg
     database (const dir_path& cfg,
               odb::tracer& tr,
               bool pre_attach,
-              bool sys_rep = false,
+              bool sys_rep,
               const dir_paths& pre_link = dir_paths (),
               std::string str_repr = "")
         : database (cfg,
@@ -174,13 +174,13 @@ namespace bpkg
     // instance reference is returned and the sys_rep argument is ignored.
     //
     database&
-    attach (const dir_path&, bool sys_rep = false);
+    attach (const dir_path&, bool sys_rep);
 
     // Attach databases of all the explicitly linked configurations,
     // recursively. Must be called inside the transaction.
     //
     void
-    attach_explicit (bool sys_rep = false);
+    attach_explicit (bool sys_rep);
 
     // Note that while attach*() can be called on the attached database,
     // detach_all() should only be called on the main database.
@@ -227,7 +227,7 @@ namespace bpkg
     // rather than the link information.
     //
     linked_databases&
-    implicit_links (bool attach = true, bool sys_rep = false);
+    implicit_links (bool attach, bool sys_rep);
 
     // Return configurations of potential dependencies of packages selected in
     // the current configuration.
@@ -298,13 +298,13 @@ namespace bpkg
     // configurations of the build2 type.
     //
     linked_databases
-    dependent_configs (bool sys_rep = false);
+    dependent_configs (bool sys_rep);
 
     // Return configurations of the linked cluster which the current
     // configuration belongs to.
     //
     linked_databases
-    cluster_configs (bool sys_rep = false);
+    cluster_configs (bool sys_rep);
 
     // The following find_*() functions assume that the main database has been
     // created with the pre_attach flag set to true.
@@ -371,7 +371,7 @@ namespace bpkg
     // this configuration is private.
     //
     database&
-    parent_config (bool sys_rep = false);
+    parent_config (bool sys_rep);
 
     // Return a private configuration of the specified type, if present, and
     // NULL otherwise.

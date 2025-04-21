@@ -452,7 +452,7 @@ namespace bpkg
            << "auto-detect host operating system";
     }
 
-    database db (c, trace, true /* pre_attach */);
+    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
 
     // Similar to pkg-install we disallow generating packages from the
     // host/build2 configurations.
