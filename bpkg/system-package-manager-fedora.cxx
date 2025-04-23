@@ -3629,6 +3629,11 @@ namespace bpkg
       // and some of them may not be system packages.
       //
 
+      // The package manifest should have been parsed with
+      // package_manifest_flags::require_summary flag.
+      //
+      assert (pm.summary.has_value ());
+
       // The common information and the main package.
       //
       {
@@ -3640,7 +3645,7 @@ namespace bpkg
           os << "Epoch: " << sys_version.epoch                          << '\n';
 
         os <<   "License: " << license                                  << '\n'
-           <<   "Summary: " << pm.summary                               << '\n'
+           <<   "Summary: " << *pm.summary                              << '\n'
            <<   "Url: " << url                                          << '\n';
 
         if (!packager.empty ())
@@ -3715,7 +3720,7 @@ namespace bpkg
            <<   "# " << st.devel                                        << '\n'
            <<   "#"                                                     << '\n'
            <<   "%package -n " << st.devel                              << '\n'
-           <<   "Summary: " << pm.summary                               << '\n';
+           <<   "Summary: " << *pm.summary                              << '\n';
 
         // Feels like the architecture should be the same as for the main
         // package.
@@ -3806,7 +3811,7 @@ namespace bpkg
            <<   "# " << st.static_                                      << '\n'
            <<   "#"                                                     << '\n'
            <<   "%package -n " << st.static_                            << '\n'
-           <<   "Summary: " << pm.summary                               << '\n';
+           <<   "Summary: " << *pm.summary                              << '\n';
 
         // Feels like the architecture should be the same as for the -devel
         // sub-package.
@@ -3881,7 +3886,7 @@ namespace bpkg
            <<   "# " << st.doc                                          << '\n'
            <<   "#"                                                     << '\n'
            <<   "%package -n " << st.doc                                << '\n'
-           <<   "Summary: " << pm.summary                               << '\n'
+           <<   "Summary: " << *pm.summary                              << '\n'
            <<   "BuildArch: noarch"                                     << '\n'
            <<   '\n'
            <<   "AutoReqProv: no"                                       << '\n'
@@ -3909,7 +3914,7 @@ namespace bpkg
            <<   "# " << st.common                                       << '\n'
            <<   "#"                                                     << '\n'
            <<   "%package -n " << st.common                             << '\n'
-           <<   "Summary: " << pm.summary                               << '\n'
+           <<   "Summary: " << *pm.summary                              << '\n'
            <<   "BuildArch: noarch"                                     << '\n'
            <<   '\n'
            <<   "AutoReqProv: no"                                       << '\n'

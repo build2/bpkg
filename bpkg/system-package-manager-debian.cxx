@@ -2472,6 +2472,11 @@ namespace bpkg
       if (pm.src_url)
         os << "Vcs-Browser: "         << pm.src_url->string ()      << '\n';
 
+      // The package manifest should have been parsed with
+      // package_manifest_flags::require_summary flag.
+      //
+      assert (pm.summary.has_value ());
+
       // Then we have one or more binary package stanzas.
       //
       // Note that values from the source package stanza (such as Section,
@@ -2569,7 +2574,7 @@ namespace bpkg
            <<   "Multi-Arch: "   << march                    << '\n';
         if (!depends.empty ())
           os << "Depends: "      << depends                  << '\n';
-        os <<   "Description: "  << pm.summary               << '\n'
+        os <<   "Description: "  << *pm.summary              << '\n'
            <<   " This package contains the runtime files."  << '\n';
       }
 
@@ -2640,7 +2645,7 @@ namespace bpkg
           os << "Suggests: "     << st.doc                        << '\n';
         if (!depends.empty ())
           os << "Depends: "      << depends                       << '\n';
-        os <<   "Description: "  << pm.summary                    << '\n'
+        os <<   "Description: "  << *pm.summary                   << '\n'
            <<   " This package contains the development files."   << '\n';
       }
 
@@ -2651,7 +2656,7 @@ namespace bpkg
            << "Section: "      << "doc"                    << '\n'
            << "Architecture: " << "all"                    << '\n'
            << "Multi-Arch: "   << "foreign"                << '\n'
-           << "Description: "  << pm.summary               << '\n'
+           << "Description: "  << *pm.summary              << '\n'
            << " This package contains the documentation."  << '\n';
       }
 
@@ -2669,7 +2674,7 @@ namespace bpkg
            <<   "Multi-Arch: "   << march                            << '\n';
         if (!depends.empty ())
           os << "Depends: "      << depends                          << '\n';
-        os <<   "Description: "  << pm.summary                       << '\n'
+        os <<   "Description: "  << *pm.summary                      << '\n'
            <<   " This package contains the debugging information."  << '\n';
       }
 
@@ -2690,7 +2695,7 @@ namespace bpkg
            << "Package: "      << st.common                                << '\n'
            << "Architecture: " << "all"                                    << '\n'
            << "Multi-Arch: "   << "foreign"                                << '\n'
-           << "Description: "  << pm.summary                               << '\n'
+           << "Description: "  << *pm.summary                              << '\n'
            << " This package contains the architecture-independent files." << '\n';
       }
 

@@ -1096,7 +1096,8 @@ namespace bpkg
         nullopt,                   // No manifest checksum.
         nullopt,                   // No buildfiles checksum.
         nullopt,                   // No output directory.
-        {}});                      // No prerequisites.
+        {},                        // No prerequisites.
+        nullopt});                 // No manifest.
 
     db.persist (p);
     t.commit ();

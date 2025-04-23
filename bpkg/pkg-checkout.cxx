@@ -348,6 +348,12 @@ namespace bpkg
     if (d.sub (pdb.config))
       d = d.leaf (pdb.config);
 
+    // Make sure all the available package sections, required for generating
+    // the manifest, are loaded.
+    //
+    if (!ap->languages_section.loaded ())
+      rdb.load (*ap, ap->languages_section);
+
     if (p != nullptr)
     {
       // Note: we can be replacing an external package and thus we reset the
@@ -360,6 +366,11 @@ namespace bpkg
       p->purge_src = purge;
       p->manifest_checksum = nullopt;
       p->buildfiles_checksum = nullopt;
+      p->manifest = ap->manifest ();
+
+      // Mark the section as loaded, so the manifest is updated.
+      //
+      p->manifest_section.load ();
 
       pdb.update (p);
     }
@@ -382,7 +393,8 @@ namespace bpkg
         nullopt,   // No manifest/subprojects checksum.
         nullopt,   // No buildfiles checksum.
         nullopt,   // No output directory yet.
-        {}});      // No prerequisites captured yet.
+        {},        // No prerequisites captured yet.
+        ap->manifest ()});
 
       pdb.persist (p);
     }
