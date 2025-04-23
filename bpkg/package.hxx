@@ -32,7 +32,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 23
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 26, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 27, closed)
 
 namespace bpkg
 {
@@ -759,6 +759,9 @@ namespace bpkg
     // Note: version constraints must be complete and the bootstrap build must
     // be present, unless this is a stub.
     //
+    // NOTE: remember to update manifest() function if changing anything here.
+    //
+    explicit
     available_package (package_manifest&& m)
         : id (move (m.name), m.version),
           version (move (m.version)),
@@ -782,8 +785,15 @@ namespace bpkg
       }
     }
 
+    // Create available package using the manifest text, previously returned
+    // by the manifest() function.
+    //
+    explicit
+    available_package (const string&);
+
     // Create available stub package.
     //
+    explicit
     available_package (package_name n)
         : id (move (n), wildcard_version),
           version (wildcard_version) {}
@@ -823,6 +833,27 @@ namespace bpkg
     //
     pair<const version_type*, bool>
     system_version_authoritative (database&) const;
+
+    // Return the available package manifest text (see the implementation for
+    // the value descriptions), which can later be used to recreate the
+    // object. This manifest is normally stored in the selected source package
+    // as a backup for cases when the package repository information is gone
+    // (package version is not in the repository anymore, etc), but we still
+    // need it to, for example, reconfigure the package.
+    //
+    // Note that just using the manifest file from the package source
+    // directory/archive is not an alternative for such a backup, since it may
+    // not contain some additional computed data (inverse test dependency,
+    // etc).
+    //
+    // Also note that only a subset of the original manifest is stored.
+    // However, that data is sufficient to, for example, reconfigure the
+    // selected source package.
+    //
+    // NOTE: should not be called for stubs.
+    //
+    std::string
+    manifest () const;
 
     // Database mapping.
     //
@@ -1265,6 +1296,12 @@ namespace bpkg
     //
     std::string config_checksum;
 
+    // Manifest of the available package which has been selected in a
+    // configuration. Only present for source packages.
+    //
+    optional<std::string> manifest;
+    odb::section manifest_section;
+
   public:
     bool
     system () const
@@ -1369,6 +1406,20 @@ namespace bpkg
     //
     #pragma db member(config_checksum) default("")
 
+    // For the sake of simplicity let's not calculate the available package
+    // manifest during migration (which wouldn't always be possible anyway).
+    // In the absence of the available package manifest for packages selected
+    // in configurations prior to schema version 27, we will fallback to using
+    // the manifest from the package source directory (as we did prior to the
+    // fix). Note, though, that such a fallback may not work well for some
+    // cases and may result in broken configurations (see
+    // available_package::manifest() and
+    // pkg-build/dependent/external-tests/no-available-package test for
+    // details).
+    //
+    #pragma db member(manifest) section(manifest_section)
+    #pragma db member(manifest_section) load(lazy) update(always)
+
     // Explicit aggregate initialization for C++20 (private default ctor).
     //
     selected_package (package_name n,
@@ -1385,7 +1436,8 @@ namespace bpkg
                       optional<std::string> mc,
                       optional<std::string> bc,
                       optional<dir_path> o,
-                      package_prerequisites pps)
+                      package_prerequisites pps,
+                      optional<std::string> m)
     : name (move (n)),
       version (move (v)),
       state (s),
@@ -1400,7 +1452,8 @@ namespace bpkg
       manifest_checksum (move (mc)),
       buildfiles_checksum (move (bc)),
       out_root (move (o)),
-      prerequisites (move (pps)) {}
+      prerequisites (move (pps)),
+      manifest (move (m)) {}
 
   private:
     friend class odb::access;
@@ -1417,6 +1470,8 @@ namespace bpkg
   // corresponding to the specified selected object, which is expected to not
   // be in the broken state. Note that the package locations list is left
   // empty.
+  //
+  // Note: must be called inside the transaction.
   //
   shared_ptr<available_package>
   make_available (const common_options&,

@@ -4,6 +4,11 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 
+#include <sstream>
+
+#include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
+
 #include <bpkg/database.hxx>
 #include <bpkg/checksum.hxx>
 #include <bpkg/rep-mask.hxx>
@@ -13,6 +18,7 @@
 #include <bpkg/manifest-utility.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace bpkg
 {
@@ -108,6 +114,320 @@ namespace bpkg
 
   // available_package
   //
+
+  // Return the available package manifest.
+  //
+  // The available package manifest starts with the header manifest and is
+  // followed by the package manifest. For example:
+  /*
+     : 1
+     version: 1
+     test-dependency-type: tests
+     test-dependency-index: 4
+     :
+     name: foo-tests
+     version: 1.0.0
+     type: tests
+     language: c++
+     project: foo
+     depends: * build2 >= 0.18.0
+     depends: * bpkg >= 0.18.0
+     depends: libfoo-bar == 1.0.0 ? ($bar)
+     depends: libfoo-baz == 1.0.0 ? ($baz)
+     depends: libfoo-bar == 1.0.0 ? (!$defined(config.foo_tests.api)) $config.foo_tests.api=bar | \
+              libfoo-baz == 1.0.0 ? (!$defined(config.foo_tests.api)) $config.foo_tests.api=baz
+     bootstrap-build:
+     \
+     project = foo-tests
+     ...
+     \
+     root-build:
+     \
+     config [string] config.foo_tests.api
+     bar = ($config.foo_tests.api == 'bar')
+     baz = ($config.foo_tests.api == 'baz')
+     ...
+     \
+  */
+  // The header manifest values:
+  //
+  // version: <number>
+  // [test-dependency-type]: <type>
+  // [test-dependency-index]: <number>
+  //
+  // <type> = tests | examples | benchmarks
+  //
+  // The mandatory version value specify the version of the available package
+  // manifest. In the absence of proper database migration, the manifest
+  // parsing can use this value to recognize older manifests and adapt to
+  // them.
+  //
+  // The test-dependency-* values, if present, specify which of the subsequent
+  // package manifest depends clauses is the special inverse test dependency
+  // and what is its type.
+  //
+  // The package manifest values:
+  //
+  // name version upstream-version
+  // type language
+  // project
+  // depends
+  // tests examples benchmarks
+  // bootstrap-build root-build *-build
+  // *-name *-version *-to-downstream-version
+  // sha256sum
+  //
+  // See the build2 Package Manager manual for the package manifest value
+  // definitions.
+  //
+  string available_package::
+  manifest () const
+  {
+    // NOTE: consider incrementing the database schema version and/or manifest
+    //       version and migrating if changing anything here.
+
+    assert (!stub ()                     &&
+            bootstrap_build.has_value () &&
+            alt_naming.has_value ());
+
+    try
+    {
+      ostringstream os;
+      manifest_serializer s (os, "<string>");
+
+      // Serialize the available package header manifest.
+      //
+      s.next ("", "1"); // Start of available package header manifest.
+
+      // Serialize the current available package manifest version.
+      //
+      s.next ("version", "1");
+
+      // Serialize the type and index of the special inverse test dependency,
+      // if present. Note: there can only be at most one.
+      //
+      for (size_t i (0); i != dependencies.size (); ++i)
+      {
+        const dependency_alternatives_ex& das (dependencies[i]);
+
+        if (das.type)
+        {
+          s.next ("test-dependency-type", to_string (*das.type));
+          s.next ("test-dependency-index", to_string (i));
+          break;
+        }
+      }
+
+      s.next ("", "");  // End of available package header manifest.
+
+      // Serialize the package manifest.
+      //
+      // The serialization code is based on the libbpkg's
+      // serialize_package_manifest() function implementation.
+      //
+      s.next ("", "1"); // Start of package manifest.
+
+      s.next ("name", id.name.string ());
+      s.next ("version", version.string ());
+
+      if (upstream_version)
+        s.next ("upstream-version", *upstream_version);
+
+      if (type)
+        s.next ("type", *type);
+
+      for (const language& l: languages)
+        s.next ("language", !l.impl ? l.name : l.name + "=impl");
+
+      if (project)
+        s.next ("project", project->string ());
+
+      for (const dependency_alternatives& das: dependencies)
+        s.next ("depends", das.string ());
+
+      for (const test_dependency& t: tests)
+        s.next (to_string (t.type), t.string ());
+
+      s.next (*alt_naming ? "bootstrap-build2" : "bootstrap-build",
+              *bootstrap_build);
+
+      if (root_build)
+        s.next (*alt_naming ? "root-build2" : "root-build", *root_build);
+
+      for (const auto& bf: buildfiles)
+        s.next (bf.path.posix_string () + (*alt_naming ? "-build2" : "-build"),
+                bf.content);
+
+      for (const distribution_name_value& nv: distribution_values)
+        s.next (nv.name, nv.value);
+
+      if (sha256sum)
+        s.next ("sha256sum", *sha256sum);
+
+      s.next ("", ""); // End of package manifest.
+      s.next ("", ""); // End of stream.
+
+      return os.str ();
+    }
+    catch (const manifest_serialization& e)
+    {
+      // We shouldn't be creating a non-serializable manifest, since it's
+      // crafted from the parsed values. Unless there are some backward
+      // compatibility issues (available packages were not properly migrated,
+      // etc).
+      //
+      fail << "unable to serialize available package manifest for "
+           << package_string (id.name, version) << ": " << e.description
+           << endf;
+    }
+    catch (const io_error& e)
+    {
+      // This shouldn't normally happen, since we are serializing into the
+      // string stream. Let's still handle this exception for good measure.
+      //
+      fail << "unable to write available package manifest for "
+           << package_string (id.name, version) << ": " << e << endf;
+    }
+  }
+
+  available_package::
+  available_package (const string& s)
+  {
+    try
+    {
+      // Parse the available package manifest (see
+      // available_package::manifest() for the manifest description).
+      //
+      istringstream is (s);
+      manifest_parser p (is, "<string>");
+      manifest_name_value nv (p.next ());
+
+      auto bad_name ([&p, &nv](const string& d) {
+        throw manifest_parsing (p.name (), nv.name_line, nv.name_column, d);});
+
+      auto bad_value ([&p, &nv](const string& d) {
+        throw manifest_parsing (p.name (), nv.value_line, nv.value_column, d);});
+
+      // Parse the available package header manifest.
+      //
+      // Make sure this is the start and we support the version.
+      //
+      if (!nv.name.empty ())
+        bad_name ("start of available package manifest expected");
+
+      if (nv.value != "1")
+        bad_value ("unsupported format version");
+
+      // Parse the available package manifest version.
+      //
+      nv = p.next ();
+
+      if (nv.name != "version")
+        bad_name ("available package manifest version expected");
+
+      // Note that we will ignore unknown values in both header and package
+      // manifests, assuming that this is harmless.
+      //
+      // Specifically, if we are parsing manifest created by a newer
+      // toolchain, then if just skipping an unknown value wouldn't be enough,
+      // that newer toolchain would bump the database schema version and
+      // performed manifest migration. In this case we would fail with the
+      // 'configuration is too new' error while trying to open the
+      // configuration database.
+      //
+      // If we are parsing manifest created by an older toolchain, an unknown
+      // value can only be encountered if the manifests were not migrated by
+      // this or some previous bpkg version intentionally, in the assumption
+      // that skipping unknown values is harmless.
+      //
+      optional<test_dependency_type> tdt;
+      optional<size_t> tdi;
+
+      for (nv = p.next (); !nv.empty (); nv = p.next ())
+      {
+        string& n (nv.name);
+        string& v (nv.value);
+
+        if (n == "test-dependency-type")
+        {
+          try
+          {
+            tdt = to_test_dependency_type (v);
+          }
+          catch (const invalid_argument& e)
+          {
+            bad_value (e.what ());
+          }
+        }
+        else if (n == "test-dependency-index")
+        {
+          if (optional<size_t> i =
+              parse_number (v, numeric_limits<size_t>::max ()))
+          {
+            tdi = i;
+          }
+          else
+            bad_value ("invalid inverse test dependency index");
+        }
+      }
+
+      if (tdt.has_value () != tdi.has_value ())
+        bad_value ("inverse test dependency type and index must both be "
+                   "either specified or not");
+
+      // Parse the package manifest.
+      //
+      nv = p.next ();
+
+      if (!nv.name.empty ())
+        bad_name ("start of package manifest expected");
+
+      if (nv.value != "1")
+        bad_value ("unsupported format version");
+
+      // Note that the values are expected to already be completed/expanded.
+      //
+      package_manifest m (
+        p,
+        move (nv),
+        true /* ignore_unknown */,
+        false /* complete_values */,
+        package_manifest_flags::forbid_file              |
+        package_manifest_flags::forbid_fragment          |
+        package_manifest_flags::forbid_incomplete_values |
+        package_manifest_flags::require_bootstrap_build);
+
+      if (tdi && *tdi >= m.dependencies.size ())
+        bad_value ("inverse test dependency index " + to_string (*tdi) +
+                   " is greater than number of dependencies " +
+                   to_string (m.dependencies.size ()));
+
+      *this = available_package (move (m));
+
+      if (tdt)
+        dependencies[*tdi].type = *tdt;
+    }
+    catch (const manifest_parsing& e)
+    {
+      // Normally, we shouldn't be failing on parsing this manifest, since
+      // it's generated automatically by us. Unless there are some backward
+      // compatibility issues (available package manifests were not properly
+      // migrated, etc).
+      //
+      diag_record dr (fail (e.name, e.line, e.column));
+      dr << "unable to parse available package manifest: " << e.description <<
+        info << "manifest:\n" << s;
+    }
+    catch (const io_error& e)
+    {
+      // This shouldn't normally happen, since we are parsing from the string
+      // stream. Let's still handle this exception for good measure.
+      //
+      fail << "unable to read available package manifest: " << e <<
+        info << "manifest:\n" << s;
+    }
+  }
+
   const version* available_package::
   system_version (database& db) const
   {
@@ -329,9 +649,6 @@ namespace bpkg
     if (sp->system ())
       return make_shared<available_package> (sp->name, sp->version);
 
-    // The package is in at least fetched state, which means we should
-    // be able to get its manifest.
-    //
     // @@ PERF We should probably implement the available package caching not
     //    to parse the same manifests multiple times during all that build
     //    plan refinement iterations. What should be the cache key? Feels like
@@ -339,6 +656,29 @@ namespace bpkg
     //    manifests can potentially differ in different external package
     //    directories for the same version iteration. Testing showed 6%
     //    speedup on tests (debug/sanitized).
+    //
+    if (!sp->manifest_section.loaded ())
+      db.load (*sp, sp->manifest_section);
+
+    if (sp->manifest)
+      return make_shared<available_package> (*sp->manifest);
+
+    // @@ TMP For configurations created with the schema version 27 and above
+    //        the manifest should always be present for the selected source
+    //        packages. For earlier (but migrated) configurations it can be
+    //        absent, in which case we will use the manifest file as a
+    //        fallback. Given that this can result in a broken configuration
+    //        (see pkg-build/dependent/external-tests/no-available-package
+    //        test for details), we may want to remove this fallback early
+    //        enough, say after 0.18.0 toolchain is released, and just fail
+    //        instead.
+    //
+    //fail << "no repository information for " << *sp << db <<
+    //  info << "upgrade or deorphan " << sp->name << db <<
+    //  info << "run 'bpkg help pkg-build' for more information";
+    //
+    // The package is in at least fetched state, which means we should be able
+    // to get its manifest.
     //
     package_manifest m (
       sp->state == package_state::fetched

@@ -68,6 +68,7 @@ namespace bpkg
               shared_ptr<selected_package>&& p,
               optional<string>&& mc,
               optional<string>&& bc,
+              string&& m,
               bool purge,
               bool simulate)
   {
@@ -109,6 +110,11 @@ namespace bpkg
       p->purge_src = purge;
       p->manifest_checksum = move (mc);
       p->buildfiles_checksum = move (bc);
+      p->manifest = move (m);
+
+      // Mark the section as loaded, so the manifest is updated.
+      //
+      p->manifest_section.load ();
 
       db.update (p);
     }
@@ -129,7 +135,8 @@ namespace bpkg
         move (mc),
         move (bc),
         nullopt,    // No output directory yet.
-        {}});       // No prerequisites captured yet.
+        {},         // No prerequisites captured yet.
+        move (m)});
 
       db.persist (p);
     }
@@ -151,6 +158,7 @@ namespace bpkg
               const package_info* pi,
               dir_path d,
               repository_location rl,
+              string m,
               bool purge,
               bool simulate)
   {
@@ -192,6 +200,7 @@ namespace bpkg
                        move (p),
                        move (mc),
                        move (bc),
+                       move (m),
                        purge,
                        simulate);
   }
@@ -222,7 +231,7 @@ namespace bpkg
                   d,
                   true /* ignore_unknown */,
                   false /* ignore_toolchain */,
-                  false /* load_buildfiles */,
+                  true /* load_buildfiles */,
                   [&o, &d, &pvi] (version& v)
                   {
                     // Note that we also query subprojects since the package
@@ -253,18 +262,25 @@ namespace bpkg
                                                  true /* check_external */))
       m.version = move (*v);
 
+    // Create the temporary available package object from the package manifest
+    // to serialize it into the available package manifest string.
+    //
+    available_package ap (move (m));
+    string s (ap.manifest ());
+
     // Use the special root repository fragment as the repository fragment of
     // this package.
     //
     return pkg_unpack (o,
                        db,
                        t,
-                       move (m.name),
-                       move (m.version),
-                       m.dependencies,
+                       move (ap.id.name),
+                       move (ap.version),
+                       ap.dependencies,
                        &pvi.info,
                        d,
                        repository_location (),
+                       move (s),
                        purge,
                        simulate);
   }
@@ -326,6 +342,12 @@ namespace bpkg
 
     const repository_location& rl (pl->repository_fragment->location);
 
+    // Make sure all the available package sections, required for generating
+    // the manifest, are loaded.
+    //
+    if (!ap->languages_section.loaded ())
+      rdb.load (*ap, ap->languages_section);
+
     return pkg_unpack (o,
                        pdb,
                        t,
@@ -335,6 +357,7 @@ namespace bpkg
                        nullptr   /* package_info */,
                        path_cast<dir_path> (rl.path () / pl->location),
                        rl,
+                       ap->manifest (),
                        false     /* purge */,
                        simulate);
   }

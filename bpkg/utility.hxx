@@ -291,6 +291,13 @@ namespace bpkg
   //
   void
   dump_stderr (auto_fd&&);
+
+  // Try to parse a string as a non-negative number returning nullopt if the
+  // argument is not a valid number or the number is greater than the
+  // specified maximum.
+  //
+  optional<uint64_t>
+  parse_number (const string&, uint64_t max = UINT64_MAX);
 }
 
 #include <bpkg/utility.txx>

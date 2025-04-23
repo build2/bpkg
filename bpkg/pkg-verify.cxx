@@ -166,7 +166,7 @@ namespace bpkg
               bool it,
               bool ev,
               bool lb,
-              bool cd,
+              bool cv,
               int diag_level)
   try
   {
@@ -194,7 +194,7 @@ namespace bpkg
       package_manifest m (mp.name (),
                           pkg_verify (co, mp, it, af, diag_level),
                           iu,
-                          cd);
+                          cv);
 
       is.close ();
 

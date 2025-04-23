@@ -31,6 +31,7 @@ namespace bpkg
              version v,
              path a,
              repository_location rl,
+             string m,
              bool purge,
              bool simulate)
   {
@@ -82,6 +83,11 @@ namespace bpkg
       p->repository_fragment = move (rl);
       p->archive = move (a);
       p->purge_archive = purge;
+      p->manifest = move (m);
+
+      // Mark the section as loaded, so the manifest is updated.
+      //
+      p->manifest_section.load ();
 
       db.update (p);
     }
@@ -104,7 +110,8 @@ namespace bpkg
         nullopt, // No manifest checksum.
         nullopt, // No buildfiles checksum.
         nullopt, // No output directory yet.
-        {}});    // No prerequisites captured yet.
+        {},      // No prerequisites captured yet.
+        move (m)});
 
       db.persist (p);
     }
@@ -173,7 +180,7 @@ namespace bpkg
                                     true /* ignore_unknown */,
                                     false /* ignore_toolchain */,
                                     false /* expand_values */,
-                                    false /* load_buildfiles */));
+                                    true /* load_buildfiles */));
 
     l4 ([&]{trace << m.name << " " << m.version;});
 
@@ -181,15 +188,22 @@ namespace bpkg
     //
     pkg_fetch_check (db, t, m.name, replace);
 
+    // Create the temporary available package object from the package manifest
+    // to serialize it into the available package manifest string.
+    //
+    available_package ap (move (m));
+    string s (ap.manifest ());
+
     // Use the special root repository fragment as the repository fragment of
     // this package.
     //
     return pkg_fetch (db,
                       t,
-                      move (m.name),
-                      move (m.version),
+                      move (ap.id.name),
+                      move (ap.version),
                       move (a),
                       repository_location (),
+                      move (s),
                       purge,
                       simulate);
   }
@@ -351,6 +365,12 @@ namespace bpkg
       }
     }
 
+    // Make sure all the available package sections, required for generating
+    // the manifest, are loaded.
+    //
+    if (!ap->languages_section.loaded ())
+      rdb.load (*ap, ap->languages_section);
+
     shared_ptr<selected_package> p (
       pkg_fetch (pdb,
                  t,
@@ -358,6 +378,7 @@ namespace bpkg
                  move (v),
                  move (a),
                  pl->repository_fragment->location,
+                 ap->manifest (),
                  true /* purge */,
                  simulate));
 

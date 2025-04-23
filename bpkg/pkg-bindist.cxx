@@ -59,21 +59,41 @@ namespace bpkg
         // And it's handy to be able to run this command on packages built
         // from archives.
         //
-        package_manifest m (
-          pkg_verify (co,
-                      p->effective_src_root (db.config_orig),
-                      true  /* ignore_unknown */,
-                      false /* ignore_toolchain */,
-                      false /* load_buildfiles */,
-                      // Copy potentially fixed up version from selected package.
-                      [&p] (version& v) {v = p->version;}));
+        if (!p->manifest_section.loaded ())
+          db.load (*p, p->manifest_section);
 
-        // Fake the buildfile information (not used).
-        //
-        m.alt_naming = false;
-        m.bootstrap_build = "project = " + p->name.string () + '\n';
+        if (p->manifest)
+        {
+          ap.first = make_shared<available_package> (*p->manifest);
+        }
+        else
+        {
+          // @@ TMP Given this is unlikely an external test package, it feels
+          //        that keeping this fallback is harmless, in contrast to the
+          //        make_available() case. Let's however, for the sake of
+          //        configurations sanity, also drop it after 0.18.0 toolchain
+          //        is released.
+          //
+          //fail << "no repository information for " << *p << db <<
+          //  info << "upgrade or deorphan " << p->name << db <<
+          //  info << "run 'bpkg help pkg-build' for more information";
+          //
+          package_manifest m (
+            pkg_verify (co,
+                        p->effective_src_root (db.config_orig),
+                        true  /* ignore_unknown */,
+                        false /* ignore_toolchain */,
+                        false /* load_buildfiles */,
+                        // Copy potentially fixed up version from selected package.
+                        [&p] (version& v) {v = p->version;}));
 
-        ap.first = make_shared<available_package> (move (m));
+          // Fake the buildfile information (not used).
+          //
+          m.alt_naming = false;
+          m.bootstrap_build = "project = " + p->name.string () + '\n';
+
+          ap.first = make_shared<available_package> (move (m));
+        }
 
         // Fake the location (only used for diagnostics).
         //
