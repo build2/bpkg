@@ -117,7 +117,7 @@ namespace bpkg
                                        "sudo");
       m.simulate_ = &s;
 
-      m.dnf_list (pis);
+      m.dnf_list (pis, true /* modify_system */);
 
       for (const package_info_& pi: pis)
       {
@@ -152,7 +152,8 @@ namespace bpkg
              m.dnf_repoquery_requires (key.name,
                                        key.version,
                                        key.arch,
-                                       key.installed))
+                                       key.installed,
+                                       true /* modify_system */))
       {
         cout << d.first << ' ' << d.second << '\n';
       }
