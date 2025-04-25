@@ -260,13 +260,17 @@ namespace bpkg
     using package_info = package_status::package_info;
 
     void
-    dnf_list (vector<package_info>&, size_t = 0);
+    dnf_list (vector<package_info>&, bool, size_t = 0);
 
     vector<pair<string, string>>
-    dnf_repoquery_requires (const string&, const string&, const string&, bool);
+    dnf_repoquery_requires (const string&,
+                            const string&,
+                            const string&,
+                            bool,
+                            bool);
 
     void
-    dnf_makecache ();
+    dnf_makecache (bool);
 
     void
     dnf_install (const strings&);
@@ -275,15 +279,16 @@ namespace bpkg
     dnf_mark_install (const strings&);
 
     pair<cstrings, const process_path&>
-    dnf_common (const char* command,
-                optional<size_t> fetch_timeout,
-                strings& args_storage);
+    dnf_common (const char*, bool, optional<size_t>, bool, bool, strings&);
 
     pair<cstrings, const process_path&>
-    dnf_common (const char* command,
-                const char* subcommand,
-                optional<size_t> fetch_timeout,
-                strings& args_storage);
+    dnf_common (const char*,
+                const char*,
+                bool,
+                optional<size_t>,
+                bool,
+                bool,
+                strings&);
 
     static package_status
     parse_name_value (const string&, const string&, bool, bool, bool);

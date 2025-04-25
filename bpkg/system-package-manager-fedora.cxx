@@ -295,8 +295,10 @@ namespace bpkg
   //
   // If the n argument is not 0, then only query the first n packages.
   //
+  // For the semantics of the modify_system argument see dnf_common().
+  //
   void system_package_manager_fedora::
-  dnf_list (vector<package_info>& pis, size_t n)
+  dnf_list (vector<package_info>& pis, bool modify_system, size_t n)
   {
     if (n == 0)
       n = pis.size ();
@@ -309,10 +311,20 @@ namespace bpkg
     // check: <timestamp>' printed to stderr. It does not appear to affect
     // error diagnostics (try specifying a single unknown package).
     //
-    cstrings args {
-      "dnf", "list",
-      "--cacheonly", // Don't automatically update the metadata.
-      "--quiet"};
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      dnf_common ("list",
+                  modify_system,
+                  nullopt /* fetch_timeout */,
+                  false /* progress */,
+                  false /* interactive */,
+                  args_storage));
+
+    cstrings& args (args_pp.first);
+    const process_path& pp (args_pp.second);
+
+    args.push_back ("--cacheonly"); // Don't automatically update the metadata.
+    args.push_back ("--quiet");
 
     for (size_t i (0); i != n; ++i)
     {
@@ -349,10 +361,7 @@ namespace bpkg
 
     try
     {
-      if (dnf_path.empty () && !simulate_)
-        dnf_path = process::path_search (args[0], false /* init */);
-
-      process_env pe (dnf_path, evars);
+      process_env pe (pp, evars);
 
       if (verb >= 3)
         print_process (pe, args);
@@ -363,7 +372,7 @@ namespace bpkg
       process pr;
       if (!simulate_)
       {
-        pr = process (dnf_path,
+        pr = process (pp,
                       args,
                       -2      /* stdin */,
                       -1      /* stdout */,
@@ -658,11 +667,14 @@ namespace bpkg
   //   rust-uuid-devel-1.2.1-1.fc35.noarch
   //   cargo-1.65.0-1.fc35.x86_64
   //
+  // For the semantics of the modify_system argument see dnf_common().
+  //
   vector<pair<string, string>> system_package_manager_fedora::
   dnf_repoquery_requires (const string& name,
                           const string& ver,
                           const string& qarch,
-                          bool installed)
+                          bool installed,
+                          bool modify_system)
   {
     assert (!name.empty () && !ver.empty () && !arch.empty ());
 
@@ -678,10 +690,20 @@ namespace bpkg
     // check: <timestamp>' printed to stderr. It does not appear to affect
     // error diagnostics (try specifying an unknown option).
     //
-    cstrings args {
-      "dnf", "repoquery",
-      "--quiet",
-      "--cacheonly"}; // Don't automatically update the metadata.
+    strings args_storage;
+    pair<cstrings, const process_path&> args_pp (
+      dnf_common ("repoquery",
+                  modify_system,
+                  nullopt /* fetch_timeout */,
+                  false /* progress */,
+                  false /* interactive */,
+                  args_storage));
+
+    cstrings& args (args_pp.first);
+    const process_path& pp (args_pp.second);
+
+    args.push_back ("--cacheonly"); // Don't automatically update the metadata.
+    args.push_back ("--quiet");
 
     // Resolve requirements to packages/versions.
     //
@@ -758,10 +780,7 @@ namespace bpkg
     vector<pair<string, string>> r;
     try
     {
-      if (dnf_path.empty () && !simulate_)
-        dnf_path = process::path_search (args[0], false /* init */);
-
-      process_env pe (dnf_path, evars);
+      process_env pe (pp, evars);
 
       if (verb >= 3)
         print_process (pe, args);
@@ -771,7 +790,7 @@ namespace bpkg
       //
       process pr;
       if (!simulate_)
-        pr = process (dnf_path,
+        pr = process (pp,
                       args,
                       -2      /* stdin */,
                       -1      /* stdout */,
@@ -915,12 +934,47 @@ namespace bpkg
     return r;
   }
 
-  // Prepare the common options for commands which update the system.
+  // Prepare the leading part of the dnf command line (potentially use sudo,
+  // etc).
+  //
+  // If modify_system is true, then this dnf command is assumed to be a part
+  // of a system modification scenario and will use sudo, unless its usage is
+  // disabled.
+  //
+  // Note that we used to use sudo only for those dnf commands which actually
+  // modify the system (install, etc). However, since dnf maintains per-user
+  // caches (see dnf5 Caching documentation for more details), we may end up
+  // using different caches for commands which use sudo and for those which
+  // don't. This, in particular, may result in different available versions
+  // assumed by `dnf list` and `sudo dnf install` for the same package. There
+  // doesn't seem to be an easy way to enforce a command to use the system
+  // rather than the local cache. The only thing we could do is to remove the
+  // local metadata with `dnf clean metadata`, so that the subsequent command
+  // would copy it from the system cache to the local one first thing. This
+  // feels sub-optimal and probably still leaves a room for caches to get out
+  // of sync. In this light, the best strategy seems to be the following: if
+  // we suppose to use sudo for some system-modifying commands, then we should
+  // also use sudo for all other commands involved into this system
+  // modification scenario.
+  //
+  // If progress is true, then it is assumed that the command may potentially
+  // print some progress indication. In this case the progress indication is
+  // suppressed (by adding --quiet dnf option), if --quiet and/or
+  // --no-progress bpkg options are specified.
+  //
+  // If interactive is true, then it is assumed that the command may
+  // potentially display prompts. In this case all prompts are either answered
+  // 'yes' (by adding --assumeyes dnf option), if --sys-yes bpkg option is
+  // specified, or suppressed (by adding --assumeno), if stdout is not a
+  // terminal.
   //
   pair<cstrings, const process_path&> system_package_manager_fedora::
   dnf_common (const char* command,
               const char* subcommand,
+              bool modify_system,
               optional<size_t> fetch_timeout,
+              bool progress,
+              bool interactive,
               strings& args_storage)
   {
     // Pre-allocate the required number of entries in the arguments storage.
@@ -930,7 +984,7 @@ namespace bpkg
 
     cstrings args;
 
-    if (!sudo_.empty ())
+    if (!sudo_.empty () && modify_system)
       args.push_back (sudo_.c_str ());
 
     args.push_back ("dnf");
@@ -939,35 +993,41 @@ namespace bpkg
     if (subcommand != nullptr)
       args.push_back (subcommand);
 
-    // Map our verbosity/progress to dnf --quiet and --verbose options.
-    //
-    // Note that all the diagnostics, including the progress indication and
-    // general information (like what's being installed) but excluding error
-    // messages, is printed to stdout. So we fix this by redirecting stdout to
-    // stderr. By default the progress bar for network transfers is printed,
-    // unless stdout is not a terminal. The --quiet option disables printing
-    // the plan and all the progress indication, but not the confirmation
-    // prompt nor error messages.
-    //
-    if (progress_ && *progress_)
+    if (progress)
     {
-      // Print the progress bar by default, unless this is not a terminal
-      // (there is no way to force it).
-    }
-    else if (verb == 0 || (progress_ && !*progress_))
-    {
-      args.push_back ("--quiet");
+      // Map our verbosity/progress to dnf --quiet and --verbose options.
+      //
+      // Note that all the diagnostics, including the progress indication and
+      // general information (like what's being installed) but excluding error
+      // messages, is printed to stdout. So we fix this by redirecting stdout
+      // to stderr. By default the progress bar for network transfers is
+      // printed, unless stdout is not a terminal. The --quiet option disables
+      // printing the plan and all the progress indication, but not the
+      // confirmation prompt nor error messages.
+      //
+      if (progress_ && *progress_)
+      {
+        // Print the progress bar by default, unless this is not a terminal
+        // (there is no way to force it).
+      }
+      else if (verb == 0 || (progress_ && !*progress_))
+      {
+        args.push_back ("--quiet");
+      }
     }
 
-    if (yes_)
+    if (interactive)
     {
-      args.push_back ("--assumeyes");
-    }
-    else if (!stderr_term)
-    {
-      // Suppress any prompts if stderr is not a terminal for good measure.
-      //
-      args.push_back ("--assumeno");
+      if (yes_)
+      {
+        args.push_back ("--assumeyes");
+      }
+      else if (!stderr_term)
+      {
+        // Suppress any prompts if stderr is not a terminal for good measure.
+        //
+        args.push_back ("--assumeno");
+      }
     }
 
     // Add the network operations timeout configuration options, if requested.
@@ -1011,12 +1071,18 @@ namespace bpkg
 
   pair<cstrings, const process_path&> system_package_manager_fedora::
   dnf_common (const char* command,
+              bool modify_system,
               optional<size_t> fetch_timeout,
+              bool progress,
+              bool interactive,
               strings& args_storage)
   {
     return dnf_common (command,
                        nullptr /* subcommand */,
+                       modify_system,
                        fetch_timeout,
+                       progress,
+                       interactive,
                        args_storage);
   }
 
@@ -1050,12 +1116,19 @@ namespace bpkg
 
   // Execute `dnf makecache` to download and cache the repositories metadata.
   //
+  // For the semantics of the modify_system argument see dnf_common().
+  //
   void system_package_manager_fedora::
-  dnf_makecache ()
+  dnf_makecache (bool modify_system)
   {
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
-      dnf_common ("makecache", fetch_timeout_, args_storage));
+      dnf_common ("makecache",
+                  modify_system,
+                  fetch_timeout_,
+                  true /* progress */,
+                  false /* interactive */,
+                  args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -1151,7 +1224,12 @@ namespace bpkg
 
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
-      dnf_common ("install", fetch_timeout_, args_storage));
+      dnf_common ("install",
+                  true /* modify_system */,
+                  fetch_timeout_,
+                  true /* progress */,
+                  true /* interactive */,
+                  args_storage));
 
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
@@ -1269,7 +1347,10 @@ namespace bpkg
     pair<cstrings, const process_path&> args_pp (
       dnf_common ("mark",
                   (simulate_ || dnf5 () ? "user" : "install"),
+                  true /* modify_system */,
                   nullopt /* fetch_timeout */,
+                  true /* progress */,
+                  false /* interactive */,
                   args_storage));
 
     cstrings& args (args_pp.first);
@@ -1493,7 +1574,7 @@ namespace bpkg
                                       bool installed)
     {
       vector<pair<string, string>> depends (
-        dnf_repoquery_requires (s.devel, ver, qarch, installed));
+        dnf_repoquery_requires (s.devel, ver, qarch, installed, install_));
 
       s.main = main_from_devel (s.devel, ver, depends);
 
@@ -1584,7 +1665,7 @@ namespace bpkg
         ps.package_infos_main = pis.size ();
         for (const string& n: ps.extras)  pis.emplace_back (n);
 
-        dnf_list (pis);
+        dnf_list (pis, install_);
 
         // Handle the fallback package name, if specified.
         //
@@ -1648,7 +1729,7 @@ namespace bpkg
           {
             pis.emplace (pis.begin (), ps.main);
             ps.package_infos_main++;
-            dnf_list (pis, 1);
+            dnf_list (pis, install_, 1);
           }
         }
 
@@ -1696,7 +1777,7 @@ namespace bpkg
       bool requery;
       if ((requery = fetch_ && !fetched_))
       {
-        dnf_makecache ();
+        dnf_makecache (true /* modify_system */);
         fetched_ = true;
       }
 
@@ -1708,7 +1789,7 @@ namespace bpkg
           vector<package_info>& pis (ps.package_infos);
 
           if (requery)
-            dnf_list (pis);
+            dnf_list (pis, true /* modify_system */);
 
           // Handle the fallback package name, if specified.
           //
@@ -1779,7 +1860,7 @@ namespace bpkg
             {
               pis.emplace (pis.begin (), ps.main);
               ps.package_infos_main++;
-              dnf_list (pis, 1);
+              dnf_list (pis, true /* modify_system */, 1);
             }
           }
 
@@ -2121,7 +2202,7 @@ namespace bpkg
         }
       }
 
-      dnf_list (pis);
+      dnf_list (pis, true /* modify_system */);
 
       for (const package_name& pn: pns)
       {
