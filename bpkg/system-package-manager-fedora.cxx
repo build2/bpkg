@@ -1121,13 +1121,17 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_makecache (bool modify_system)
   {
+    // Let's, for good measure, assume that `dnf makecache` can display some
+    // prompts. While that seems rather far fetched, who could think that
+    // `dnf5 mark user` can be interactive. There is no harm in that anyway.
+    //
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
       dnf_common ("makecache",
                   modify_system,
                   fetch_timeout_,
                   true /* progress */,
-                  false /* interactive */,
+                  true /* interactive */,
                   args_storage));
 
     cstrings& args (args_pp.first);
@@ -1343,6 +1347,19 @@ namespace bpkg
   {
     assert (!pkgs.empty ());
 
+    // Turns out that `dnf5 mark user` can be interactive, printing, for
+    // example, the following output:
+    //
+    // Package "httpd-devel-2.4.63-1.fc41.x86_64" is already installed with reason "User".
+    // Package "libpq-16.4-1.fc41.x86_64" is already installed with reason "User".
+    // Package "libpq-devel-16.4-1.fc41.x86_64" is already installed with reason "User".
+    // Package "libapreq2-libs-2.17-8.fc41.x86_64" is already installed with reason "User".
+    // Package "libapreq2-devel-2.17-8.fc41.x86_64" is already installed with reason "User".
+    // Package "apr-devel-1.7.5-1.fc41.x86_64" is already installed with reason "User".
+    //
+    // After this operation, 0 B extra will be used (install 0 B, remove 0 B).
+    // Is this ok [y/N]:
+    //
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
       dnf_common ("mark",
@@ -1350,7 +1367,7 @@ namespace bpkg
                   true /* modify_system */,
                   nullopt /* fetch_timeout */,
                   true /* progress */,
-                  false /* interactive */,
+                  true /* interactive */,
                   args_storage));
 
     cstrings& args (args_pp.first);
