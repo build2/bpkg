@@ -158,13 +158,15 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/hello
 
-    $* --trust $cert_fp 2>>EOE &cfg/.bpkg/certs/**
+    $* --trust $cert_fp 2>>~%EOE% &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/hello
+      %.*
       1 package(s) in 1 repository(s)
       EOE
 
-    $* 2>>EOE
+    $* 2>>~%EOE%
       fetching pkg:build2.org/rep-fetch/hello
+      %.*
       1 package(s) in 1 repository(s)
       EOE
   }
@@ -174,21 +176,31 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/bar/unstable
 
-    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**
+    $* --trust-yes 2>>~%EOE% &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/bar/unstable
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       5 package(s) in 5 repository(s)
       EOE
 
-    $* 2>>EOE
+    $* 2>>~%EOE%
       fetching pkg:build2.org/rep-fetch/bar/unstable
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       5 package(s) in 5 repository(s)
       EOE
   }
@@ -198,23 +210,35 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg && $rep_add $rep/hello $rep/bar/unstable
 
-    $* --trust-yes 2>>EOE &cfg/.bpkg/certs/**
+    $* --trust-yes 2>>~%EOE% &cfg/.bpkg/certs/**
       fetching pkg:build2.org/rep-fetch/bar/unstable
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/hello
+      %.*
       6 package(s) in 6 repository(s)
       EOE
 
-    $* 2>>EOE
+    $* 2>>~%EOE%
       fetching pkg:build2.org/rep-fetch/bar/unstable
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/hello
+      %.*
       6 package(s) in 6 repository(s)
       EOE
   }
@@ -224,20 +248,30 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg
 
-    $* --trust-yes $rep/bar/unstable 2>>EOE &cfg/.bpkg/certs/**
+    $* --trust-yes $rep/bar/unstable 2>>~%EOE% &cfg/.bpkg/certs/**
       added pkg:build2.org/rep-fetch/bar/unstable
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       5 package(s) in 5 repository(s)
       EOE
 
-    $* 'pkg:build2.org/rep-fetch/bar/unstable' 2>>EOE
+    $* 'pkg:build2.org/rep-fetch/bar/unstable' 2>>~%EOE%
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/testing (complements pkg:build2.org/rep-fetch/bar/unstable)
+      %.*
       fetching pkg:build2.org/rep-fetch/bar/stable (complements pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/stable (prerequisite of pkg:build2.org/rep-fetch/bar/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/foo/testing (prerequisite of pkg:build2.org/rep-fetch/bar/testing)
+      %.*
       5 package(s) in 5 repository(s)
       EOE
 
@@ -258,10 +292,13 @@ $* 2>>/EOE != 0
   {
     $clone_root_cfg
 
-    $* --trust-yes $rep/cycle/stable 2>>EOE
+    $* --trust-yes $rep/cycle/stable 2>>~%EOE%
       added pkg:build2.org/rep-fetch/cycle/stable
+      %.*
       fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
+      %.*
       fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
+      %.*
       3 package(s) in 3 repository(s)
       EOE
 
@@ -298,10 +335,13 @@ $* 2>>/EOE != 0
     {
       $clone_cfg
 
-      $* --trust-yes $rep/cycle/stable 2>>EOE
+      $* --trust-yes $rep/cycle/stable 2>>~%EOE%
         added pkg:build2.org/rep-fetch/cycle/stable
+        %.*
         fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
+        %.*
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
+        %.*
         3 package(s) in 3 repository(s)
         EOE
 
@@ -322,10 +362,13 @@ $* 2>>/EOE != 0
     {
       $clone_cfg
 
-      $* --trust-yes $rep/cycle/stable 2>>EOE
+      $* --trust-yes $rep/cycle/stable 2>>~%EOE%
         added pkg:build2.org/rep-fetch/cycle/stable
+        %.*
         fetching pkg:build2.org/rep-fetch/cycle/math (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
+        %.*
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/math)
+        %.*
         3 package(s) in 3 repository(s)
         EOE
 

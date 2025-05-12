@@ -67,6 +67,12 @@ namespace bpkg
 
     bool ignore_unknown (!o.manifest () || o.ignore_unknown ());
 
+    // If this is a remote archive-based repository, then print its name to
+    // attribute the packages.manifest fetch progress.
+    //
+    if (verb && rl.remote () && rl.archive_based ())
+      text << "fetching " << rl.canonical_name ();
+
     rep_fetch_data rfd (
       rep_fetch (o,
                  conf,
