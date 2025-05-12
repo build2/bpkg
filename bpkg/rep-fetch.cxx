@@ -85,7 +85,7 @@ namespace bpkg
     // we just fetched.
     //
     pair<pkg_package_manifests, string /* checksum */> pmc (
-      pkg_fetch_packages (co, rl, ignore_unknown));
+      pkg_fetch_packages (co, conf, rl, ignore_unknown));
 
     pkg_package_manifests& pms (pmc.first);
 
@@ -1956,9 +1956,15 @@ namespace bpkg
       }
 
       // If the user specified a single repository, then don't insult them
-      // with a pointless "fetching ..." line for this repository.
+      // with a pointless "fetching ..." line for this repository, unless this
+      // is a remote archive-based repository for which we will print the
+      // packages.manifest fetch progress.
       //
-      if (repos.size () > 1)
+      assert (!repos.empty ());
+
+      const repository_location& rl (repos[0].load ()->location);
+
+      if (repos.size () > 1 || (rl.remote () && rl.archive_based ()))
       {
         // Also, as a special case (or hack, if you will), suppress these
         // lines if all the repositories are directory-based. For such

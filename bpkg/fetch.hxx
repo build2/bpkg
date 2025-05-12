@@ -32,8 +32,12 @@ namespace bpkg
   pkg_package_manifests
   pkg_fetch_packages (const dir_path&, bool ignore_unknown);
 
+  // If configuration directory is NULL, then assume not running in a bpkg
+  // configuration.
+  //
   pair<pkg_package_manifests, string /* checksum */>
   pkg_fetch_packages (const common_options&,
+                      const dir_path* configuration,
                       const repository_location&,
                       bool ignore_unknown);
 

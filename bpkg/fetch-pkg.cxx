@@ -195,7 +195,8 @@ namespace bpkg
   static pair<M, string/*checksum*/>
   fetch_manifest (const common_options* o,
                   const path& f,
-                  bool ignore_unknown)
+                  bool ignore_unknown,
+                  const optional<string>& name = nullopt)
   {
     if (!exists (f))
       fail << "file " << f << " does not exist";
@@ -212,7 +213,7 @@ namespace bpkg
 
       ifdstream ifs (f);  // Open file in the text mode.
 
-      manifest_parser mp (ifs, f.string ());
+      manifest_parser mp (ifs, name ? *name : f.string ());
       return make_pair (M (mp, ignore_unknown), move (cs));
     }
     catch (const manifest_parsing& e)
@@ -270,6 +271,7 @@ namespace bpkg
 
   pair<pkg_package_manifests, string/*checksum*/>
   pkg_fetch_packages (const common_options& o,
+                      const dir_path* conf,
                       const repository_location& rl,
                       bool iu)
   {
@@ -280,9 +282,35 @@ namespace bpkg
     path& f (*u.path);
     f /= packages_file;
 
-    return rl.remote ()
-      ? fetch_manifest<pkg_package_manifests> (o, u, iu)
-      : fetch_manifest<pkg_package_manifests> (&o, f, iu);
+    // We used to fetch and parse packages.manifest for remote repository
+    // locations using the fetch_manifest(repository_url) overload. It fetches
+    // the manifest into memory (to read it twice, once to calculate the
+    // checksum and the second time to actually parse) and doesn't print any
+    // progress indication, which can be confusing for large packages.manifest
+    // files. There is no easy way to change this function to print the proper
+    // progress indication (the file name specifically) when using wget and
+    // fetch as the underlying fetch programs. Thus, we fetch
+    // packages.manifest into a temporary directory and remove it after the
+    // parsing.
+    //
+    if (rl.remote ())
+    {
+      auto i (tmp_dirs.find (conf != nullptr ? *conf : empty_dir_path));
+      assert (i != tmp_dirs.end ());
+
+      auto_rmfile rmf (i->second / packages_file, !keep_tmp);
+      const path& mf (rmf.path);
+
+      if (exists (mf))
+        rm (mf);
+
+      fetch_file (o, u, mf);
+      auto r (fetch_manifest<pkg_package_manifests> (&o, mf, iu, u.string ()));
+      rmf.active = true;
+      return r;
+    }
+    else
+      return fetch_manifest<pkg_package_manifests> (&o, f, iu);
   }
 
   signature_manifest

@@ -65,7 +65,7 @@ $* 2>>EOE != 0
 {{
   : unsigned
   :
-  $* $rep/testing >>"EOO"
+  $* $rep/testing >>"EOO" 2>!
     pkg:build2.org/rep-info/testing ($rep/testing)
     prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
     complement pkg:build2.org/rep-info/stable ($rep/stable)
@@ -75,7 +75,7 @@ $* 2>>EOE != 0
 
   : signed
   :
-  $* $rep/signed >>"EOO"
+  $* $rep/signed >>"EOO" 2>!
     pkg:build2.org/rep-info/signed ($rep/signed)
     CN=build2.org/O=Code Synthesis/info@build2.org
     $cert_fp
@@ -88,7 +88,7 @@ $* 2>>EOE != 0
 
 : name
 :
-$* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
+$* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)" 2>!
 
 : packages
 :
@@ -97,7 +97,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
   : list
   :
-    $* $rep/testing >>EOO
+    $* $rep/testing >>EOO 2>!
 
     foo/1
     EOO
@@ -109,7 +109,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
     : basic
     :
-    $* $rep/testing >>EOO
+    $* $rep/testing >>EOO 2>!
       : 1
       name: foo
       version: 1
@@ -243,7 +243,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : manifest
     :
     {
-      $* --manifest --packages-file m $rep/testing &m
+      $* --manifest --packages-file m $rep/testing 2>! &m
 
       cat m >>EOO
         : 1
@@ -274,14 +274,14 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 
   : list
   :
-  $* $rep/testing >>"EOO"
+  $* $rep/testing >>"EOO" 2>!
     prerequisite pkg:build2.org/foo/testing ($rep_root/foo/testing)
     complement pkg:build2.org/rep-info/stable ($rep/stable)
     EOO
 
   : manifest
   :
-  $* --manifest $rep/testing >>EOO
+  $* --manifest $rep/testing >>EOO 2>!
     : 1
     location: ../../foo/testing
     type: pkg
@@ -306,7 +306,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
     : manifest
     :
     {
-      $* --manifest --repositories-file m $rep/testing &m
+      $* --manifest --repositories-file m $rep/testing 2>! &m
 
       cat m >>EOO
         : 1
@@ -328,10 +328,10 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)"
 {{
   test.arguments += $rep/signed
 
-  $* --cert-fingerprint  >"$cert_fp"        : fingerprint
-  $* --cert-name         >'name:build2.org' : name
-  $* --cert-organization >'Code Synthesis'  : organization
-  $* --cert-email        >'info@build2.org' : email
+  $* --cert-fingerprint  >"$cert_fp"        2>! : fingerprint
+  $* --cert-name         >'name:build2.org' 2>! : name
+  $* --cert-organization >'Code Synthesis'  2>! : organization
+  $* --cert-email        >'info@build2.org' 2>! : email
 }}
 
 : git-rep
@@ -426,7 +426,7 @@ else
 
     # Disable default options files loading.
     #
-    $* --no-default-options --name $rep/testing -d cfg >>"EOO"
+    $* --no-default-options --name $rep/testing -d cfg >>"EOO" 2>!
       pkg:build2.org/rep-info/testing ($rep/testing)
       EOO
   }
@@ -447,7 +447,7 @@ else
 
     # Disable loading options from the current (configuration) directory.
     #
-    $* --name  -d '' $rep/testing >>"EOO"
+    $* --name  -d '' $rep/testing >>"EOO" 2>!
       pkg:build2.org/rep-info/testing ($rep/testing)
       EOO
   }
@@ -459,7 +459,7 @@ else
   : packages
   :
   {
-    $* --packages $rep/compatibility >>EOO
+    $* --packages $rep/compatibility >>EOO 2>!
 
       libbar/1.0.0
       libbaz/1.0.0
@@ -471,7 +471,7 @@ else
   : package-manifests-ignore-toolchain
   :
   {
-    $* --packages --manifest --ignore-unknown $rep/compatibility >>~%EOO%
+    $* --packages --manifest --ignore-unknown $rep/compatibility >>~%EOO% 2>!
       : 1
       name: libbar
       version: 1.0.0
@@ -504,6 +504,7 @@ else
   :
   {
     $* --packages --manifest $rep/compatibility 2>>~%EOE% != 0
+      %.*
       error: unable to satisfy constraint (build2 >= 65536.0.0) for package libbaz
       %  info: available build2 version is .+%
       EOE
