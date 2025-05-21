@@ -4502,7 +4502,9 @@ namespace bpkg
 
         // We cannot just do usr/share/* since it will clash with doc/, man/,
         // and licenses/ below. So we have to list all the top-level entries
-        // in usr/share/ that are not doc/, man/, licenses/, or build2/.
+        // in usr/share/ that are not doc/, man/, licenses/, or
+        // build2/export/. We will handle sub-entries of doc/, man/,
+        // licenses/, and build2/export/ later.
         //
         if (gen_main)
         {
@@ -4521,7 +4523,7 @@ namespace bpkg
             if (f.sub (docdir)     ||
                 f.sub (mandir)     ||
                 f.sub (licensedir) ||
-                f.sub (build2dir))
+                f.sub (bfdir))
               continue;
 
             path l (f.leaf (sharedir));
