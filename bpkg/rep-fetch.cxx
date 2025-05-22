@@ -571,12 +571,14 @@ namespace bpkg
     // keeping it unset unless the repository state directory is really
     // changed.
     //
+    dir_path rsd;
     dir_path rd;
     bool init (true);
 
     if (conf != nullptr)
     {
-      rd = *conf / repos_dir / sd;
+      rsd = *conf / repos_dir;
+      rd = rsd / sd;
 
       if (exists (rd))
       {
@@ -769,6 +771,12 @@ namespace bpkg
     //
     if (!rd.empty ())
     {
+      // Make sure the repos/ directory exists (could potentially be manually
+      // removed).
+      //
+      if (!exists (rsd))
+        mk (rsd);
+
       mv (td, rd);
       rm.cancel ();
       filesystem_state_changed = true;

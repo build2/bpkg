@@ -705,7 +705,15 @@ namespace bpkg
       //
       if (pem)
       {
-        path f (db.config_orig / certs_dir / path (cert->id + ".pem"));
+        // Make sure the certs/ directory exists (could potentially be manually
+        // removed).
+        //
+        dir_path cd (db.config_orig / certs_dir);
+
+        if (!exists (cd))
+          mk (cd);
+
+        path f (cd / path (cert->id + ".pem"));
 
         try
         {

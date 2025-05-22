@@ -349,6 +349,7 @@ namespace bpkg
     //
     dir_path rd (db.config_orig / repos_dir);
 
+    if (exists (rd))
     try
     {
       for (const dir_entry& de: dir_iterator (rd, dir_iterator::no_follow))
