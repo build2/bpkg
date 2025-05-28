@@ -2537,11 +2537,13 @@ names and locations of packages that it is allowed to build.|
 [*-build-config]: <args> [; <comment>]
 
 <args> = [[[+|-]<prefix>:](<option>|<config-var>|<hook>)]* \\
+         [<global-var-override>]*                          \\
          [(+|-)<prefix>:]*                                 \\
          [<dependency-spec>]*                              \\
          [<package-specific-vars>]*
 
 <hook> = <hook-script>|<hook-script-arg>
+<global-var-override> = !<var>
 <dependency-spec> = [{ <config-var> [<config-var>]* }+] <dependency>
 <dependency> = (?[sys:]|sys:)<name>[<version-spec>]
 <version-spec> = /<version> | <version-constraint>
@@ -2566,22 +2568,32 @@ to the default configuration (which is called \c{default}).
 
 The \c{*-build-config} values contain whitespace separated lists of
 potentially double/single-quoted package configuration arguments. The global
-(as opposed to package-specific) options and variables can be prefixed with
-the build bot worker script step ids or a leading portion thereof to restrict
-it to a specific step, operation, phase, or tool (see \l{bbot#arch-worker
-\cb{bbot} worker step ids}). The prefix can optionally begin with the \c{+} or
-\c{-} character (in this case the argument can be omitted) to enable or
-disable the respective step (see the list of \l{bbot#arch-controller worker
-steps} which can be enabled or disabled). Unprefixed global options,
-variables, and dependencies are passed to the \l{bpkg-pkg-build(1)} command at
-the \c{bpkg.configure.build} step. The package-specific configuration
-variables for this and/or the separate test packages are passed to
-\l{bpkg-pkg-build(1)} at the \c{bpkg.configure.build} and
-\c{bpkg.test-separate-installed.configure.build} steps. The dependencies of
-these packages can be configured at these steps in various configurations by
-specifying the package-specific \c{--config-uuid} option(s) and configuration
-variables or the \c{[?]sys:} prefix (see \l{bbot#arch-worker configuration
-UUIDs}). For example:
+(as opposed to package-specific) options and configuration variables can be
+prefixed with the build bot worker script step ids or a leading portion
+thereof to restrict it to a specific step, operation, phase, or tool (see
+\l{bbot#arch-worker \cb{bbot} worker step ids}). The prefix can optionally
+begin with the \c{+} or \c{-} character (in this case the argument can be
+omitted) to enable or disable the respective step (see the list of
+\l{bbot#arch-controller worker steps} which can be enabled or
+disabled). Unprefixed global options, configuration variables, and
+dependencies are passed to the \l{bpkg-pkg-build(1)} command at the
+\c{bpkg.configure.build} step.
+
+The always unprefixed global variable overrides are set as a value of the
+\c{BUILD2_VAR_OVR} environment variable, one override per line (see \l{b(1)}
+for details), at the very beginning of the build.
+
+\N|The \c{BUILD2_VAR_OVR} environment variable is in effect for all the
+underlying \c{build2} process invocations and, thus, these globally overridden
+variables can, in particular, be used in \c{bootstrap.build}.|
+
+The package-specific configuration variables for this and/or the separate test
+packages are passed to \l{bpkg-pkg-build(1)} at the \c{bpkg.configure.build}
+and \c{bpkg.test-separate-installed.configure.build} steps. The dependencies
+of these packages can be configured at these steps in various configurations
+by specifying the package-specific \c{--config-uuid} option(s) and
+configuration variables or the \c{[?]sys:} prefix (see \l{bbot#arch-worker
+configuration UUIDs}). For example:
 
 \
 network-build-config: config.libfoo.network=true; Enable networking API.
@@ -2634,10 +2646,32 @@ default-build-config:
 #
 { --config-uuid=00000000-0000-0000-0000-000000000005 }+ ?sys:libfoo/*
 \\
+
+extra-tests-config:
+\\
+!config.libfoo.extra_tests=true
+;
+Enable extra test subprojects.
+\\
 \
 
 Note that options with values can only be specified using the single argument
 notation, for example, \c{--verbose=4}.
+
+Also note that the build bot worker may set some environment variables either
+for the entire build or for specific commands (see the list of
+\l{bbot#arch-worker environment variables} which may be set or modified). Some
+of these environment variables may be useful in package build
+configurations. For example:
+
+\
+bindist-build-config:
+\\
+...
+{ config.import.build2=$getenv(BBOT_MAIN_PACKAGE_CONFIG) }+ \
+?libbuild2-autoconf
+\\
+\
 
 The \c{*-build-config} values prefixed with a hook step id specify the hook
 script and optional script arguments to be executed at the specified step.
