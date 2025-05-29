@@ -2180,7 +2180,10 @@ namespace bpkg
     //
     if (!cache || !cmd_vars_cache_)
     {
-      const strings& vs1 (build2_cmd_vars);
+      if (!build2_cmd_vars)
+        build2_parse_cmdline (*co_);
+
+      const strings& vs1 (*build2_cmd_vars);
       const strings& vs2 (config_vars_);
       const strings& vs3 (dependent_vars);  // Should not override.
       const strings& vs4 (dependency_vars); // Should not override.
@@ -2243,7 +2246,10 @@ namespace bpkg
       {
         assert (!cmd_vars_cache_); // Sanity check (we are always first).
 
-        const strings& vs1 (build2_cmd_vars);
+        if (!build2_cmd_vars)
+          build2_parse_cmdline (*co_);
+
+        const strings& vs1 (*build2_cmd_vars);
         const strings& vs2 (config_vars_);
 
         if (!disfigure_)

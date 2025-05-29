@@ -526,11 +526,11 @@ namespace bpkg
     auto merge_cmd_vars = [&cmd_vars] () -> const strings&
     {
       if (cmd_vars.empty ())
-        return build2_cmd_vars;
+        return *build2_cmd_vars;
 
-      if (!build2_cmd_vars.empty ())
+      if (!build2_cmd_vars->empty ())
         cmd_vars.insert (cmd_vars.begin (),
-                         build2_cmd_vars.begin (), build2_cmd_vars.end ());
+                         build2_cmd_vars->begin (), build2_cmd_vars->end ());
 
       return cmd_vars;
     };

@@ -105,23 +105,27 @@ namespace bpkg
     std::terminate ();
   }
 
-  strings                build2_cmd_vars;
-  build2::scheduler      build2_sched;
-  build2::global_mutexes build2_mutexes;
-  build2::file_cache     build2_fcache;
+  optional<strings>        build2_cmd_vars;
+  build2::scheduler        build2_sched;
+  build2::global_mutexes   build2_mutexes;
+  build2::file_cache       build2_fcache;
 
-  static const char*     build2_argv0;
+  static const char*       build2_argv0;
+  static build2::b_options build2_options;
+  static build2::b_cmdline build2_cmdline;
 
   void
-  build2_init (const common_options& co)
+  build2_parse_cmdline (const common_options& co)
   {
+    assert (!build2_cmd_vars); // Should only be called once.
+
     try
     {
       using namespace build2;
       using build2::fail;
       using build2::endf;
 
-      build2::tracer trace ("build2_init");
+      build2::tracer trace ("build2_parse_cmdline");
 
       // Parse --build-option values as the build2 driver command line.
       //
@@ -129,8 +133,8 @@ namespace bpkg
       // --build-option if specified, falling back to equivalent bpkg values
       // otherwise.
       //
-      b_options bo;
-      b_cmdline bc;
+      b_options& bo (build2_options);
+      b_cmdline& bc (build2_cmdline);
       {
         small_vector<char*, 1> argv {const_cast<char*> (build2_argv0)};
 
@@ -173,6 +177,29 @@ namespace bpkg
       }
 
       build2_cmd_vars = move (bc.cmd_vars);
+    }
+    catch (const build2::failed&)
+    {
+      throw bpkg::failed (); // Assume the diagnostics has already been issued.
+    }
+  }
+
+  void
+  build2_init (const common_options& co)
+  {
+    assert (!build2_sched.started ()); // Should only be called once.
+
+    try
+    {
+      using namespace build2;
+      using build2::fail;
+      using build2::endf;
+
+      if (!build2_cmd_vars)
+        build2_parse_cmdline (co);
+
+      const b_options& bo (build2_options);
+      const b_cmdline& bc (build2_cmdline);
 
       init_diag (bc.verbosity,
                  bo.silent (),
