@@ -17,16 +17,23 @@
 
 namespace bpkg
 {
-  // These are initialized by build2_init().
+  // Initialized by build2_parse_cmdline() and build2_init().
   //
-  extern strings                build2_cmd_vars;
+  extern optional<strings>      build2_cmd_vars;
+
+  // Initialized by build2_init().
+  //
   extern build2::scheduler      build2_sched;
   extern build2::global_mutexes build2_mutexes;
   extern build2::file_cache     build2_fcache;
 
+  // Use build2_cmd_vars to check if already parsed.
+  //
+  void
+  build2_parse_cmdline (const common_options&);
+
   // Use build2_sched.started() to check if already initialized. Note that the
   // scheduler is pre-tuned for serial execution.
-  //
   //
   void
   build2_init (const common_options&);
