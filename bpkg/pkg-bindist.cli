@@ -353,6 +353,11 @@ namespace bpkg
       "Extra dependencies to add to the \cb{Depends} \cb{control} file field
        value of the development (\cb{-dev}) binary package."
     }
+
+    bool --debian-no-debug
+    {
+      "Don't generate the debug information (\cb{-dbgsym}) binary package."
+    }
   };
 
   class pkg_bindist_fedora_options
@@ -534,6 +539,11 @@ namespace bpkg
       "Extra dependency to add to the static libraries (\cb{-static}) binary
        package as an additional \cb{Requires} RPM spec file directive. Repeat
        this option to specify multiple extra dependencies."
+    }
+
+    bool --fedora-no-debug
+    {
+      "Don't generate the debug information (\cb{-debuginfo}) binary package."
     }
   };
 

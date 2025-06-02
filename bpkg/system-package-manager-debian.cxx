@@ -2662,7 +2662,7 @@ namespace bpkg
 
       // Keep this in case we want to support it in the "starting point" mode.
       //
-      if (!st.dbg.empty () && !binless)
+      if (!st.dbg.empty () && !binless && !ops_->debian_no_debug ())
       {
         string depends (st.main + " (= ${binary:Version})");
 
@@ -2997,13 +2997,12 @@ namespace bpkg
       // noautodbgsym flag to the DEB_BUILD_OPTIONS variable.
       //
       // This doesn't seem to be necessary (probably because there is no
-      // .so/.a).
+      // .so/.a). Thus, we only disable its generation if requested
+      // explicitly.
       //
-#if 0
-      if (binless)
+      if (ops_->debian_no_debug ())
         os << "export DEB_BUILD_OPTIONS += noautodbgsym" << '\n'
            << '\n';
-#endif
 
       // The debian/tmp/ subdirectory appears to be the canonical destination
       // directory (see dh_auto_install(1) for details).
@@ -3607,7 +3606,7 @@ namespace bpkg
     if (gen_main)
       add (st.main + '_' + v + '_' + a + ".deb", "main.deb", st.main);
 
-    if (!binless)
+    if (!binless && !ops_->debian_no_debug ())
       add (st.main + "-dbgsym_" + v + '_' + a + ".deb",
            "dbgsym.deb",
            st.main + "-dbgsym",

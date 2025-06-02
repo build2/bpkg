@@ -3975,11 +3975,12 @@ namespace bpkg
         // Also note that we disable generating the -debugsource sub-packages
         // (see the generate() description above for the reasoning).
         //
-        // For a binless library no -debug* packages are supposed to be
-        // generated. Thus, we just drop their definitions by redefining the
-        // %{debug_package} macro as an empty string.
+        // For a binless library or if requested explicitly, no -debug*
+        // packages are supposed to be generated. Thus, we just drop their
+        // definitions by redefining the %{debug_package} macro to an empty
+        // string.
         //
-        if (!binless)
+        if (!binless && !ops_->fedora_no_debug ())
         {
           os << "%undefine _debugsource_packages"                       << '\n';
 
@@ -4906,7 +4907,7 @@ namespace bpkg
         add_package (st.common, "noarch", "common.rpm");
 
       optional<size_t> di (
-        !binless
+        !binless && !ops_->fedora_no_debug ()
         ? add_package (st.main + "-debuginfo", arch, "debuginfo.rpm")
         : optional<size_t> ());
 
