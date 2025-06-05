@@ -189,7 +189,7 @@ namespace bpkg
     // subdirectory functionality (see the --private option for details).
     //
     // Note that this function may be called multiple times in the
-    // --recursive=separate mode. In this case the first argument indicates
+    // --recursive=separate mode. In this case the "first" argument indicates
     // whether this is the first call (can be used, for example, to adjust the
     // --wipe-output semantics).
     //
