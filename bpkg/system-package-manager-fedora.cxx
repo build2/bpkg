@@ -2931,16 +2931,19 @@ namespace bpkg
     // anything configured. Note that we add some more in the spec file below.
     //
     // We make use of the <project> substitution since in the recursive mode
-    // we may be installing multiple projects. Note that the <private>
-    // directory component is automatically removed if this functionality is
-    // not enabled. One side-effect of using <project> is that we will be
-    // using the bpkg package name instead of the Fedora package name. But
-    // perhaps that's correct: while in Fedora the source package name (which
-    // is the same as the main binary package name) does not necessarily
-    // correspond to the "logical" package name, we still want to use the
-    // logical name (consider libsqlite3 which is mapped to sqlite-libs and
-    // sqlite-devel; we don't want <project> to be sqlite-libs). To keep
-    // things consistent we use the bpkg package name for <private> as well.
+    // we may be installing multiple projects. One side-effect of using
+    // <project> is that we will be using the bpkg package name instead of the
+    // Fedora package name. But perhaps that's correct: while in Fedora the
+    // source package name (which is the same as the main binary package name)
+    // does not necessarily correspond to the "logical" package name, we still
+    // want to use the logical name (consider libsqlite3 which is mapped to
+    // sqlite-libs and sqlite-devel; we don't want <project> to be
+    // sqlite-libs). If the installation is not private and we are in the
+    // --recursive auto or full mode, then install all the data,
+    // documentation, and legal files, already organized into their <project>
+    // subdirectories, into an additional, named as the main bpkg package,
+    // subdirectory.To keep things consistent we use the main bpkg package
+    // name for <private> as well.
     //
     // Let's only use those directory macros which we can query with `rpm
     // --eval` (see eval() lambda for details). Note that this means our
@@ -2952,42 +2955,88 @@ namespace bpkg
     // NOTE: make sure to update the expressions evaluation and the %files
     //       sections below if changing anything here.
     //
-    strings config {
-      "config.install.root=%{_prefix}/",
-      "config.install.data_root=%{_exec_prefix}/",
-      "config.install.exec_root=%{_exec_prefix}/",
+    strings config;
+    {
+      auto add = [&config] (auto&& v)
+      {
+        config.push_back (string ("config.install.") + v);
+      };
 
-      "config.install.bin=%{_bindir}/",
-      "config.install.sbin=%{_sbindir}/",
+      if (priv)
+      {
+        add ("root=%{_prefix}/");
+        add ("data_root=%{_exec_prefix}/");
+        add ("exec_root=%{_exec_prefix}/");
 
-      // On Fedora shared libraries should be executable.
-      //
-      "config.install.lib=%{_libdir}/<private>/",
-      "config.install.lib.mode=755",
-      "config.install.libexec=%{_libexecdir}/<private>/<project>/",
-      "config.install.pkgconfig=lib/pkgconfig/",
+        add ("bin=%{_bindir}/");
+        add ("sbin=%{_sbindir}/");
 
-      "config.install.etc=%{_sysconfdir}/",
-      "config.install.include=%{_includedir}/<private>/",
-      "config.install.include_arch=include/",
-      "config.install.share=%{_datadir}/",
-      "config.install.data=share/<private>/<project>/",
-      "config.install.buildfile=share/build2/export/<project>/",
+        // On Fedora shared libraries should be executable.
+        //
+        add ("lib=%{_libdir}/<private>/");
+        add ("lib.mode=755");
+        add ("libexec=%{_libexecdir}/<private>/<project>/");
+        add ("pkgconfig=lib/pkgconfig/");
 
-      "config.install.doc=%{_docdir}/<private>/<project>/",
-      "config.install.legal=%{_licensedir}/<private>/<project>/",
-      "config.install.man=%{_mandir}/",
-      "config.install.man1=man/man1/",
-      "config.install.man2=man/man2/",
-      "config.install.man3=man/man3/",
-      "config.install.man4=man/man4/",
-      "config.install.man5=man/man5/",
-      "config.install.man6=man/man6/",
-      "config.install.man7=man/man7/",
-      "config.install.man8=man/man8/"};
+        add ("etc=%{_sysconfdir}/");
+        add ("include=%{_includedir}/<private>/");
+        add ("include_arch=include/");
+        add ("share=%{_datadir}/");
+        add ("data=share/<private>/<project>/");
+        add ("buildfile=share/build2/export/<project>/");
 
-    config.push_back ("config.install.private=" +
-                      (priv ? pn.string () : "[null]"));
+        add ("doc=%{_docdir}/<private>/<project>/");
+        add ("legal=%{_licensedir}/<private>/<project>/");
+        add ("man=%{_mandir}/");
+        add ("man1=man/man1/");
+        add ("man2=man/man2/");
+        add ("man3=man/man3/");
+        add ("man4=man/man4/");
+        add ("man5=man/man5/");
+        add ("man6=man/man6/");
+        add ("man7=man/man7/");
+        add ("man8=man/man8/");
+
+        add ("private=" + pn.string ());
+      }
+      else
+      {
+        string pkd (recursive_full ? pn.string () + '/' : "");
+
+        add ("root=%{_prefix}/");
+        add ("data_root=%{_exec_prefix}/");
+        add ("exec_root=%{_exec_prefix}/");
+
+        add ("bin=%{_bindir}/");
+        add ("sbin=%{_sbindir}/");
+
+        add ("lib=%{_libdir}/");
+        add ("lib.mode=755");
+        add ("libexec=%{_libexecdir}/<project>/");
+        add ("pkgconfig=lib/pkgconfig/");
+
+        add ("etc=%{_sysconfdir}/");
+        add ("include=%{_includedir}/");
+        add ("include_arch=include/");
+        add ("share=%{_datadir}/");
+        add ("data=share/" + pkd + "<project>/");
+        add ("buildfile=share/build2/export/<project>/");
+
+        add ("doc=%{_docdir}/" + pkd + "<project>/");
+        add ("legal=%{_licensedir}/" + pkd + "<project>/");
+        add ("man=%{_mandir}/");
+        add ("man1=man/man1/");
+        add ("man2=man/man2/");
+        add ("man3=man/man3/");
+        add ("man4=man/man4/");
+        add ("man5=man/man5/");
+        add ("man6=man/man6/");
+        add ("man7=man/man7/");
+        add ("man8=man/man8/");
+
+        add ("private=[null]"); // Not to pick anything configured.
+      }
+    }
 
     // Add user-specified configuration variables last to allow them to
     // override anything.
@@ -3166,22 +3215,24 @@ namespace bpkg
       topdir  = pop_dir ();
 
       // Let's tighten things up and only look for the installed files in
-      // <private>/ (if specified) to make sure there is nothing stray.
+      // <private>/ (if specified) or <package>/ (if --recursive is auto or
+      // full) to make sure there is nothing stray.
       //
-      dir_path pd (priv ? pn.string () : "");
+      dir_path prd (priv ? pn.string () : "");
+      dir_path pkd (!priv && recursive_full ? pn.string () : "");
 
-      licensedir = pop_dir () / pd;
+      licensedir = pop_dir () / (priv ? prd : pkd);
       mandir     = pop_dir ();
-      docdir     = pop_dir () / pd;
+      docdir     = pop_dir () / (priv ? prd : pkd);
       sharedir   = pop_dir ();
       build2dir  = sharedir / dir_path ("build2");
       bfdir      = build2dir / dir_path ("export");
-      sharedir  /= pd;
-      libdir     = pop_dir () / pd;
+      sharedir  /= (priv ? prd : pkd);
+      libdir     = pop_dir () / prd;
       pkgdir     = libdir / dir_path ("pkgconfig");
-      incdir     = pop_dir () / pd;
+      incdir     = pop_dir () / prd;
       confdir    = pop_dir ();
-      libexecdir = pop_dir () / pd;
+      libexecdir = pop_dir () / prd;
       sbindir    = pop_dir ();
       bindir     = pop_dir ();
 
@@ -4278,7 +4329,8 @@ namespace bpkg
         // NOTE: use consistently with the above install directory expressions
         //       (%{?_includedir}, etc) evaluation.
         //
-        string pd (priv ? pn.string () + '/' : "");
+        string prd (priv ? pn.string () + '/' : "");
+        string pkd (!priv && recursive_full ? pn.string () + '/' : "");
 
         // The main package contains everything that doesn't go to another
         // packages.
@@ -4289,7 +4341,7 @@ namespace bpkg
           if (ies.contains_sub (sbindir)) main += "%{_sbindir}/*\n";
 
           if (ies.contains_sub (libexecdir))
-            main += "%{_libexecdir}/" + (priv ? pd : "*") + '\n';
+            main += "%{_libexecdir}/" + (priv ? prd : "*") + '\n';
 
           // This could potentially go to -common but it could also be target-
           // specific, who knows. So let's keep it in main for now.
@@ -4308,14 +4360,14 @@ namespace bpkg
 
         if (ies.contains_sub (incdir))
           (!st.devel.empty () ? devel : main) +=
-            "%{_includedir}/" + (priv ? pd : "*") + '\n';
+            "%{_includedir}/" + (priv ? prd : "*") + '\n';
 
         if (st.devel.empty () && st.static_.empty ())
         {
           assert (gen_main); // Shouldn't be here otherwise.
 
           if (ies.contains_sub (libdir))
-            main += "%{_libdir}/" + (priv ? pd : "*") + '\n';
+            main += "%{_libdir}/" + (priv ? prd : "*") + '\n';
         }
         else
         {
@@ -4419,7 +4471,7 @@ namespace bpkg
                 }
               }
 
-              *fs += "%{_libdir}/" + pd + n + '\n';
+              *fs += "%{_libdir}/" + prd + n + '\n';
             }
             else
             {
@@ -4447,7 +4499,7 @@ namespace bpkg
                   else if (!st.devel.empty ())
                     fs = &devel;
 
-                  *fs += "%{_libdir}/" + pd + n;
+                  *fs += "%{_libdir}/" + prd + n;
 
                   // Update the index of a sub-package which should own
                   // libdir/<private>/pkgconfig/.
@@ -4458,11 +4510,12 @@ namespace bpkg
                 else
                 {
                   fs = &devel;
-                  *fs += "%{_libdir}/" + pd + sd.string () + (priv ? "/" : "/*");
+                  *fs += "%{_libdir}/" + prd + sd.string () +
+                         (priv ? "/" : "/*");
                 }
               }
               else
-                *fs += "%{_libdir}/" + pd + sd.string () + '/';
+                *fs += "%{_libdir}/" + prd + sd.string () + '/';
 
               // In the case of the directory (has the trailing slash) or
               // wildcard (has the trailing asterisk) skip all the other
@@ -4494,11 +4547,11 @@ namespace bpkg
           // Add the directory ownership entries.
           //
           if (private_owner)
-            *owners[*private_owner] += "%dir %{_libdir}/" + pd + '\n';
+            *owners[*private_owner] += "%dir %{_libdir}/" + prd + '\n';
 
           if (pkgconfig_owner)
             *owners[*pkgconfig_owner] +=
-              "%dir %{_libdir}/" + pd + "pkgconfig/" + '\n';
+              "%dir %{_libdir}/" + prd + "pkgconfig/" + '\n';
         }
 
         // We cannot just do usr/share/* since it will clash with doc/, man/,
@@ -4531,7 +4584,7 @@ namespace bpkg
 
             if (l.simple ())
             {
-              fs += "%{_datadir}/" + pd + l.string () + '\n';
+              fs += "%{_datadir}/" + (priv ? prd : pkd) + l.string () + '\n';
             }
             else
             {
@@ -4540,7 +4593,8 @@ namespace bpkg
               //
               dir_path sd (*l.begin ());
 
-              fs += "%{_datadir}/" + pd + sd.string () + '/' + '\n';
+              fs += "%{_datadir}/" + (priv ? prd : pkd) + sd.string () + '/' +
+                    '\n';
 
               // Skip all the other entries in this subdirectory (in the prefix
               // map they will all be in a contiguous range).
@@ -4560,7 +4614,7 @@ namespace bpkg
           // Add the directory ownership entry.
           //
           if (private_owner != nullptr)
-            *private_owner += "%dir %{_datadir}/" + pd + '\n';
+            *private_owner += "%dir %{_datadir}/" + (priv ? prd : pkd) + '\n';
         }
 
         // Note that we only consider the bfdir/<project>/* sub-entries,
@@ -4620,7 +4674,8 @@ namespace bpkg
           // be queried by the user via the `rpm --query --docfiles` command.
           //
           if (ies.contains_sub (docdir))
-            fs += "%doc %{_docdir}/" + (priv ? pd : "*") + '\n';
+            fs += "%doc %{_docdir}/" + (priv           ? prd :
+                                        recursive_full ? pkd : "*") + '\n';
 
           // Since the man file may not appear directly in the man/
           // subdirectory we use the man/*/* wildcard rather than man/* not to
@@ -4640,7 +4695,8 @@ namespace bpkg
         //
         if (ies.contains_sub (licensedir))
           (gen_main ? main : devel) +=
-            "%license %{_licensedir}/" + (priv ? pd : "*") + '\n';
+            "%license %{_licensedir}/" + (priv           ? prd :
+                                          recursive_full ? pkd : "*") + '\n';
 
         // Finally, write the %files sections.
         //

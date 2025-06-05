@@ -384,9 +384,12 @@ namespace bpkg
     // configured. Note that we add some more in the command line below.
     //
     // We make use of the <project> substitution since in the recursive mode
-    // we may be installing multiple projects. Note that the <private>
-    // directory component is automatically removed if this functionality is
-    // not enabled.
+    // we may be installing multiple projects. If the installation is not
+    // private and we are in the --recursive auto or full mode, then install
+    // all the data, documentation, and legal files, already organized into
+    // their <project> subdirectories, into an additional, named as the main
+    // bpkg package, subdirectory. To keep things consistent we use the main
+    // bpkg package name for <private> as well.
     //
     bool ovr_install (!ops->archive_install_config ());
 
@@ -425,36 +428,74 @@ namespace bpkg
 
       if (ovr_install)
       {
-        add ("data_root=root/");
-        add ("exec_root=root/");
+        if (priv)
+        {
+          add ("data_root=root/");
+          add ("exec_root=root/");
 
-        add ("bin=exec_root/bin/");
-        add ("sbin=exec_root/sbin/");
+          add ("bin=exec_root/bin/");
+          add ("sbin=exec_root/sbin/");
 
-        add ("lib=exec_root/lib/<private>/");
-        add ("libexec=exec_root/libexec/<private>/<project>/");
-        add ("pkgconfig=lib/pkgconfig/");
+          add ("lib=exec_root/lib/<private>/");
+          add ("libexec=exec_root/libexec/<private>/<project>/");
+          add ("pkgconfig=lib/pkgconfig/");
 
-        add ("etc=data_root/etc/");
-        add ("include=data_root/include/<private>/");
-        add ("include_arch=include/");
-        add ("share=data_root/share/");
-        add ("data=share/<private>/<project>/");
-        add ("buildfile=share/build2/export/<project>/");
+          add ("etc=data_root/etc/");
+          add ("include=data_root/include/<private>/");
+          add ("include_arch=include/");
+          add ("share=data_root/share/");
+          add ("data=share/<private>/<project>/");
+          add ("buildfile=share/build2/export/<project>/");
 
-        add ("doc=share/doc/<private>/<project>/");
-        add ("legal=doc/");
-        add ("man=share/man/");
-        add ("man1=man/man1/");
-        add ("man2=man/man2/");
-        add ("man3=man/man3/");
-        add ("man4=man/man4/");
-        add ("man5=man/man5/");
-        add ("man6=man/man6/");
-        add ("man7=man/man7/");
-        add ("man8=man/man8/");
+          add ("doc=share/doc/<private>/<project>/");
+          add ("legal=doc/");
+          add ("man=share/man/");
+          add ("man1=man/man1/");
+          add ("man2=man/man2/");
+          add ("man3=man/man3/");
+          add ("man4=man/man4/");
+          add ("man5=man/man5/");
+          add ("man6=man/man6/");
+          add ("man7=man/man7/");
+          add ("man8=man/man8/");
 
-        add ("private=" + (priv ? pn.string () : "[null]"));
+          add ("private=" + pn.string ());
+        }
+        else
+        {
+          string pkd (recursive_full ? pn.string () + '/' : "");
+
+          add ("data_root=root/");
+          add ("exec_root=root/");
+
+          add ("bin=exec_root/bin/");
+          add ("sbin=exec_root/sbin/");
+
+          add ("lib=exec_root/lib/");
+          add ("libexec=exec_root/libexec/<project>/");
+          add ("pkgconfig=lib/pkgconfig/");
+
+          add ("etc=data_root/etc/");
+          add ("include=data_root/include/");
+          add ("include_arch=include/");
+          add ("share=data_root/share/");
+          add ("data=share/" + pkd + "<project>/");
+          add ("buildfile=share/build2/export/<project>/");
+
+          add ("doc=share/doc/" + pkd + "<project>/");
+          add ("legal=doc/");
+          add ("man=share/man/");
+          add ("man1=man/man1/");
+          add ("man2=man/man2/");
+          add ("man3=man/man3/");
+          add ("man4=man/man4/");
+          add ("man5=man/man5/");
+          add ("man6=man/man6/");
+          add ("man7=man/man7/");
+          add ("man8=man/man8/");
+
+          add ("private=[null]"); // Not to pick anything configured.
+        }
 
         // If this is a C-based language, add rpath for private installation,
         // unless targeting Windows.

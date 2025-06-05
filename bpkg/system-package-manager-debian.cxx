@@ -2121,13 +2121,15 @@ namespace bpkg
     // below.
     //
     // We make use of the <project> substitution since in the recursive mode
-    // we may be installing multiple projects. Note that the <private>
-    // directory component is automatically removed if this functionality is
-    // not enabled. One side-effect of using <project> is that we will be
-    // using the bpkg package name instead of the main Debian package name.
-    // But perhaps that's correct: on Debian it's usually the source package
-    // name, which is the same. To keep things consistent we use the bpkg
-    // package name for <private> as well.
+    // we may be installing multiple projects. One side-effect of using
+    // <project> is that we will be using the bpkg package name instead of the
+    // main Debian package name.  But perhaps that's correct: on Debian it's
+    // usually the source package name, which is the same. If the installation
+    // is not private and we are in the --recursive auto or full mode, then
+    // install all the data, documentation, and legal files, already organized
+    // into their <project> subdirectories, into an additional, named as the
+    // main bpkg package, subdirectory. To keep things consistent we use the
+    // main bpkg package name for <private> as well.
     //
     // Note that some libraries have what looks like architecture-specific
     // configuration files in /usr/include/$(DEB_HOST_MULTIARCH)/ which is
@@ -2139,44 +2141,90 @@ namespace bpkg
     // NOTE: make sure to update .install files below if changing anything
     //       here.
     //
-    strings config {
-      "config.install.root=/usr/",
-      "config.install.data_root=root/",
-      "config.install.exec_root=root/",
+    strings config;
+    {
+      auto add = [&config] (auto&& v)
+      {
+        config.push_back (string ("config.install.") + v);
+      };
 
-      "config.install.bin=exec_root/bin/",
-      "config.install.sbin=exec_root/sbin/",
+      if (priv)
+      {
+        add ("root=/usr/");
+        add ("data_root=root/");
+        add ("exec_root=root/");
 
-      // On Debian shared libraries should not be executable. Also,
-      // libexec/ is the same as lib/ (note that executables that get
-      // installed there will still have the executable bit set).
-      //
-      "config.install.lib='exec_root/lib/$(DEB_HOST_MULTIARCH)/<private>/'",
-      "config.install.lib.mode=644",
-      "config.install.libexec=lib/<project>/",
-      "config.install.pkgconfig=lib/pkgconfig/",
+        add ("bin=exec_root/bin/");
+        add ("sbin=exec_root/sbin/");
 
-      "config.install.etc=/etc/",
-      "config.install.include=data_root/include/<private>/",
-      "config.install.include_arch='data_root/include/$(DEB_HOST_MULTIARCH)/<private>/'",
-      "config.install.share=data_root/share/",
-      "config.install.data=share/<private>/<project>/",
-      "config.install.buildfile=share/build2/export/<project>/",
+        // On Debian shared libraries should not be executable. Also,
+        // libexec/ is the same as lib/ (note that executables that get
+        // installed there will still have the executable bit set).
+        //
+        add ("lib='exec_root/lib/$(DEB_HOST_MULTIARCH)/<private>/'");
+        add ("lib.mode=644");
+        add ("libexec=lib/<project>/");
+        add ("pkgconfig=lib/pkgconfig/");
 
-      "config.install.doc=share/doc/<private>/<project>/",
-      "config.install.legal=doc/",
-      "config.install.man=share/man/",
-      "config.install.man1=man/man1/",
-      "config.install.man2=man/man2/",
-      "config.install.man3=man/man3/",
-      "config.install.man4=man/man4/",
-      "config.install.man5=man/man5/",
-      "config.install.man6=man/man6/",
-      "config.install.man7=man/man7/",
-      "config.install.man8=man/man8/"};
+        add ("etc=/etc/");
+        add ("include=data_root/include/<private>/");
+        add ("include_arch='data_root/include/$(DEB_HOST_MULTIARCH)/<private>/'");
+        add ("share=data_root/share/");
+        add ("data=share/<private>/<project>/");
+        add ("buildfile=share/build2/export/<project>/");
 
-    config.push_back ("config.install.private=" +
-                      (priv ? pn.string () : "[null]"));
+        add ("doc=share/doc/<private>/<project>/");
+        add ("legal=doc/");
+        add ("man=share/man/");
+        add ("man1=man/man1/");
+        add ("man2=man/man2/");
+        add ("man3=man/man3/");
+        add ("man4=man/man4/");
+        add ("man5=man/man5/");
+        add ("man6=man/man6/");
+        add ("man7=man/man7/");
+        add ("man8=man/man8/");
+
+        add ("private=" + pn.string ());
+      }
+      else
+      {
+        string pkd (recursive_full ? pn.string () + '/' : "");
+
+        add ("root=/usr/");
+        add ("data_root=root/");
+        add ("exec_root=root/");
+
+        add ("bin=exec_root/bin/");
+        add ("sbin=exec_root/sbin/");
+
+        add ("lib='exec_root/lib/$(DEB_HOST_MULTIARCH)/'");
+        add ("lib.mode=644");
+        add ("libexec=lib/<project>/");
+        add ("pkgconfig=lib/pkgconfig/");
+
+        add ("etc=/etc/");
+        add ("include=data_root/include/");
+        add ("include_arch='data_root/include/$(DEB_HOST_MULTIARCH)/'");
+        add ("share=data_root/share/");
+        add ("data=share/" + pkd + "<project>/");
+        add ("buildfile=share/build2/export/<project>/");
+
+        add ("doc=share/doc/" + pkd + "<project>/");
+        add ("legal=doc/");
+        add ("man=share/man/");
+        add ("man1=man/man1/");
+        add ("man2=man/man2/");
+        add ("man3=man/man3/");
+        add ("man4=man/man4/");
+        add ("man5=man/man5/");
+        add ("man6=man/man6/");
+        add ("man7=man/man7/");
+        add ("man8=man/man8/");
+
+        add ("private=[null]"); // Not to pick anything configured.
+      }
+    }
 
     // Add user-specified configuration variables last to allow them to
     // override anything.
@@ -2216,10 +2264,12 @@ namespace bpkg
 
     // Installed entry directories for sorting out which files belong where.
     //
-    // Let's tighten things up and only look in <private>/ (if specified) to
-    // make sure there is nothing stray.
+    // Let's tighten things up and only look in <private>/ (if specified) or
+    // <package>/ (if --recursive is auto or full) to make sure there is
+    // nothing stray.
     //
-    string pd (priv ? pn.string () + '/' : "");
+    string prd (priv ? pn.string () + '/' : "");
+    string pkd (!priv && recursive_full ? pn.string () + '/' : "");
 
     // NOTE: keep consistent with the config.install.* values above.
     //
@@ -2231,13 +2281,13 @@ namespace bpkg
     dir_path bindir     ("/usr/bin/");
     dir_path sbindir    ("/usr/sbin/");
     dir_path etcdir     ("/etc/");
-    dir_path incdir     ("/usr/include/" + pd);
-    dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + pd);
+    dir_path incdir     ("/usr/include/" + prd);
+    dir_path incarchdir ("/usr/include/$(DEB_HOST_MULTIARCH)/" + prd);
     //dir_path bfdir      ("/usr/share/build2/export/");
-    dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + pd);
+    dir_path libdir     ("/usr/lib/$(DEB_HOST_MULTIARCH)/" + prd);
     dir_path pkgdir     (libdir / dir_path ("pkgconfig"));
-    dir_path sharedir   ("/usr/share/" + pd);
-    dir_path docdir     ("/usr/share/doc/" + pd);
+    dir_path sharedir   ("/usr/share/" + (priv ? prd : pkd));
+    dir_path docdir     ("/usr/share/doc/" + (priv ? prd : pkd));
     dir_path mandir     ("/usr/share/man/");
 
     // As an optimization, don't generate the main and -dbgsym packages for a
