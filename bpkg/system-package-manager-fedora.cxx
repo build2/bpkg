@@ -4337,8 +4337,19 @@ namespace bpkg
         //
         if (gen_main)
         {
-          if (ies.contains_sub (bindir))  main += "%{_bindir}/*\n";
-          if (ies.contains_sub (sbindir)) main += "%{_sbindir}/*\n";
+          // Note that for the latter Fedora versions (42 and above) the
+          // `%{_sbindir}` macro expands to the same directory as the
+          // `%{_bindir}` macro and, as a related note, /usr/sbin is a symlink
+          // to /usr/bin. In this case, adding `%{_sbindir}/*` to the `%files`
+          // section, after `%{_bindir}/*` is already added, is redundant and
+          // may result in the `file listed twice` warning. Thus, we never add
+          // `%{_sbindir}/*` if bindir and sbindir values are equal.
+          //
+          if (ies.contains_sub (bindir))
+            main += "%{_bindir}/*\n";
+
+          if (sbindir != bindir && ies.contains_sub (sbindir))
+            main += "%{_sbindir}/*\n";
 
           if (ies.contains_sub (libexecdir))
             main += "%{_libexecdir}/" + (priv ? prd : "*") + '\n';
