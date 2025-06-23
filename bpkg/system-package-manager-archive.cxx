@@ -5,6 +5,8 @@
 
 #include <map>
 
+#include <libbutl/filesystem.hxx> // dir_iterator, mventry()
+
 #include <bpkg/diagnostics.hxx>
 
 #include <bpkg/pkg-bindist-options.hxx>
@@ -289,6 +291,81 @@ namespace bpkg
 
     out_rm.cancel ();
     return ap;
+  }
+
+  // Move sub-entries of the source directory to the destination directory,
+  // stripping the specified number of the leftmost components from the
+  // sub-entries' relative paths. Assume that all the sub-entries belong to a
+  // single sub-directory with the specified number of the path components and
+  // fail if that's not the case.
+  //
+  static void
+  strip_components (const dir_path& src, const dir_path& dst, size_t n)
+  {
+    try
+    {
+      // Recurse into the sub-directory if the required stripping depth is not
+      // reached and move the sub-entries otherwise. In the former case, make
+      // sure that the source directory has a single sub-entry at most and its
+      // type is a directory.
+      //
+      if (n != 0)
+      {
+        optional<dir_path> subdir;
+        for (const dir_entry& de: dir_iterator (src, dir_iterator::no_follow))
+        {
+          path p (src / de.path ());
+
+          try
+          {
+            if (de.ltype () != entry_type::directory)
+              fail << "unable to strip installation root components: "
+                   << "unexpected filesystem entry " << p
+                   << " in components to be stripped";
+          }
+          catch (const system_error& e)
+          {
+            fail << "unable to stat filesystem entry " << p << ": " << e;
+          }
+
+          if (!subdir)
+            subdir = path_cast<dir_path> (move (p));
+          else
+            fail << "unable to strip installation root components: "
+                 << "multiple subdirectories in " << src <<
+              info << "subdirectory " << subdir->leaf ().string () <<
+              info << "subdirectory " << de.path ();
+        }
+
+        if (subdir)
+          strip_components (*subdir, dst, n - 1);
+      }
+      else
+      {
+        for (const dir_entry& de: dir_iterator (src, dir_iterator::no_follow))
+        {
+          path from (src / de.path ());
+          path to (dst / de.path ());
+
+          if (verb >= 2)
+            text << "mv " << from << ' ' << to;
+
+          try
+          {
+            mventry (from, to);
+          }
+          catch (const system_error& e)
+          {
+            fail << "unable to move filesystem entry " << from << " to "
+                 << to << ": " << e;
+          }
+        }
+      }
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to scan directory " << src << ": " << e;
+    }
   }
 
   // NOTE: THE BELOW DESCRIPTION IS ALSO REWORDED IN BPKG-PKG-BINDIST(1).
@@ -771,6 +848,37 @@ namespace bpkg
 #endif
       }
 
+      // If requested, strip the specified number of the leftmost components
+      // from the installation root directory path for the installed
+      // filesystem entries.
+      //
+      // Note that we cannot easily verify that the specified number doesn't
+      // exceed the number of components in the config.install.root value
+      // (think of --archive-install-config mode). We, however, verify that
+      // all the installed filesystem entries belong to a single directory
+      // with the specified number of path components (see strip_components()
+      // for details).
+      //
+      dir_path dst_psc;
+      if (ops->archive_strip_comps_specified () &&
+          ops->archive_strip_comps () != 0)
+      {
+        // Strip the components, moving the installed filesystem entries from
+        // the package directory into a temporary directory to avoid any
+        // clashes between the moved and unmoved entries. Afterwards, replace
+        // the original package directory with the temporary directory.
+        //
+        dst_psc = dst + ".pre-strip-components";
+
+        // Note that the output directory is initially empty, so we don't need
+        // to check if the temporary directory already exists.
+        //
+        mv (dst, dst_psc);
+        mk (dst);
+
+        strip_components (dst_psc, dst, ops->archive_strip_comps ());
+      }
+
       if (ops->archive_prepare_only ())
       {
         if (verb >= 1)
@@ -814,6 +922,9 @@ namespace bpkg
       //
       if (!ops->keep_output ())
       {
+        if (!dst_psc.empty ())
+          rm_r (dst_psc);
+
         rm_r (dst);
       }
     }

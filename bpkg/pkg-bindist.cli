@@ -774,6 +774,19 @@ namespace bpkg
        if specified."
     }
 
+    size_t --archive-strip-comps
+    {
+      "<num>",
+      "Number of leftmost directory components to strip from the installation
+       root directory path for the installed files before archiving. Note that
+       this option doesn't affect the \cb{config.install.root} variable.
+       Rather, it alters the layout of the top-level directory inside the
+       archive after the installation. As a result, this option should
+       normally only be used if the installation is relocatable (in a sense,
+       this option relocates the installation during the archive creation
+       rather than, more typically, archive extraction)."
+    }
+
     std::map<string, string> --archive-split
     {
       "<key>=<filt>",
