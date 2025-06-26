@@ -61,11 +61,11 @@
     info3 = '%.{0}'
     info4 = '%.{0}'
 
-    if ($git_protocol == 'local'       || \
-        $git_protocol == 'https-smart' || \
-        $git_protocol == 'git'         || \
-        $git_protocol == 'git-unadv'   || \
-        $git_protocol == 'ssh'         || \
+    if (($git_protocol == 'local' && !$rep_git_local_unadv) || \
+        $git_protocol == 'https-smart'                      || \
+        $git_protocol == 'git'                              || \
+        $git_protocol == 'git-unadv'                        || \
+        $git_protocol == 'ssh'                              || \
         $git_protocol == 'ssh-unadv')
     {
       info2 = "$info_repo_hist for submodule 'doc/style/basic'$reason_unadv"

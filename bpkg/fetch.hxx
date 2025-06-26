@@ -106,7 +106,6 @@ namespace bpkg
                            const repository_location&,
                            const dir_path&);
 
-
   // Verify that the symlinks target paths in the working tree are valid,
   // relative, and none of them refer outside the repository directory.
   //
@@ -139,13 +138,18 @@ namespace bpkg
   // program specific) User-Agent header value. If the HTTP proxy URL is not
   // empty and the URL to fetch is HTTP(S), then fetch it via the specified
   // proxy server converting the https URL scheme to http (see the --pkg-proxy
-  // option for details).
+  // option for details). For HTTP(S) URL optionally send additional HTTP
+  // headers. Note, however, that the underlying fetch program may not support
+  // sending custom headers, in which case the headers will not be sent and no
+  // indication of the ignored headers will be provided to the caller. In the
+  // future we may add support for such an indication.
   //
   process
   start_fetch (const common_options&,
                const string& url,
                const path& out = {},
                const string& user_agent = {},
+               const strings& headers = {},
                const butl::url& proxy = {});
 
   // Similar to the above but can only be used for fetching HTTP(S) URL to a
@@ -157,6 +161,7 @@ namespace bpkg
                     const string& url,
                     const path& out,
                     const string& user_agent = {},
+                    const strings& headers = {},
                     const butl::url& proxy = {});
 
   // As above but fetches HTTP(S) URL to stdout, which can be read by the
@@ -200,6 +205,7 @@ namespace bpkg
                     fdstream_mode out_mode,
                     stderr_mode,
                     const string& user_agent = {},
+                    const strings& headers = {},
                     const butl::url& proxy = {});
 }
 

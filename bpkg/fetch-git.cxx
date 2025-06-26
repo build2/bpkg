@@ -542,9 +542,13 @@ namespace bpkg
 
   // Sense the git protocol capabilities for a specified URL.
   //
-  // Protocols other than HTTP(S) are considered smart but without the
-  // unadvertised refs (note that this is a pessimistic assumption for
-  // git:// and ssh://).
+  // The git:// and ssh:// protocols are considered smart but without the
+  // unadvertised refs (note that this is a pessimistic assumption). The
+  // file:// protocol is considered smart with unadvertised refs starting with
+  // git version 2.28 and just smart otherwise. Note that while the wire
+  // protocol version 2 is introduced in git version 2.18 and made default in
+  // 2.26, it seems to be too buggy (at least for file://) to rely upon at
+  // least until 2.28 (as per our tests).
   //
   // For HTTP(S) sense the protocol type by sending the first HTTP request of
   // the fetch operation handshake and analyzing the first line of the
@@ -581,8 +585,16 @@ namespace bpkg
     switch (repo_url.scheme)
     {
     case repository_protocol::git:
-    case repository_protocol::ssh:
-    case repository_protocol::file: return capabilities::smart;
+    case repository_protocol::ssh: return capabilities::smart;
+    case repository_protocol::file:
+      {
+        // NOTE: remember to update rep_git_local_unadv assignment in
+        //       tests/remote-git.testscript if changing anything here.
+        //
+        return git_ver >= semantic_version {2, 28, 0}
+               ? capabilities::unadv
+               : capabilities::smart;
+      }
     case repository_protocol::http:
     case repository_protocol::https: break; // Ask the server (see below).
     }
@@ -611,13 +623,33 @@ namespace bpkg
     //
     ifdstream is (ifdstream::badbit);
 
+    // Note that for the sensing request we specify the version 2 of the git
+    // wire protocol as preferable, regardless if the client supports it or
+    // not. If the server supports the protocol version 2, then it supports
+    // unadvertised refs fetch by definition. We assume that such a server
+    // also supports unadvertised refs for clients which use the protocol
+    // versions 0 and 1 and indicates that by specifying this capability in
+    // the response to the handshake request. If we encounter some evidence
+    // that this is not always the case, then we may rethink the approach in
+    // the future (try to deduce which protocol version will be used in fetch,
+    // etc).
+    //
+    // Also note that if the underlying fetch programs doesn't support custom
+    // headers, we may end up with a protocol version 2 aware server
+    // responding with the protocol version 0 to the sensing request from a
+    // protocol version 2 aware client. In this case the protocol capabilities
+    // will still be detected correctly as smart with unadvertised refs (see
+    // above). This, however, may result in a larger response size for the
+    // sensing request.
+    //
     pair<process, uint16_t> ps (
       start_fetch_http (co,
                         u,
                         is /* out */,
                         fdstream_mode::skip | fdstream_mode::binary,
                         stderr_mode::redirect_quiet,
-                        "git/" + git_ver.string ()));
+                        "git/" + git_ver.string (),
+                        {"Git-Protocol: version=2"}));
 
     process& pr (ps.first);
 
@@ -697,22 +729,31 @@ namespace bpkg
 
       // If the first response line has the following form:
       //
-      // XXXX# service=git-upload-pack"
+      // XXXX# service=git-upload-pack
       //
       // where XXXX is a sequence of 4 hex digits, then the server implements
-      // the smart protocol.
+      // the smart protocol. Note: this sequence (pkt-len) represents the
+      // length of the subsequent binary string, potentially terminated with
+      // '\n', plus 4 bytes for its own length.
       //
       // Note that to consider the server to be "smart" it would make sense
       // to also check that the response Content-Type header value is
       // 'application/x-git-upload-pack-advertisement'. However, we will skip
       // this check in order to not complicate the fetch API.
       //
+      auto pkt_len = [] (const string& s, size_t offset = 0)
+      {
+        return s.size () >= offset + 4 &&
+               xdigit (s[offset])      &&
+               xdigit (s[offset + 1])  &&
+               xdigit (s[offset + 2])  &&
+               xdigit (s[offset + 3]);
+      };
+
       size_t n (l.size ());
 
       capabilities r (
-        n >= 4 &&
-        xdigit (l[0]) && xdigit (l[1]) && xdigit (l[2]) && xdigit (l[3]) &&
-        l.compare (4, n - 4, "# service=git-upload-pack") == 0
+        pkt_len (l) && l.compare (4, n - 4, "# service=git-upload-pack") == 0
         ? capabilities::smart
         : capabilities::dumb);
 
@@ -723,22 +764,54 @@ namespace bpkg
       {
         getline (is, l);
 
-        // Parse the space-separated list of capabilities that follows the
-        // NULL character.
+        // If the second response line has the following form:
         //
-        for (size_t p (l.find ('\0')); p != string::npos; )
+        // 0000XXXXversion N
+        //
+        // then we parse the protocol version and assume the version 0
+        // otherwise. If the version is equal or greater than 2, then we
+        // assume that the server supports unadvertised refs fetch. Otherwise,
+        // we analyze the subsequent list of capabilities to determine that.
+        //
+        if (l.compare (0, 4, "0000") == 0) // End of the message (first line).
         {
-          size_t e (l.find (' ', ++p));
-          size_t n (e != string::npos ? e - p : e);
+          optional<uint64_t> protocol_version (0);
 
-          if (l.compare (p, n, "allow-reachable-sha1-in-want") == 0 ||
-              l.compare (p, n, "allow-tip-sha1-in-want") == 0)
+          if (pkt_len (l, 4) && l.compare (8, 8, "version ") == 0)
+            protocol_version = parse_number (string (l, 16));
+
+          if (protocol_version)
           {
-            r = capabilities::unadv;
-            break;
-          }
+            if (*protocol_version >= 2)
+            {
+              r = capabilities::unadv;
+            }
+            else
+            {
+              // Skip the version line for the version 1.
+              //
+              if (*protocol_version == 1)
+                getline (is, l);
 
-          p = e;
+              // Parse the space-separated list of capabilities that follows
+              // the NULL character.
+              //
+              for (size_t p (l.find ('\0')); p != string::npos; )
+              {
+                size_t e (l.find (' ', ++p));
+                size_t n (e != string::npos ? e - p : e);
+
+                if (l.compare (p, n, "allow-reachable-sha1-in-want") == 0 ||
+                    l.compare (p, n, "allow-tip-sha1-in-want") == 0)
+                {
+                  r = capabilities::unadv;
+                  break;
+                }
+
+                p = e;
+              }
+            }
+          }
         }
       }
 
@@ -1125,13 +1198,6 @@ namespace bpkg
       }
     case capabilities::smart:
       {
-        // Note that the git server communicating with the client using the
-        // protocol version 2 always supports unadvertised refs fetch (see the
-        // "advertised commit fetch using commit id fails" git bug report for
-        // details). We ignore this fact (because currently this is disabled
-        // by default, even if both support version 2) but may rely on it in
-        // the future.
-        //
         return !rf.commit || commit_advertized (co, url, *rf.commit);
       }
     case capabilities::unadv:

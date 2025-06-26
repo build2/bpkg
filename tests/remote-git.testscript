@@ -30,6 +30,11 @@
 git_supported = ($git_version_major >  2 || \
                  $git_version_major == 2 && $git_version_minor >= 11)
 
+# See bpkg/fetch-git.cxx for details.
+#
+rep_git_local_unadv = ($git_version_major >  2 || \
+                       $git_version_major == 2 && $git_version_minor >= 28)
+
 # Output directory path that testscripts must use to prepare repositories
 # required by tests they contain.
 #
