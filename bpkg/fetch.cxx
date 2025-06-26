@@ -105,6 +105,7 @@ namespace bpkg
               fdstream_mode out_ism,
               const path& out,
               const string& user_agent,
+              const strings& headers,
               const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
@@ -118,6 +119,12 @@ namespace bpkg
       prog.string ().c_str (),
       "-U", ua.c_str ()
     };
+
+    for (const string& h: headers)
+    {
+      args.push_back ("--header");
+      args.push_back (h.c_str ());
+    }
 
     // Wget 1.16 introduced the --show-progress option which in the quiet mode
     // (-q) shows a nice and tidy progress bar (if only it also showed errors,
@@ -341,6 +348,7 @@ namespace bpkg
               fdstream_mode out_ism,
               const path& out,
               const string& user_agent,
+              const strings& headers,
               const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
@@ -354,6 +362,12 @@ namespace bpkg
       "-L", // Follow redirects.
       "-A", ua.c_str ()
     };
+
+    for (const string& h: headers)
+    {
+      args.push_back ("-H");
+      args.push_back (h.c_str ());
+    }
 
     auto suppress_progress = [&args] ()
     {
@@ -638,7 +652,8 @@ namespace bpkg
   }
 
   // Note that there is no easy way to retrieve the HTTP status code for the
-  // fetch program and thus we always return 0.
+  // fetch program and thus we always return 0. It also doesn't support
+  // sending custom HTTP headers and thus we just ignore them.
   //
   // Also note that in the redirect* stderr modes we nevertheless redirect
   // stderr to prevent the fetch program from interactively querying the user
@@ -657,6 +672,7 @@ namespace bpkg
                fdstream_mode out_ism,
                const path& out,
                const string& user_agent,
+               const strings& /* headers */,
                const string& http_proxy)
   {
     bool fo (!out.empty ()); // Output to file.
@@ -903,6 +919,7 @@ namespace bpkg
                stderr_mode err_mode,
                const path& out,
                const string& user_agent,
+               const strings& headers,
                const url& proxy)
   {
     // Currently, for the sake of simplicity, we don't support redirecting
@@ -929,6 +946,7 @@ namespace bpkg
                                   fdstream_mode,
                                   const path&,
                                   const string&,
+                                  const strings&,
                                   const string&) = nullptr;
 
     fetch_kind fk (check (o));
@@ -1044,6 +1062,7 @@ namespace bpkg
                 out_ism,
                 out,
                 user_agent,
+                headers,
                 http_proxy);
     }
     catch (const process_error& e)
@@ -1062,6 +1081,7 @@ namespace bpkg
                const string& src,
                const path& out,
                const string& user_agent,
+               const strings& headers,
                const url& proxy)
   {
     return start_fetch (o,
@@ -1071,6 +1091,7 @@ namespace bpkg
                         stderr_mode::pass,
                         out,
                         user_agent,
+                        headers,
                         proxy).first;
   }
 
@@ -1081,6 +1102,7 @@ namespace bpkg
                     fdstream_mode out_mode,
                     stderr_mode err_mode,
                     const string& user_agent,
+                    const strings& headers,
                     const url& proxy)
   {
     return start_fetch (o,
@@ -1090,6 +1112,7 @@ namespace bpkg
                         err_mode,
                         path () /* out */,
                         user_agent,
+                        headers,
                         proxy);
   }
 
@@ -1098,6 +1121,7 @@ namespace bpkg
                     const string& src,
                     const path& out,
                     const string& user_agent,
+                    const strings& headers,
                     const url& proxy)
   {
     assert (!out.empty ());
@@ -1111,6 +1135,7 @@ namespace bpkg
                         stderr_mode::pass,
                         out,
                         user_agent,
+                        headers,
                         proxy);
   }
 }

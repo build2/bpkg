@@ -28,6 +28,7 @@ namespace bpkg
                              url,
                              path () /* out */,
                              string () /* user_agent */,
+                             strings () /* headers */,
                              o.pkg_proxy ()));
 
     try
@@ -123,6 +124,7 @@ namespace bpkg
                         u.string (),
                         df,
                         string () /* user_agent */,
+                        strings () /* headers */,
                         o.pkg_proxy ()));
 
     process& pr (ps.first);

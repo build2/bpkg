@@ -982,11 +982,24 @@ else
       {
         $clone_root_cfg
 
-        $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
-          %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
-          %querying .+libfoo\.git%
-          error: no names match pattern 'foo*'
-          EOE
+        if ($remote || !$rep_git_local_unadv)
+        {
+          $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+            %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
+            %querying .+libfoo\.git%
+            error: no names match pattern 'foo*'
+            EOE
+        }
+        elif $posix # Note: transient `permission denied` on Windows for `rm -r .bpkg\tmp`.
+        {
+          $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+            %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching from .+libfoo\.git%
+            %.+
+            %error: unable to fetch .+%
+            %.+
+            EOE
+        }
       }
 
       : unexisting
@@ -994,13 +1007,26 @@ else
       {
         $clone_root_cfg
 
-        $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
-          %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
-          %querying .+libfoo\.git%
-          %fetching from .+libfoo\.git%
-          %info: .+%{0,2}
-          error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
-          EOE
+        if ($remote || !$rep_git_local_unadv)
+        {
+          $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+            %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
+            %querying .+libfoo\.git%
+            %fetching from .+libfoo\.git%
+            %info: .+%{0,2}
+            error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
+            EOE
+        }
+        elif $posix # Note: transient `permission denied` (see above).
+        {
+          $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
+            %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching from .+libfoo\.git%
+            %.+
+            %error: unable to fetch .+%
+            %.+
+            EOE
+        }
       }
     }}
 

@@ -19,7 +19,8 @@
 
     if ($git_protocol == 'https-dumb')
       info = "$info_repo_hist$reason_dumb$info_dumb"
-    elif ($git_protocol != 'https-smart-unadv')
+    elif ($git_protocol != 'https-smart-unadv' && \
+          ($git_protocol != 'local' || !$rep_git_local_unadv))
       info = "$info_repo_hist$reason_unadv"
 
     $* 2>>~"%EOE%"
@@ -38,7 +39,8 @@
 
     if ($git_protocol == 'https-dumb')
       info = "$info_ref_hist$reason_dumb$info_dumb"
-    elif ($git_protocol != 'https-smart-unadv')
+    elif ($git_protocol != 'https-smart-unadv' && \
+          ($git_protocol != 'local' || !$rep_git_local_unadv))
       info = "$info_ref_hist$reason_unadv"
 
     $* 2>>~"%EOE%"
