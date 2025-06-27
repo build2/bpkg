@@ -3,6 +3,8 @@
 
 #include <bpkg/pkg-fetch.hxx>
 
+#include <libbutl/filesystem.hxx> // mkhardlink(), cpfile()
+
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/fetch.hxx>
@@ -12,6 +14,7 @@
 #include <bpkg/database.hxx>
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
@@ -210,6 +213,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
+             fetch_cache& cache,
              database& pdb,
              database& rdb,
              transaction& t,
@@ -235,8 +239,8 @@ namespace bpkg
     // -- they must spell it out explicitly. This is probably ok since this is
     // a low-level command where some extra precision doesn't hurt.
     //
-    shared_ptr<available_package> ap (
-      rdb.find<available_package> (available_package_id (n, v)));
+    package_id pid (n, v);
+    shared_ptr<available_package> ap (rdb.find<available_package> (pid));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -266,9 +270,43 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
+    // For the specified package version try to retrieve the archive file
+    // from the fetch cache, if enabled. In the offline mode fail if unable
+    // to do so (cache is disabled or there is no cached entry for the
+    // package version).
+    //
+    optional<fetch_cache::loaded_pkg_repository_package> crp;
+
+    if (!simulate)
+    {
+      if (cache.enabled ())
+      {
+        assert (cache.is_open ());
+
+        crp = cache.load_pkg_repository_package (pid);
+
+        if (cache.offline () && !crp)
+          fail << "no archive in fetch cache for package " << n << ' ' << v
+               << " in offline mode" <<
+            info << "consider turning offline mode off";
+      }
+      else if (cache.offline ())
+        fail << "no way to obtain package " << n << ' ' << v
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
+    }
+
     if (verb > 1 && !simulate)
+    {
       text << "fetching " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name;
+           << "from " << pl->repository_fragment->name << pdb
+           << (crp ? " (cache)" : "");
+    }
+    else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
+    {
+      text << "fetching " << package_string (ap->id.name, ap->version) << pdb
+           << (crp ? " (cache)" : "");
+    }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});
@@ -328,6 +366,10 @@ namespace bpkg
           }
         }));
 
+    const repository_location& rl (pl->repository_fragment->location);
+
+    bool purge (true);
+
     if (!simulate)
     {
       // Stash the existing package archive if it needs to be overwritten (see
@@ -344,24 +386,125 @@ namespace bpkg
         mv (a, earm.path);
       }
 
-      pkg_fetch_archive (
-        co, pl->repository_fragment->location, pl->location, a);
-
-      arm = auto_rmfile (a);
+      // Add the package archive file to the configuration, by either using
+      // its cached version in place or fetching it from the repository.
+      //
+      // Should we close (unlock) the cache for the time we download the
+      // archive? Let's keep it locked not to download same archive multiple
+      // times (note: the probability of that is higher the larger the archive
+      // size). Plus, we do cache garbage collection while downloading.
+      //
+      string fcs; // Fetched archive checksum.
 
       // We can't be fetching an archive for a transient object.
       //
       assert (ap->sha256sum);
 
-      const string& cs (sha256sum (co, a));
-      if (cs != *ap->sha256sum)
+      if (!crp)
       {
-        fail << "checksum mismatch for " << n << " " << v <<
-          info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-          info << "fetched archive has " << cs <<
-          info << "consider re-fetching package list and trying again" <<
-          info << "if problem persists, consider reporting this to "
-               << "the repository maintainer";
+        // Otherwise, we would fail earlier (no cache entry in offline mode).
+        //
+        assert (!cache.offline ());
+
+        if (cache.enabled ()) cache.start_gc ();
+        pkg_fetch_archive (co, rl, pl->location, a);
+        if (cache.enabled ()) cache.stop_gc ();
+
+        arm = auto_rmfile (a);
+
+        fcs = sha256sum (co, a);
+
+        if (fcs != *ap->sha256sum)
+        {
+          fail << "checksum mismatch for " << n << " " << v <<
+            info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
+            info << "fetched archive has " << fcs <<
+            info << "consider re-fetching package list and trying again" <<
+            info << "if problem persists, consider reporting this to "
+                 << "repository maintainer";
+        }
+      }
+      else
+      {
+        path& ca (crp->archive);
+
+        // Note that currently there is no scenario when the archive name, as
+        // it comes from a repository, doesn't match the one from the cache.
+        // Let's, however, verify that for good measure.
+        //
+        if (an != ca.leaf ())
+        {
+          fail << "cached archive name " << ca.leaf () << " doesn't match "
+               << "fetched archive name " << an <<
+            info << "fetched archive repository: " << rl.url () <<
+            info << "cached archive repository: " << crp->repository;
+        }
+
+        // Issue a warning if the checksum of the cached archive differs from
+        // that one of the archive in the repository.
+        //
+        if (crp->checksum != *ap->sha256sum)
+        {
+          warn << "cached archive checksum " << crp->checksum << " doesn't "
+               << "match fetched archive checksum " << *ap->sha256sum <<
+            info << "fetched archive repository: " << rl.url () <<
+            info << "cached archive repository: " << crp->repository;
+        }
+
+        // If sharing of the cached source directories is enabled, then use
+        // the package archive in place from the cache and don't remove it
+        // when the package is purged. Otherwise, hardlink/copy the archive
+        // from the cache into the configuration directory.
+        //
+        if (cache.cache_src ())
+        {
+          // Note that while it may seem that this makes the archive semi-
+          // precious because we store its path in the configuration's
+          // database, in the shared src mode it is purely informational. We
+          // do, however, expect the archive not to disappear between the
+          // calls to fetch and unpack.
+          //
+          a = move (ca);
+          purge = false;
+        }
+        else
+        {
+          hardlink (ca, a);
+
+          arm = auto_rmfile (a);
+        }
+      }
+
+      // If the fetch cache is enabled, then save the package archive, if we
+      // fetched it, into the cache.
+      //
+      if (cache.enabled () && !crp)
+      {
+        // If sharing of the cached source directories is enabled, then move
+        // the package archive to the fetch cache, use it in place (from the
+        // cache) in the configuration, and don't remove it when the package
+        // is purged (see above for details). Otherwise, hardlink/copy the
+        // archive from the configuration directory into the cache.
+        //
+        // Note that the fragment for pkg repository URLs is always nullopt,
+        // so can use the repository URL as is.
+        //
+        // Note also that we cache both local and remote URLs since a local
+        // URL could be on a network filesystem or some such.
+        //
+        path ca (
+          cache.save_pkg_repository_package (move (pid),
+                                             v,
+                                             a,
+                                             cache.cache_src () /* move */,
+                                             move (fcs),
+                                             rl.url ()));
+
+        if (cache.cache_src ())
+        {
+          a = move (ca);
+          purge = false;
+        }
       }
     }
 
@@ -377,9 +520,9 @@ namespace bpkg
                  move (n),
                  move (v),
                  move (a),
-                 pl->repository_fragment->location,
+                 rl,
                  ap->manifest (),
-                 true /* purge */,
+                 purge,
                  simulate));
 
     arm.cancel ();
@@ -430,7 +573,13 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
+      fetch_cache cache (o, &db);
+
+      if (cache.enabled ())
+        cache.open (trace);
+
       p = pkg_fetch (o,
+                     cache,
                      db /* pdb */,
                      db /* rdb */,
                      t,
@@ -438,6 +587,9 @@ namespace bpkg
                      move (v),
                      o.replace (),
                      false /* simulate */);
+
+      if (cache.enabled ())
+        cache.close ();
     }
 
     if (verb && !o.no_result ())

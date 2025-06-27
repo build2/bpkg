@@ -1121,6 +1121,8 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_makecache (bool modify_system)
   {
+    assert (!offline_); // Shouldn't be here otherwise.
+
     // Let's, for good measure, assume that `dnf makecache` can display some
     // prompts. While that seems rather far fetched, who could think that
     // `dnf5 mark user` can be interactive. There is no harm in that anyway.
@@ -1145,7 +1147,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "updating " << os_release.name_id << " repositories metadata...";
+        text << "updating " << os_release.name_id << " repositories metadata";
 
       process pr;
       if (!simulate_)
@@ -1224,6 +1226,8 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_install (const strings& pkgs)
   {
+    assert (!offline_); // Shouldn't be here otherwise.
+
     assert (!pkgs.empty ());
 
     strings args_storage;
@@ -1261,7 +1265,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "installing " << os_release.name_id << " packages...";
+        text << "installing " << os_release.name_id << " packages";
 
       process pr;
       if (!simulate_)
@@ -1792,7 +1796,7 @@ namespace bpkg
       // don't need to re-run dnf_list().
       //
       bool requery;
-      if ((requery = fetch_ && !fetched_))
+      if ((requery = fetch_ && !offline_ && !fetched_))
       {
         dnf_makecache (true /* modify_system */);
         fetched_ = true;
@@ -2124,7 +2128,15 @@ namespace bpkg
       bool fi (ps.status == package_status::installed);
 
       if (!fi)
+      {
+        if (offline_)
+          fail << "unable to install " << os_release.name_id << " package "
+               << ps.system_name << ' ' << ps.system_version
+               << " in offline mode" <<
+            info << "consider turning offline mode off";
+
         install = true;
+      }
 
       for (const package_info& pi: ps.package_infos)
       {

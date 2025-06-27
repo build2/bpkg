@@ -179,12 +179,13 @@ namespace bpkg
     path --fetch
     {
       "<path>",
-      "The fetch program to be used to download resources. Currently,
-       \cb{bpkg} recognizes \cb{curl}, \cb{wget}, and \cb{fetch}. Note that
-       the last component of <path> must contain one of these names as a
-       substring in order for \cb{bpkg} to recognize which program is being
-       used. You can also specify additional options that should be passed
-       to the fetch program with \cb{--fetch-option}.
+      "The fetch program to be used to download resources (packages,
+       repository metadata, etc). Currently, \cb{bpkg} recognizes \cb{curl},
+       \cb{wget}, and \cb{fetch}. Note that the last component of <path> must
+       contain one of these names as a substring in order for \cb{bpkg} to
+       recognize which program is being used. You can also specify additional
+       options that should be passed to the fetch program with
+       \cb{--fetch-option}.
 
        If the fetch program is not specified, then \cb{bpkg} will try to
        discover if one of the above programs is available and use that.
@@ -224,6 +225,100 @@ namespace bpkg
 
        See \cb{--fetch} and \cb{--git} for more information on the fetch
        programs."
+    }
+
+    bool --offline
+    {
+      "Do not attempt to download resources (packages, repository metadata,
+       etc), instead taking them from the local fetch cache if available and
+       failing otherwise. Note that no up-to-date checks of cached repository
+       metadata are performed when offline. This mode can also be enabled by
+       setting the \cb{BPKG_FETCH_CACHE} environment variable, see the
+       \cb{--fetch-cache} option description for details."
+    }
+
+    bool --no-fetch-cache
+    {
+      "Disable local caching of downloaded resources (packages, repository
+       metadata, etc). By default these are cached in a persistent local
+       cache. For the location of the cache, see the \cb{--fetch-cache-path}
+       option. The local cache can also be disabled by setting the
+       \cb{BPKG_FETCH_CACHE} environment variable to \cb{0} or \cb{false}.
+
+       Note that if this option or environment variable is specified during
+       the configuration creation (\l{cfg-create(1)}), its value is saved in
+       the configuration and used as the default in the subsequent \cb{bpkg}
+       commands involving this configuration."
+    }
+
+    string --fetch-cache
+    {
+      "<mode>",
+      "Comma-separated list of local fetch cache modes. The currently
+       recognized modes are \cb{src}/\cb{no-src}, \cb{trust}/\cb{no-trust},
+       and \cb{offline}, with their semantics described below. The local cache
+       mode can also be specified with the \cb{BPKG_FETCH_CACHE} environment
+       variable. Its value has the same format as this option.
+
+       The \cb{src}/\cb{no-src} mode enables/disables sharing of cached source
+       directories for dependencies. If disabled, then private copies are
+       made in the build configuration directories. The default for \cb{bpkg}
+       is to disable sharing, which is also the behavior if the fetch cache is
+       disabled (\cb{--no-fetch-cache}).
+
+       The \cb{trust}/\cb{no-trust} mode enabled/disables caching of the
+       repository authentication answers given by the user. The default is
+       to enable caching. See \l{bpkg-repository-signing(1)} for background
+       on repository authentication.
+
+       The \cb{offline} mode is equivalent to specifying the \cb{--offline}
+       option.
+
+       Note that if this option and/or environment variable is specified
+       during the configuration creation (\l{cfg-create(1)}), the effective
+       \cb{src} and \cb{trust} modes are saved in the configuration and used
+       as the defaults in the subsequent \cb{bpkg} commands involving this
+       configuration."
+    }
+
+    dir_path --fetch-cache-path
+    {
+      "<dir>",
+      "The directory of the local fetch cache. Ideally, this directory should
+       be on the same filesystem (UNIX) or volume (Windows) as the build
+       configuration directories that will rely on this cache to allow the use
+       of hard links. Failing that, the implementation will resort to copying,
+       which may result in sub-optimal performance and inability to accurately
+       track usage. The location of the cache can also be specified with the
+       \cb{BPKG_FETCH_CACHE_PATH} environment variable.
+
+       If not explicitly specified, then the cache location is split across
+       two directories: The non-precious data (packages and repository
+       metadata) is placed into \cb{$XDG_CACHE_HOME/build2/} or
+       \cb{$HOME/.cache/build2/} on UNIX and into
+       \cb{%LOCALAPPDATA%\\build2\\cache\\} on Windows. The semi-precious data
+       (shared source directories) is placed into the \cb{.build2/cache/}
+       subdirectory of the user's home directory on all platforms. You can
+       safely remove the non-precious data and while you won't loose any
+       information if the semi-precious data is removed, you may end up with
+       broken builds that will require manual repair.
+
+       Note that if the cache location is explicitly specified with this
+       option or the environment variable, then both types of data are placed
+       into the specified directory. Note also that while there is currently
+       no way to impose a size limit on the cache, outdated cache entries are
+       periodically removed."
+    }
+
+    string --fetch-cache-session
+    {
+      "<id>",
+      "The local fetch cache session. Specifying the same session id across
+       multiple \cb{bpkg} invocations allows eliminating repeated up-to-date
+       checks of repository metadata. Any value, such as UUID, that is
+       guaranteed not to clash with previous sessions can be used as a session
+       id. The cache session can also be specified with the
+       \cb{BPKG_FETCH_CACHE_SESSION} environment variable."
     }
 
     butl::url --pkg-proxy
@@ -365,6 +460,7 @@ namespace bpkg
       "Trust repository certificate with a SHA256 <fingerprint>. Such a
        certificate is trusted automatically, without prompting the user for
        a confirmation. Repeat this option to trust multiple certificates.
+       See \l{bpkg-repository-signing(1)} for background.
 
        Note that by default \cb{openssl} prints a SHA1 fingerprint and to
        obtain a SHA256 one you will need to pass the \cb{-sha256} option,
@@ -382,12 +478,14 @@ namespace bpkg
     //
     bool --trust-yes
     {
-      "Assume the answer to all authentication prompts is \cb{yes}."
+      "Assume the answer to all authentication prompts is \cb{yes}. See
+       \l{bpkg-repository-signing(1)} for background."
     }
 
     bool --trust-no
     {
-      "Assume the answer to all authentication prompts is \cb{no}."
+      "Assume the answer to all authentication prompts is \cb{no}. See
+       \l{bpkg-repository-signing(1)} for background."
     }
 
     git_capabilities_map --git-capabilities
@@ -537,4 +635,16 @@ namespace bpkg
     \
     "
   }
+
+  "
+   \h|DEFAULT OPTIONS FILES|
+
+   See \l{bpkg-default-options-files(1)} for an overview of the default
+   options files. The following common options cannot be specified in the
+   default options files:
+
+   \
+   --fetch-cache-session
+   \
+  "
 }

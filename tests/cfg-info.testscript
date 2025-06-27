@@ -33,6 +33,7 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
     EOO
 }
 
@@ -46,11 +47,13 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
 
     path: $~/cfg3/
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
     EOO
 }
 
@@ -64,16 +67,19 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
 
     path: $~/cfg3/
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg4/
     uuid: $uuid4
     type: build2
     name: b4
+    mode: fetch-cache=false
     EOO
 }
 
@@ -87,16 +93,19 @@ sp = ' '
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: t2
+    mode: fetch-cache=false
     EOO
 
   mv cfg2 cfg2.tmp
@@ -108,11 +117,13 @@ sp = ' '
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
     EOO
 
   # While at it, test printing dangling links.
@@ -122,6 +133,7 @@ sp = ' '
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
@@ -134,11 +146,13 @@ sp = ' '
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
@@ -157,20 +171,24 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: t1
+    mode: fetch-cache=false
 
     path: $~/cfg3/
     uuid: $uuid3
     type: host
     name: h3
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: t2
+    mode: fetch-cache=false
 
     path: $~/cfg4/
     uuid: $uuid4
     type: build2
     name: b4
+    mode: fetch-cache=false
     EOO
 }

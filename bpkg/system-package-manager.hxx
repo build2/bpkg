@@ -148,7 +148,8 @@ namespace bpkg
     // installation verifications (such as making sure the versions of already
     // installed packages have not changed due to upgrades), change properties
     // of already installed packages (e.g., mark them as manually installed in
-    // Debian), etc.
+    // Debian), etc. Fail in the offline mode (see the constructor below) if
+    // any package needs to be installed.
     //
     // Note also that the implementation is expected to issue appropriate
     // progress and diagnostics.
@@ -235,10 +236,10 @@ namespace bpkg
     //
     // If install is true, then enable package installation.
     //
-    // If fetch is false, then do not re-fetch the system package repository
-    // metadata (that is, available packages/versions) before querying for the
-    // available version of the not yet installed or partially installed
-    // packages.
+    // If fetch is false or offline is true, then do not re-fetch the system
+    // package repository metadata (that is, available packages/versions)
+    // before querying for the available version of the not yet installed or
+    // partially installed packages.
     //
     // If fetch timeout (in seconds) is specified, then use it for all the
     // underlying network operations.
@@ -251,7 +252,8 @@ namespace bpkg
                             bool install,
                             bool fetch,
                             bool yes,
-                            string sudo)
+                            string sudo,
+                            bool offline)
         : os_release (move (osr)),
           host (h),
           arch (move (a)),
@@ -260,7 +262,8 @@ namespace bpkg
           install_ (install),
           fetch_ (fetch),
           yes_ (yes),
-          sudo_ (sudo != "false" ? move (sudo) : string ()) {}
+          sudo_ (sudo != "false" ? move (sudo) : string ()),
+          offline_ (offline) {}
 
     // Production constructor.
     //
@@ -274,7 +277,8 @@ namespace bpkg
           progress_ (progress),
           install_ (false),
           fetch_ (false),
-          yes_ (false) {}
+          yes_ (false),
+          offline_ (false) {}
 
     virtual
     ~system_package_manager ();
@@ -424,6 +428,10 @@ namespace bpkg
     bool fetch_;
     bool yes_;
     string sudo_;
+
+    // The offline mode, etc (--offline, etc., see fetch cache for details).
+    //
+    bool offline_;
   };
 
   // Create a package manager instance corresponding to the specified host

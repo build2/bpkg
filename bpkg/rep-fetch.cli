@@ -45,6 +45,11 @@ namespace bpkg
        specified repositories unless the set of complements and/or
        prerequisites has changed."
     }
+
+    bool --no-dir-progress
+    {
+      "Do not print progress for the specified directory-based repositories."
+    }
   };
 
   "

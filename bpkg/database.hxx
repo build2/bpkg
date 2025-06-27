@@ -26,7 +26,6 @@ namespace bpkg
   using odb::session;
 
   class configuration;
-  class database;
 
   struct linked_config
   {
@@ -410,6 +409,7 @@ namespace bpkg
     uuid_type             uuid;
     optional<std::string> name;
     std::string           type;
+    optional<std::string> fetch_cache_mode;
 
     // Absolute and normalized configuration directory path. In particular, it
     // is used as the configuration database identity.
@@ -478,7 +478,8 @@ namespace bpkg
     void
     cache_config (const uuid_type&,
                   optional<std::string> name,
-                  std::string type);
+                  std::string type,
+                  optional<std::string> fetch_cache_mode);
 
     // Note: must be called inside the transaction.
     //
@@ -582,7 +583,7 @@ namespace bpkg
            : dependent_db.type;
   }
 
-  // Transaction wrapper that allow the creation of dummy transactions (start
+  // Transaction wrapper that allows the creation of dummy transactions (start
   // is false) that in reality use an existing transaction.
   //
   // Note that there can be multiple databases attached to the main database

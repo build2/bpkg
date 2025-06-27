@@ -227,7 +227,8 @@ namespace bpkg
                                    bool install,
                                    bool fetch,
                                    bool yes,
-                                   string sudo)
+                                   string sudo,
+                                   bool offline)
         : system_package_manager (move (osr),
                                   h,
                                   a.empty () ? arch_from_target (h) : move (a),
@@ -236,7 +237,8 @@ namespace bpkg
                                   install,
                                   fetch,
                                   yes,
-                                  move (sudo)) {}
+                                  move (sudo),
+                                  offline) {}
 
     // Note: options can only be NULL when testing functions that don't need
     // them.

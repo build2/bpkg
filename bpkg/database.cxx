@@ -172,7 +172,10 @@ namespace bpkg
 
           // Cache the configuration information.
           //
-          cache_config (create->uuid, create->name, create->type);
+          cache_config (create->uuid,
+                        create->name,
+                        create->type,
+                        create->fetch_cache_mode);
         }
         else
         {
@@ -183,7 +186,10 @@ namespace bpkg
           // Cache the configuration information.
           //
           shared_ptr<configuration> c (load<configuration> (0));
-          cache_config (c->uuid, move (c->name), move (c->type));
+          cache_config (c->uuid,
+                        move (c->name),
+                        move (c->type),
+                        move (c->fetch_cache_mode));
 
           // Load the system repository, if requested.
           //
@@ -272,7 +278,10 @@ namespace bpkg
       // Cache the configuration information.
       //
       shared_ptr<configuration> c (load<configuration> (0));
-      cache_config (c->uuid, move (c->name), move (c->type));
+      cache_config (c->uuid,
+                    move (c->name),
+                    move (c->type),
+                    move (c->fetch_cache_mode));
 
       // Load the system repository, if requested.
       //
@@ -309,6 +318,7 @@ namespace bpkg
         uuid (db.uuid),
         name (move (db.name)),
         type (move (db.type)),
+        fetch_cache_mode (move (db.fetch_cache_mode)),
         config (move (db.config)),
         config_orig (move (db.config_orig)),
         string (move (db.string)),
@@ -389,7 +399,10 @@ namespace bpkg
   }
 
   void database::
-  cache_config (const uuid_type& u, optional<std::string> n, std::string t)
+  cache_config (const uuid_type& u,
+                optional<std::string> n,
+                std::string t,
+                optional<std::string> fcm)
   {
     // NOTE: remember to update database(database&&) if changing anything
     // here.
@@ -397,6 +410,7 @@ namespace bpkg
     uuid = u;
     name = move (n);
     type = move (t);
+    fetch_cache_mode = move (fcm);
   }
 
   void database::

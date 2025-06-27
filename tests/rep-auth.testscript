@@ -128,6 +128,7 @@
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg
+rep_info   += 2>!
 
 # Check if rep-fetch command was successfull or not.
 #
@@ -154,6 +155,7 @@ sc = " " # Space character to append to here-document line when required.
 
     $rep_fetch 2>>/~%EOE%
       %fetching .+/no-auth/signed%
+      %querying .+signed%
       1 package(s) in 1 repository(s)
       EOE
   }
@@ -178,8 +180,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch 2>>"EOE" != 0
+      $rep_fetch 2>>~"%EOE%" != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         warning: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         certificate is for build2.org, "Code Synthesis" <info@build2.org>
         certificate SHA256 fingerprint:
@@ -238,8 +241,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0
+      $rep_fetch --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         error: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         EOE
 
@@ -251,8 +255,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-yes --trust-no 2>>EOE != 0
+      $rep_fetch --trust-yes --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         error: --trust-yes and --trust-no are mutually exclusive
         EOE
 
@@ -367,7 +372,9 @@ sc = " " # Space character to append to here-document line when required.
           mkdir -p $r
           cp -r $rep/self-match $r
 
-          $rep_info $r/self-match 2>>EOE != 0
+          $rep_info $r/self-match 2>>~%EOE% != 0
+            fetching pkg:b.a.build2.org/self-match
+            %querying .+self-match%
             error: certificate name mismatch for repository pkg:b.a.build2.org/self-match
               info: certificate name is *build2.org
             EOE
@@ -440,7 +447,9 @@ sc = " " # Space character to append to here-document line when required.
           mkdir -p $r
           cp -r $rep/subdomain-match $r
 
-          $rep_info $r/subdomain-match 2>>EOE != 0
+          $rep_info $r/subdomain-match 2>>~%EOE% != 0
+            fetching pkg:b.a.build2.org/subdomain-match
+            %querying .+subdomain-match%
             error: certificate name mismatch for repository pkg:b.a.build2.org/subdomain-match
               info: certificate name is *.build2.org
             EOE
@@ -466,6 +475,7 @@ sc = " " # Space character to append to here-document line when required.
 
       $rep_fetch 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/unsigned1
+        %querying .+unsigned1%
         warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         %continue without authenticating repositories at .+\? \[y/n\] %
         error: unable to read y/n answer from stdin
@@ -493,8 +503,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0
+      $rep_fetch --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/unsigned1
+        %querying .+unsigned1%
         error: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         EOE
 
@@ -610,7 +621,8 @@ sc = " " # Space character to append to here-document line when required.
   $rep_info $rep/sha256sum-mismatch 2>>~%EOE% != 0
     %.*
     error: packages manifest file checksum mismatch for pkg:build2.org/rep-auth/sha256sum-mismatch
-      info: try again
+      info: consider retrying this operation if this is a transient error
+      info: consider reporting this to repository maintainers if this is a persistent error
     EOE
 
   : signature-mismatch
@@ -653,4 +665,92 @@ sc = " " # Space character to append to here-document line when required.
         EOE
     }
   }}
+}}
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export -u BPKG_FETCH_CACHE
+  rep_fetch += --fetch-cache-path cache
+
+  rep_fetch += --auth all
+
+  +$cfg_create -d cfg 2>- &cfg/***
+
+  : signed
+  :
+  {
+    $clone_cfg && $rep_add $rep/signed
+
+    $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/signed
+      %querying .+signed%
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cfg cache/pkg/metadata
+
+    $clone_cfg && $rep_add $rep/signed
+
+    # Make sure we print the 'trusting certificate...' progress.
+    #
+    $rep_fetch &cfg/.bpkg/certs/* 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/signed
+      %querying .+signed%
+      trusting certificate for repository pkg:build2.org/rep-auth/signed (cache)
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cache/pkg/metadata
+
+    # Make sure we don't print the 'trusting certificate...' progress since
+    # the certificate comes from the configuration.
+    #
+    $rep_fetch 2>&1 | set out
+
+    sed -n -e 's%^(trusting certificate for repository .+)$%\1%p' <$out >:''
+  }
+
+  : unsigned
+  :
+  {
+    $clone_cfg && $rep_add $rep/unsigned1
+
+    $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/unsigned1
+      %querying .+unsigned1%
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cfg cache/pkg/metadata
+
+    $clone_cfg && $rep_add $rep/unsigned1
+
+    # Make sure we print the 'trusting unsigned...' progress.
+    #
+    $rep_fetch 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/unsigned1
+      %querying .+unsigned1%
+      trusting unsigned repository pkg:build2.org/rep-auth/unsigned1 (cache)
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cache/pkg/metadata
+
+    # Make sure we don't print the 'trusting unsigned...' progress since the
+    # dummy certificate comes from the configuration.
+    #
+    $rep_fetch 2>&1 | set out
+
+    sed -n -e 's%^(trusting unsigned repository .+)$%\1%p' <$out >:''
+  }
 }}

@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="28">
+    <alter-table name="main.configuration">
+      <add-column name="fetch_cache_mode" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="27">
     <alter-table name="main.selected_package">
       <add-column name="manifest" type="TEXT" null="true"/>

@@ -10,7 +10,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction, selected_package
+#include <bpkg/forward.hxx> // transaction, selected_package, fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/pkg-checkout-options.hxx>
@@ -35,7 +35,8 @@ namespace bpkg
     // Restore the cached repositories in their permanent locations (remove
     // the working trees, move back from the temporary directory, etc) and
     // erase the entries. On error issue diagnostics and return false if fail
-    // is false and throw failed otherwise.
+    // is false and throw failed otherwise. Note that in both cases the
+    // function will try to restore as many repositories as possible.
     //
     // Note that the destructor will clear the cache but will not fail on
     // errors. To detect such errors, call clear() explicitly.
@@ -43,7 +44,7 @@ namespace bpkg
     bool
     clear (bool fail = true);
 
-    // Call clear() in the ignore errors mode and issue the "repository is now
+    // Call clear() in the non-failing mode and issue the "repository is now
     // broken" warning on failure.
     //
     ~pkg_checkout_cache ();
@@ -56,12 +57,24 @@ namespace bpkg
       auto_rmdir rmt;         // The repository temporary directory.
       repository_location rl; // The repository location.
 
-      // nullopt if the repository fragment checkout failed in the middle and
-      // the repository cannot be restored in its permanent location (we will
-      // call such entry incomplete). True if the repository directory was
-      // fixed up.
+      // False if the repository is spoiled and cannot be restored in its
+      // permanent location (submodule checkout failed during fetch, etc).
       //
-      optional<bool> fixedup;
+      bool valid;
+
+      // True if the repository directory was fixed up. Only meaningful if
+      // valid is true.
+      //
+      bool fixedup;
+
+      // If specified (not NULL), then this is the state of a repository
+      // located in the referenced fetch cache and prepared for checkout by
+      // the respective load_*() function call. In this case, rmt is only used
+      // to hold the repository path (not active). Assumed to be valid till
+      // the end of the cache object lifetime. Only meaningful if valid is
+      // true.
+      //
+      bpkg::fetch_cache* fetch_cache;
     };
 
     using state_map = std::map<dir_path, state>;
@@ -72,7 +85,7 @@ namespace bpkg
     // Remove the repository working tree, return the repository to its
     // permanent location, and erase the cache entry. On error issue
     // diagnostics and return false if fail is false and throw failed
-    // otherwise. Note that erasing an incomplete entry is an error.
+    // otherwise. Note that erasing an invalid entry is an error.
     //
     bool
     erase (state_map::iterator, bool fail = true);
@@ -81,7 +94,7 @@ namespace bpkg
     // erase the cache entry. Leave the repository in the temporary directory
     // and return the corresponding auto_rmdir object. On error issue
     // diagnostics and return an empty auto_rmdir object if fail is false and
-    // throw failed otherwise. Note that releasing an incomplete entry is an
+    // throw failed otherwise. Note that releasing an invalid entry is an
     // error.
     //
     auto_rmdir
@@ -89,7 +102,9 @@ namespace bpkg
   };
 
   // Note that for the following functions both package and repository
-  // information configurations need to be passed.
+  // information configurations need to be passed. Also note that if the fetch
+  // cache is enabled it should be already open (and these functions do not
+  // try to close it).
   //
 
   // Check out the package from a version control-based repository into a
@@ -98,8 +113,9 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache&,
-                const common_options&,
+  pkg_checkout (const common_options&,
+                fetch_cache&,
+                pkg_checkout_cache&,
                 database& pdb,
                 database& rdb,
                 transaction&,
@@ -115,8 +131,9 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache&,
-                const common_options&,
+  pkg_checkout (const common_options&,
+                fetch_cache&,
+                pkg_checkout_cache&,
                 database& pdb,
                 database& rdb,
                 transaction&,

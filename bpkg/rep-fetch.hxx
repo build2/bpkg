@@ -7,6 +7,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // database
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-fetch-options.hxx>
@@ -76,14 +77,11 @@ namespace bpkg
   // the configuration (see rep_remove_clean() for details). Note that it
   // should be called in session.
   //
-  // If reason is absent, then don't print the "fetching ..." progress line.
-  //
   void
   rep_fetch (const common_options&,
              database&,
              const vector<repository_location>&,
-             bool shallow,
-             const optional<string>& reason);
+             bool shallow);
 }
 
 #endif // BPKG_REP_FETCH_HXX

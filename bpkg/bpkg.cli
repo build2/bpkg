@@ -336,15 +336,6 @@ namespace bpkg
     bool --version;
   };
 
-  "\h|ENVIRONMENT|
-
-  Commands executed by \cb{bpkg} while the current and linked build
-  configuration databases are open will have the \cb{BPKG_OPEN_CONFIGS}
-  environment variable set to the space-separated, \cb{\"}-quoted list of
-  absolute and normalized configuration directory paths. This can be used by
-  build system hooks and/or programs that they execute.
-  "
-
   "\h|EXIT STATUS|
 
   \dl|
@@ -364,8 +355,20 @@ namespace bpkg
 
   \h|ENVIRONMENT|
 
-  The \cb{BPKG_DEF_OPT} environment variable is used to suppress loading of
-  default options files in nested \cb{bpkg} invocations. Its values are
+  The \cb{BPKG_DEF_OPT} environment variable is used to suppress loading
+  of default options files in nested \cb{bpkg} invocations. Its values are
   \cb{false} or \cb{0} to suppress and \cb{true} or \cb{1} to load.
+
+  The \cb{BPKG_FETCH_CACHE}, \cb{BPKG_FETCH_CACHE_PATH}, and
+  \cb{BPKG_FETCH_CACHE_SESSION} can be used to control local caching of
+  downloaded resources (packages, repository metadata, etc). See the
+  description of the \cb{--fetch-cache*} options in \l{bpkg-common-options(1)}
+  for details on their semantics.
+
+  Commands executed by \cb{bpkg} while the current and linked build
+  configuration databases are open will have the \cb{BPKG_OPEN_CONFIGS}
+  environment variable set to the space-separated, \cb{\"}-quoted list of
+  absolute and normalized configuration directory paths. This can be used by
+  build system hooks and/or programs that they execute.
   "
 }

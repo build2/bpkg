@@ -41,6 +41,7 @@ namespace bpkg
 
   // <libbutl/utility.hxx>
   //
+  using butl::lcase;
   using butl::icasecmp;
   using butl::reverse_iterate;
 
@@ -90,6 +91,8 @@ namespace bpkg
   extern const dir_path certs_dir;          // .bpkg/certs/
   extern const dir_path repos_dir;          // .bpkg/repos/
 
+  // @@ Should we switch to using versions from build2?
+  //
   extern const dir_path std_build_dir;      // build/
   extern const dir_path std_config_dir;     // build/config/
   extern const path     std_bootstrap_file; // build/bootstrap.build
@@ -224,6 +227,13 @@ namespace bpkg
 
   bool
   mv (const path& from, const path& to, bool fail = true);
+
+  // Try to create a hard link to a file and, if that fails, copy this file to
+  // the link location. In the latter case, use the "write to temporary and
+  // atomically move into place" technique.
+  //
+  void
+  hardlink (const path& target, const path& link);
 
   // Set (with diagnostics at verbosity level 3 or higher) the new and return
   // the previous working directory.

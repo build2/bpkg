@@ -18,6 +18,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -641,6 +642,55 @@ namespace bpkg
     //
     if (!simulate)
     {
+      // If the package is not external, its source directory doesn't belong
+      // to the configuration directory, the fetch cache is enabled, and
+      // sharing of source directories is not disabled, then check if this
+      // source directory is shared. If that's the case, then pass the
+      // hardlink parameter to the b-configure meta-operation and register the
+      // newly created configuration in the fetch cache for the shared source
+      // directory usage tracking.
+      //
+      // Note that it's theoretically possible for the shared directory to no
+      // longer exist without any fault of the user. For example, the user
+      // could unpack a package and then delay configuring it until the shared
+      // directory got garbage collected. This, however, if highly unlikely
+      // and so we don't bother with any special diagnostics and just let
+      // things fail naturally.
+      //
+      fetch_cache cache (o, nullptr); // Uninitialized.
+
+      package_id pid;
+      optional<fetch_cache::shared_source_directory_tracking> sdt;
+
+      if (!p->external ())
+      {
+        cache.mode (o, &db); // Initialize.
+
+        if (cache.cache_src ())
+        {
+          dir_path sd (src_root);
+          if (!normalize (sd, "package source").sub (db.config))
+          {
+            cache.open (trace);
+
+            pid = package_id (p->name, p->version);
+            sdt = cache.load_shared_source_directory_tracking (pid);
+
+            if (sdt)
+            {
+              // Make sure src_root refers to the shared source directory
+              // (could be some external directory).
+              //
+              if (sd != normalize (sdt->directory, "shared source directory"))
+                sdt = nullopt;
+            }
+
+            if (!sdt)
+              cache.close ();
+          }
+        }
+      }
+
       // Original implementation that runs the standard build system driver.
       //
       // Note that the semantics doesn't match 100%. In particular, in the
@@ -667,13 +717,22 @@ namespace bpkg
       else
         bspec = "configure('" +
           src_root.representation () + "'@'" +
-          out_root.representation () + "')";
+          out_root.representation () + (sdt ? ",hardlink" : "") + "')";
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
       try
       {
         run_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
+
+        if (sdt)
+        {
+          dir_path cd (out_root);
+          normalize (cd, "package configuration");
+
+          cache.save_shared_source_directory_tracking (pid, cd, sdt->use_count);
+          cache.close ();
+        }
       }
       catch (const failed&)
       {
@@ -698,7 +757,7 @@ namespace bpkg
         else
           bspec = "configure('" +
             src_root.representation () + "'@'" +
-            out_root.representation () + "')";
+            out_root.representation () + (sdt ? ",hardlink" : "") + "')";
 
         print_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
@@ -842,10 +901,6 @@ namespace bpkg
         const meta_operation_info& mif (config::mo_configure);
         const operation_info& oif (op_default);
 
-        // Skip configure_pre() and configure_operation_pre() calls since we
-        // don't pass any parameteres and pass default operation. We also know
-        // that op_default has no pre/post operations, naturally.
-
         // Find the root buildfile. Note that the implied buildfile logic does
         // not apply (our target is the project root directory).
         //
@@ -878,6 +933,23 @@ namespace bpkg
         //
         const path_name bsn ("<buildspec>");
         const location loc (bsn, 0, 0);
+
+        // Skip configure_pre(), unless using a shared source directory, and
+        // configure_operation_pre() calls since we don't pass any parameters
+        // and pass default operation. We also know that op_default has no
+        // pre/post operations, naturally.
+        //
+        if (sdt)
+        {
+          mparams.emplace_back (names ({name ("hardlink")}));
+
+          // Actually, let's always skip meta_operation_pre() since it just
+          // validates the parameters.
+          //
+#if 0
+          mif.meta_operation_pre (ctx, mparams, loc);
+#endif
+        }
 
         // out_root/dir{./}
         //
@@ -931,6 +1003,14 @@ namespace bpkg
 
           if (sp->find (n) == sp->end ())
             sp->emplace (n, out_root.leaf ());
+        }
+
+        if (sdt)
+        {
+          cache.save_shared_source_directory_tracking (pid,
+                                                       out_root, // Note: absolute.
+                                                       sdt->use_count);
+          cache.close ();
         }
       }
       catch (const build2::failed&)

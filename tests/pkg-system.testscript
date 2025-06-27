@@ -151,6 +151,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured foo/2
       %info: .+ is up to date%
@@ -183,9 +184,11 @@ rep_remove += -d cfg 2>!
       purged libbar/2
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       configured libbaz/2
       configured libbar/2
@@ -212,6 +215,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo 'sys:libbar/2' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -236,6 +240,7 @@ rep_remove += -d cfg 2>!
     $pkg_build 'sys:libbar/2' foo 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -262,9 +267,11 @@ rep_remove += -d cfg 2>!
     $pkg_build libbar/2 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       configured libbaz/2
       configured libbar/2
@@ -284,6 +291,7 @@ rep_remove += -d cfg 2>!
       purged libbar/2
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -310,9 +318,11 @@ rep_remove += -d cfg 2>!
     $pkg_build libbar/2 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       configured libbaz/2
       configured libbar/2
@@ -332,6 +342,7 @@ rep_remove += -d cfg 2>!
       purged libbar/2
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/*
       configured foo/2
@@ -365,12 +376,15 @@ rep_remove += -d cfg 2>!
       purged libbar/2
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured libbaz/2
       configured libbar/2
@@ -409,9 +423,11 @@ rep_remove += -d cfg 2>!
       purged libbar/2
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       configured libbaz/2
       configured libbar/2
@@ -457,12 +473,15 @@ rep_remove += -d cfg 2>!
       purged libbar/1
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/2%
+      unpacking libbar/2
       unpacked libbar/2
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured libbaz/2
       configured libbar/2
@@ -489,6 +508,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo '?sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/*
       configured foo/2
@@ -516,9 +536,11 @@ rep_remove += -d cfg 2>!
     $pkg_build libbar/1 2>>~%EOE%
       %.*
       %.*fetched libbaz/2%
+      unpacking libbaz/2
       unpacked libbaz/2
       %.*
       %.*fetched libbar/1%
+      unpacking libbar/1
       unpacked libbar/1
       configured libbaz/2
       configured libbar/1
@@ -547,6 +569,7 @@ rep_remove += -d cfg 2>!
       purged libbar/1
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -638,6 +661,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo 'sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/*
       configured foo/2
@@ -678,6 +702,7 @@ rep_remove += -d cfg 2>!
       purged libbar/1
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -764,6 +789,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo '?sys:libbar' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/*
       configured foo/2
@@ -813,6 +839,7 @@ rep_remove += -d cfg 2>!
       purged libbar/1
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2
@@ -902,6 +929,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo '?sys:libbar/2' 2>>~%EOE%
       %.*
       %.*fetched foo/2%
+      unpacking foo/2
       unpacked foo/2
       configured sys:libbar/2
       configured foo/2

@@ -27,11 +27,15 @@ namespace bpkg
   // configuration
   //
   configuration::
-  configuration (optional<string> n, string t, optional<uuid_type> uid)
+  configuration (optional<string> n,
+                 string t,
+                 optional<string> fcm,
+                 optional<uuid_type> uid)
       : id (0),
         name (move (n)),
         type (move (t)),
-        expl (false)
+        expl (false),
+        fetch_cache_mode (move (fcm))
   {
     try
     {

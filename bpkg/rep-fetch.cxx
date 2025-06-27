@@ -7,6 +7,7 @@
 #include <set>
 
 #include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
@@ -17,6 +18,7 @@
 #include <bpkg/rep-remove.hxx>
 #include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -58,16 +60,202 @@ namespace bpkg
                  bool ignore_unknown,
                  bool ignore_toolchain)
   {
-    // First fetch the repositories list and authenticate the base's
-    // certificate.
+    tracer trace ("rep_fetch_pkg");
+
+    // For the specified repository try to retrieve the repositories and
+    // packages metadata from the fetch cache, if enabled. In the offline mode
+    // fail if unable to do so (cache is disabled or there is no cached entry
+    // for the repository).
     //
-    pair<pkg_repository_manifests, string /* checksum */> rmc (
-      pkg_fetch_repositories (co, rl, ignore_unknown));
+    // Note that it's tempting to fetch the signature manifest before opening
+    // (locking) the cache if not in the offline mode, to keep it unlocked for
+    // the duration of the potential download. However, we need to query the
+    // cache entry first, since this fetch may not be necessary due to the
+    // session. Also, closing the cache for the time we download the manifest
+    // files feels not easy to implement due to the session. Thus, let's keep
+    // it simple for now by opening the cache before the first manifest fetch
+    // and keeping it open until the metadata is potentially updated. Plus,
+    // we do cache garbage collection while downloading.
+    //
+
+    // If we fetch in the configuration but the database is not open yet
+    // (rep-info case), then open it to get the fetch cache mode and stash it
+    // to potentially reuse for authenticating the certificate.
+    //
+    unique_ptr<database> pdb;
+    if (conf != nullptr && db == nullptr)
+    {
+      pdb.reset (new database (*conf,
+                               trace,
+                               false /* pre_attach */,
+                               false /* sys_rep */));
+
+      db = pdb.get ();
+    }
+
+    fetch_cache cache (co, db);
+    optional<fetch_cache::loaded_pkg_repository_metadata> crm;
+
+    if (cache.enabled ())
+    {
+      cache.open (trace);
+
+      // Note that the fragment for pkg repository URLs is always nullopt, so
+      // can use the repository URL as is.
+      //
+      // Note also that we cache both local and remote URLs since a local URL
+      // could be on a network filesystem or some such.
+      //
+      crm = cache.load_pkg_repository_metadata (rl.url ());
+
+      if (cache.offline () && !crm)
+        fail << "no metadata in fetch cache for repository " << rl.url ()
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
+    }
+    else if (cache.offline ())
+      fail << "no way to obtain metadata for repository " << rl.url ()
+           << " in offline mode with fetch cache disabled" <<
+        info << "consider enabling fetch cache or turning offline mode off";
+
+    // If the cached metadata is retrieved, determine which of the cached
+    // metadata files we can use. Specifically:
+    //
+    // - If no checksums are specified, then we use both the cached
+    //   repositories and packages manifest files without any up-to-dateness
+    //   checks.
+    //
+    // - Otherwise (both checksums are specified), we fetch the signature
+    //   manifest and check if the packages manifest checksum still matches
+    //   the cached checksum, and use the cached manifest files if it does.
+    //
+    // - Otherwise (the packages manifest checksum doesn't match), we fetch
+    //   the packages manifest and check if the repositories manifest checksum
+    //   still matches the cached checksum, and use the cached repositories
+    //   manifest file if it does.
+    //
+    // - Otherwise (none of the checksums match), we don't use the cached
+    //   metadata files.
+    //
+    // Note that we either use both cached manifest files, or none of them, or
+    // only the repositories manifest (and never the packages manifest alone).
+    //
+    path cached_repositories_path;
+    path cached_packages_path;
+
+    // While at it, stash all the fetched manifests for potential reuse.
+    //
+    optional<signature_manifest> sm;
+    optional<pair<pkg_package_manifests, string /* checksum */>> pmc;
+
+    if (crm)
+    {
+      if (crm->repositories_checksum.empty ())
+      {
+        cached_repositories_path = move (crm->repositories_path);
+        cached_packages_path = move (crm->packages_path);
+
+        // Valid cache.
+        //
+        if ((verb && !co.no_progress ()) || co.progress ())
+        {
+          text << "skipped validating " << rl.url () << " (cache, "
+               << (cache.offline () ? "offline)" : "session)");
+        }
+      }
+      else
+      {
+        // Cache to be validated.
+        //
+        if ((verb && !co.no_progress ()) || co.progress ())
+          text << "validating " << rl.url () << " (cache)";
+
+        // Otherwise, load_pkg_repository_metadata() would return the empty
+        // manifest checksums and we wouldn't be here.
+        //
+        assert (!cache.offline ());
+
+        cache.start_gc ();
+        sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
+        cache.stop_gc ();
+
+        if (sm->sha256sum == crm->packages_checksum)
+        {
+          cached_repositories_path = move (crm->repositories_path);
+          cached_packages_path = move (crm->packages_path);
+        }
+        else
+        {
+          cache.start_gc ();
+          pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+          cache.stop_gc ();
+
+          if (sm->sha256sum != pmc->second)
+          {
+            error << "packages manifest file checksum mismatch for "
+                  << rl.canonical_name () <<
+              info << "consider retrying this operation if this is a "
+                   << "transient error" <<
+              info << "consider reporting this to repository maintainers "
+                   << "if this is a persistent error";
+
+            throw recoverable ();
+          }
+
+          pkg_package_manifests& pms (pmc->first);
+
+          if (pms.sha256sum == crm->repositories_checksum)
+            cached_repositories_path = move (crm->repositories_path);
+        }
+      }
+    }
+    else
+    {
+      // Nothing in the cache, full fetch.
+      //
+      if ((verb && !co.no_progress ()) || co.progress ())
+        text << "querying " << rl.url ();
+    }
 
     rep_fetch_data::fragment fr;
-    fr.repositories = move (rmc.first);
 
-    bool a (need_auth (co, rl));
+    // Parse the repositories manifest file, by either using its cached
+    // version or fetching it from the repository.
+    //
+    optional<pair<pkg_repository_manifests, string /* checksum */>> rmc;
+
+    if (cached_repositories_path.empty ())
+    {
+      // Otherwise, we would fail earlier, if the cache is disabled or there
+      // is no entry, or load_pkg_repository_metadata() would return the empty
+      // manifest checksums, cached_repositories_path wouldn't be empty, and
+      // so we wouldn't be here.
+      //
+      assert (!cache.offline ());
+
+      if (cache.enabled ()) cache.start_gc ();
+      rmc = pkg_fetch_repositories (co, rl, ignore_unknown);
+      if (cache.enabled ()) cache.stop_gc ();
+
+      fr.repositories = move (rmc->first);
+    }
+    else
+    {
+      fr.repositories = pkg_fetch_repositories (cached_repositories_path,
+                                                ignore_unknown);
+    }
+
+    // Authenticate the repository certificate or, if unsigned, make sure the
+    // repository is trusted.
+    //
+    // Note that if we use the cached packages manifest file, then we don't
+    // authenticate the repository (nor certificate). Otherwise, if we use the
+    // cached repositories manifest file, then we authenticate the repository
+    // but not the certificate (since it is already cached as part of the
+    // repositories manifest file). But we still need to verify the
+    // certificate (validity period and such) in the latter case.
+    //
+    bool a (cached_packages_path.empty () && need_auth (co, rl));
 
     shared_ptr<const certificate> cert;
     optional<string> cert_pem (
@@ -75,52 +263,207 @@ namespace bpkg
 
     if (a)
     {
-      cert = authenticate_certificate (
-        co, conf, db, cert_pem, rl, dependent_trust);
+      if (cached_repositories_path.empty ())
+      {
+        cert = authenticate_certificate (
+          co, db, &cache, cert_pem, rl, dependent_trust);
+      }
+      else
+      {
+        cert = cert_pem
+          ? parse_certificate (co, *cert_pem, rl)
+          : dummy_certificate (co, rl);
+
+        verify_certificate (*cert, rl);
+      }
 
       a = !cert->dummy ();
     }
 
-    // Now fetch the packages list and make sure it matches the repositories
-    // we just fetched.
+    // Parse the packages manifest file, by either using its cached version or
+    // fetching it from the repository.
     //
-    pair<pkg_package_manifests, string /* checksum */> pmc (
-      pkg_fetch_packages (co, conf, rl, ignore_unknown));
-
-    pkg_package_manifests& pms (pmc.first);
-
-    if (rmc.second != pms.sha256sum)
+    if (cached_packages_path.empty ())
     {
-      error << "repositories manifest file checksum mismatch for "
-            << rl.canonical_name () <<
-        info << "try again";
+      // Note that if we use the cached repositories manifest (rmc is absent),
+      // then here we don't check its checksum against the one recorded in the
+      // packages manifest. That have actually been already done when we
+      // decided to use the cached repositories manifest. This also means that
+      // the packages manifest have been already fetched (pmc is present).
+      //
+      assert (rmc || pmc);
 
-      throw recoverable ();
+      // If the packages manifest is not fetched yet, then fetch it and
+      // verify that it matches the repositories manifest.
+      //
+      if (!pmc)
+      {
+        // Otherwise, we would fail earlier, if the cache is disabled or there
+        // is no entry, or load_pkg_repository_metadata() would return the
+        // empty manifest checksums, cached_packages_path wouldn't be empty,
+        // and so we wouldn't be here.
+        //
+        assert (!cache.offline ());
+
+        if (cache.enabled ()) cache.start_gc ();
+        pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+        if (cache.enabled ()) cache.stop_gc ();
+
+        if (rmc->second != pmc->first.sha256sum)
+        {
+          error << "repositories manifest file checksum mismatch for "
+                << rl.canonical_name () <<
+            info << "consider retrying this operation if this is a "
+                 << "transient error" <<
+            info << "consider reporting this to repository maintainers "
+                 << "if this is a persistent error";
+
+          throw recoverable ();
+        }
+      }
+
+      fr.packages = move (pmc->first);
+    }
+    else
+    {
+      fr.packages = pkg_fetch_packages (cached_packages_path, ignore_unknown);
     }
 
-    fr.packages = move (pms);
-
+    // Authenticate the repository.
+    //
     if (a)
     {
-      signature_manifest sm (
-        pkg_fetch_signature (co, rl, true /* ignore_unknown */));
+      if (!sm)
+      {
+        // Otherwise, we would fail earlier, if the cache is disabled or there
+        // is no entry, or load_pkg_repository_metadata() would return the
+        // empty manifest checksums, cached_packages_path wouldn't be empty,
+        // the repository authentication wouldn't be necessary, and so we
+        // wouldn't be here.
+        //
+        assert (!cache.offline ());
 
-      if (sm.sha256sum != pmc.second)
+        if (cache.enabled ()) cache.start_gc ();
+        sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
+        if (cache.enabled ()) cache.stop_gc ();
+      }
+
+      assert (pmc); // Wouldn't be here otherwise.
+
+      if (sm->sha256sum != pmc->second)
       {
         error << "packages manifest file checksum mismatch for "
               << rl.canonical_name () <<
-          info << "try again";
+          info << "consider retrying this operation if this is a "
+               << "transient error" <<
+          info << "consider reporting this to repository maintainers "
+               << "if this is a persistent error";
 
         throw recoverable ();
       }
 
-      if (!sm.signature)
+      if (!sm->signature)
         fail << "no signature specified in signature manifest for signed "
              << rl.canonical_name () <<
-          info << "consider reporting this to the repository maintainers";
+          info << "consider reporting this to repository maintainers";
 
-      assert (cert != nullptr);
-      authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
+      assert (cert != nullptr); // Wouldn't be here otherwise.
+
+      authenticate_repository (co, conf, cert_pem, *cert, *sm, rl);
+    }
+
+    // If the fetch cache is enabled, then save the fetched repositories and
+    // packages manifests, if any, into the cache and close (release) the
+    // cache.
+    //
+    if (cache.enabled ())
+    {
+      // We either use a cached manifest file or we fetch it.
+      //
+      assert (cached_repositories_path.empty () == rmc.has_value () &&
+              cached_packages_path.empty ()     == pmc.has_value ());
+
+      if (pmc)
+      {
+        fetch_cache::saved_pkg_repository_metadata srm (
+          cache.save_pkg_repository_metadata (
+            rl.url (),
+            rmc ? move (rmc->second) : string (),
+            move (pmc->second)));
+
+        // Note: use the "write to temporary and atomically move into place"
+        // technique.
+
+        // repositories.manifest
+        //
+        if (!srm.repositories_path.empty ())
+        {
+          auto_rmfile arm (srm.repositories_path + ".tmp");
+          const path& p (arm.path);
+
+          try
+          {
+            // Let's set the binary mode not to litter the manifest file
+            // with the carriage return characters on Windows.
+            //
+            ofdstream ofs (p, fdopen_mode::binary);
+            manifest_serializer s (ofs, p.string ());
+
+            assert (rmc); // Wouldn't be here otherwise.
+
+            pkg_repository_manifests& rms (rmc->first);
+
+            // Temporarily restore the manifests list in the fetched list
+            // manifest.
+            //
+            static_cast<vector<repository_manifest>&> (rms) =
+              move (fr.repositories);
+
+            rms.serialize (s);
+            fr.repositories = move (rms);
+
+            ofs.close ();
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to write to " << p << ": " << e;
+          }
+
+          mv (p, srm.repositories_path);
+          arm.cancel ();
+        }
+
+        // packages.manifest
+        //
+        {
+          auto_rmfile arm (srm.packages_path + ".tmp");
+          const path& p (arm.path);
+
+          try
+          {
+            ofdstream ofs (p, fdopen_mode::binary);
+            manifest_serializer s (ofs, p.string ());
+
+            pkg_package_manifests& pms (pmc->first);
+
+            static_cast<vector<package_manifest>&> (pms) = move (fr.packages);
+
+            pms.serialize (s);
+            fr.packages = move (pms);
+
+            ofs.close ();
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to write to " << p << ": " << e;
+          }
+
+          mv (p, srm.packages_path);
+          arm.cancel ();
+        }
+      }
+
+      cache.close ();
     }
 
     // If requested, verify that the packages are compatible with the current
@@ -545,74 +888,35 @@ namespace bpkg
                            nullptr /* certificate */};
   }
 
-  static rep_fetch_data
+  // Return the fetched repository data together with the total number of the
+  // packages in the fetched repository. Return nullopt, if the underlying
+  // git_fetch() call returned nullopt.
+  //
+  static optional<pair<rep_fetch_data, size_t>>
   rep_fetch_git (const common_options& co,
-                 const dir_path* conf,
+                 fetch_cache& cache,
                  const repository_location& rl,
+                 const dir_path& rd,
+                 bool init,
+                 const path& ls_remote,
                  bool iu,
                  bool it,
                  bool ev,
                  bool lb)
   {
-    auto i (tmp_dirs.find (conf != nullptr ? *conf : empty_dir_path));
-    assert (i != tmp_dirs.end ());
-
-    dir_path sd (repository_state (rl));
-
-    auto_rmdir rm (i->second / sd, !keep_tmp);
-    const dir_path& td (rm.path);
-
-    if (exists (td))
-      rm_r (td);
-
-    // If the git repository directory already exists, then we are fetching
-    // an already existing repository, moved to the temporary directory first.
-    // Otherwise, we initialize the repository in the temporary directory.
-    //
-    // In the first case also set the filesystem_state_changed flag since we
-    // are modifying the repository filesystem state.
-    //
-    // In the future we can probably do something smarter about the flag,
-    // keeping it unset unless the repository state directory is really
-    // changed.
-    //
-    dir_path rsd;
-    dir_path rd;
-    bool init (true);
-
-    if (conf != nullptr)
-    {
-      rsd = *conf / repos_dir;
-      rd = rsd / sd;
-
-      // Convert the 12 characters checksum abbreviation to 16 characters for
-      // the repository directory names.
-      //
-      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
-      //
-      {
-        const string& s (rd.string ());
-        dir_path d (s, s.size () - 4);
-
-        if (exists (d))
-          mv (d, rd);
-      }
-
-      if (exists (rd))
-      {
-        mv (rd, td);
-        filesystem_state_changed = true;
-        init = false;
-      }
-    }
-
-    // Initialize a new repository in the temporary directory.
+    // Initialize a new repository in the specified directory.
     //
     if (init)
-      git_init (co, rl, td);
+      git_init (co, rl, rd);
 
-    // Fetch the repository in the temporary directory.
+    // Fetch the repository in the specified directory.
     //
+    optional<vector<git_fragment>> frags (
+      git_fetch (co, cache, rl, rd, ls_remote));
+
+    if (!frags)
+      return nullopt;
+
     // Go through fetched commits, checking them out and collecting the
     // prerequisite repositories and packages.
     //
@@ -638,9 +942,9 @@ namespace bpkg
     rep_fetch_data r;
     size_t np (0);
 
-    for (git_fragment& gf: git_fetch (co, rl, td))
+    for (git_fragment& gf: *frags)
     {
-      git_checkout (co, td, gf.commit);
+      git_checkout (co, rd, gf.commit);
 
       rep_fetch_data::fragment fr;
       fr.id            = move (gf.commit);
@@ -649,7 +953,7 @@ namespace bpkg
       // Parse repository manifests.
       //
       fr.repositories = parse_repository_manifests<git_repository_manifests> (
-          td / repositories_file,
+          rd / repositories_file,
           iu,
           rl,
           fr.friendly_name);
@@ -658,7 +962,7 @@ namespace bpkg
       //
       git_package_manifests pms (
         parse_directory_manifests<git_package_manifests> (
-          td / packages_file,
+          rd / packages_file,
           iu,
           rl,
           fr.friendly_name));
@@ -666,24 +970,36 @@ namespace bpkg
       // Checkout submodules on the first call.
       //
       bool cs (true);
-      auto checkout_submodules = [&co, &rl, &td, &cs] ()
+      auto checkout_submodules = [&co, &cache, &rl, &rd, &cs] ()
       {
         if (cs)
         {
-          git_checkout_submodules (co, rl, td);
           cs = false;
+          return git_checkout_submodules (co, cache, rl, rd);
         }
+
+        return true;
       };
 
       // Checkout submodules to parse package manifests, if required.
       //
       for (const package_manifest& sm: pms)
       {
-        dir_path d (td / path_cast<dir_path> (*sm.location));
+        dir_path d (rd / path_cast<dir_path> (*sm.location));
 
         if (!exists (d) || empty (d))
         {
-          checkout_submodules ();
+          // To fully conform to the function description we should probably
+          // throw failed here if git_checkout_submodules() returns false,
+          // since the root repository has been fetched, its state has
+          // changed, etc. However, let's return nullopt (as if the root
+          // repository fetch has not started) not to, for example, remove the
+          // cleanly fetched root repository state just because some of its
+          // submodule repositories may not be available at the moment.
+          //
+          if (!checkout_submodules ())
+            return nullopt;
+
           break;
         }
       }
@@ -692,7 +1008,7 @@ namespace bpkg
       //
       pair<vector<package_manifest>, vector<package_info>> pmi (
         parse_package_manifests (co,
-                                 td,
+                                 rd,
                                  move (pms),
                                  iu,
                                  it,
@@ -716,8 +1032,9 @@ namespace bpkg
           //
           try
           {
+            bool bail (false);
             m.load_files (
-              [ev, &td, &rl, &pl, &fr, &checkout_submodules]
+              [ev, &rd, &rl, &pl, &fr, &checkout_submodules, &bail]
               (const string& n, const path& p) -> optional<string>
               {
                 // Always expand the build-file values.
@@ -735,13 +1052,19 @@ namespace bpkg
                   // (if someone really wants this to work, they can always
                   // enable real symlinks in git).
                   //
-                  if (!exists (td / pl / p))
-                    checkout_submodules ();
+                  if (!exists (rd / pl / p))
+                  {
+                    if (!checkout_submodules ())
+                    {
+                      bail = true;
+                      return nullopt;
+                    }
+                  }
 
                   return read_package_file (p,
                                             n,
                                             pl,
-                                            td,
+                                            rd,
                                             rl,
                                             fr.friendly_name);
                 }
@@ -749,6 +1072,9 @@ namespace bpkg
                   return nullopt;
               },
               iu);
+
+            if (bail)
+              return nullopt;
           }
           catch (const manifest_parsing& e)
           {
@@ -765,7 +1091,7 @@ namespace bpkg
           if (lb)
           try
           {
-            load_package_buildfiles (m, td / pl, true /* err_path_relative */);
+            load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
           }
           catch (const runtime_error& e)
           {
@@ -782,33 +1108,245 @@ namespace bpkg
       r.fragments.push_back (move (fr));
     }
 
-    // Remove the working tree from the state directory and return it to its
-    // proper place.
+    return make_pair (move (r), np);
+  }
+
+  static rep_fetch_data
+  rep_fetch_git (const common_options& co,
+                 const dir_path* conf,
+                 database* db,
+                 const repository_location& rl,
+                 bool iu,
+                 bool it,
+                 bool ev,
+                 bool lb)
+  {
+    tracer trace ("rep_fetch_git");
+
+    // If we fetch in the configuration but the database is not open yet
+    // (rep-info case), then open it to get the fetch cache mode.
     //
-    // If there is no configuration directory then we let auto_rmdir clean it
-    // up from the the temporary directory.
-    //
-    if (!rd.empty ())
+    unique_ptr<database> pdb;
+    if (conf != nullptr && db == nullptr)
     {
-      git_remove_worktree (co, td);
+      pdb.reset (new database (*conf,
+                               trace,
+                               false /* pre_attach */,
+                               false /* sys_rep */));
 
-      // Make sure the repos/ directory exists (could potentially be manually
-      // removed).
-      //
-      if (!exists (rsd))
-        mk (rsd);
-
-      mv (td, rd);
-      rm.cancel ();
-      filesystem_state_changed = true;
+      db = pdb.get ();
     }
 
-    if (np == 0 && !rl.url ().fragment)
+    dir_path sd (repository_state (rl));
+
+    dir_path rsd;
+    dir_path rd;
+
+    if (conf != nullptr)
+    {
+      rsd = *conf / repos_dir;
+      rd = rsd / sd;
+
+      // Convert the 12 characters checksum abbreviation to 16 characters for
+      // the repository directory names.
+      //
+      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+      //
+      {
+        const string& s (rd.string ());
+        dir_path d (s, s.size () - 4);
+
+        if (exists (d))
+          mv (d, rd);
+      }
+    }
+
+    bool config_repo_exists (!rd.empty () && exists (rd));
+
+    optional<pair<rep_fetch_data, size_t>> r;
+
+    // NOTE: keep the subsequent fetch logic of using fetch cache and
+    //       configuration-specific repository cache parallel.
+
+    fetch_cache cache (co, db);
+
+    if (cache.enabled ())
+    {
+      cache.open (trace);
+
+      // Remove the configuration-specific repository directory, if exists.
+      // Essentially we are switching to the global cached one.
+      //
+      if (config_repo_exists)
+      {
+        filesystem_state_changed = true;
+
+        rm_r (rd);
+      }
+
+      // Note that we cache both local and remote URLs since a local URL could
+      // be on a network filesystem or some such.
+      //
+      repository_url url (rl.url ());
+      url.fragment = nullopt;
+
+      fetch_cache::loaded_git_repository_state crs (
+        cache.load_git_repository_state (url));
+
+      const dir_path& td (crs.repository);
+
+      // If the repository is already cached, then we are fetching an already
+      // existing repository, moved to the temporary directory first.
+      // Otherwise, we initialize the repository in the temporary directory,
+      // unless we are in the offline mode in which case we fail.
+      //
+      // In the former case, unless offline, also set the
+      // filesystem_state_changed flag since we are modifying the repository
+      // filesystem state.
+      //
+      bool repo_cached (
+        crs.state != fetch_cache::loaded_git_repository_state::absent);
+
+      bool fsc (filesystem_state_changed);
+
+      if (repo_cached)
+      {
+        if (!cache.offline ())
+          filesystem_state_changed = true;
+      }
+      else if (cache.offline ())
+        fail << "no state in fetch cache for repository " << rl.url ()
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
+
+      // If this call throws failed, then the cache entry is not saved.
+      // Otherwise, save the entry if the fetch succeeded or didn't start (no
+      // connectivity, etc) for an already cached repository. Otherwise
+      // (fetching of new repository didn't start), don't save the cache
+      // entry.
+      //
+      r = rep_fetch_git (co,
+                         cache,
+                         rl,
+                         td,
+                         !repo_cached /* initialize */,
+                         crs.ls_remote,
+                         iu,
+                         it,
+                         ev,
+                         lb);
+
+      // Remove the working tree from the state directory and save it to the
+      // cache.
+      //
+      if (r || repo_cached)
+      {
+        git_remove_worktree (co, td);
+
+        cache.save_git_repository_state (move (url));
+      }
+
+      // If the cached repository is saved without being fetched, then revert
+      // the filesystem_state_changed flag.
+      //
+      if (repo_cached && !r)
+        filesystem_state_changed = fsc;
+
+      // Fail for incomplete fetch.
+      //
+      if (!r)
+        throw failed (); // Note that the diagnostics has already been issued.
+    }
+    else
+    {
+      if (cache.offline ())
+        fail << "no way to obtain state for repository " << rl.url ()
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
+
+      auto i (tmp_dirs.find (conf != nullptr ? *conf : empty_dir_path));
+      assert (i != tmp_dirs.end ());
+
+      auto_rmdir rm (i->second / sd, !keep_tmp);
+      const dir_path& td (rm.path);
+
+      if (exists (td))
+        rm_r (td);
+
+      // If the git repository directory already exists, then we are fetching
+      // an already existing repository, moved to the temporary directory
+      // first. Otherwise, we initialize the repository in the temporary
+      // directory.
+      //
+      // In the former case also set the filesystem_state_changed flag since
+      // we are modifying the repository filesystem state.
+      //
+      bool fsc (filesystem_state_changed);
+      if (config_repo_exists)
+      {
+        mv (rd, td);
+        filesystem_state_changed = true;
+      }
+
+      // If this call throws failed, then the temporary state directory is
+      // removed. Otherwise, return it to its permanent location if the fetch
+      // succeeded or didn't start (no connectivity, etc) for an existing
+      // repository. Otherwise (fetching of new repository didn't start),
+      // remove the temporary state.
+      //
+      r = rep_fetch_git (co,
+                         cache,
+                         rl,
+                         td,
+                         !config_repo_exists /* initialize */,
+                         path () /* ls_remote */,
+                         iu,
+                         it,
+                         ev,
+                         lb);
+
+      // Remove the working tree from the state directory and return it to its
+      // permanent location.
+      //
+      // If there is no configuration directory, then we let auto_rmdir clean
+      // it up from the temporary directory.
+      //
+      if (!rd.empty ())
+      {
+        if (r || config_repo_exists)
+        {
+          git_remove_worktree (co, td);
+
+          // Make sure the repos/ directory exists (could potentially be
+          // manually removed).
+          //
+          if (!exists (rsd))
+            mk (rsd);
+
+          mv (td, rd);
+          rm.cancel ();
+        }
+
+        // If the existing repository is returned to its permanent location
+        // without being fetched, then revert the filesystem_state_changed
+        // flag.
+        //
+        if (config_repo_exists && !r)
+          filesystem_state_changed = fsc;
+      }
+
+      // Fail for incomplete fetch.
+      //
+      if (!r)
+        throw failed (); // Note that the diagnostics has already been issued.
+    }
+
+    if (r->second == 0 && !rl.url ().fragment)
       warn << "repository " << rl << " has no available packages" <<
         info << "consider specifying explicit URL fragment (for example, "
              << "#master)";
 
-    return r;
+    return move (r->first);
   }
 
   static rep_fetch_data
@@ -820,8 +1358,19 @@ namespace bpkg
              bool iu,
              bool it,
              bool ev,
-             bool lb)
+             bool lb,
+             const string& reason,
+             bool no_dir_progress)
   {
+    if (verb && (!no_dir_progress || !rl.directory_based ()))
+    {
+      diag_record dr (text);
+      dr << "fetching " << rl.canonical_name ();
+
+      if (!reason.empty ())
+        dr << " (" << reason << ")";
+    }
+
     switch (rl.type ())
     {
     case repository_type::pkg:
@@ -834,7 +1383,7 @@ namespace bpkg
       }
     case repository_type::git:
       {
-        return rep_fetch_git (co, conf, rl, iu, it, ev, lb);
+        return rep_fetch_git (co, conf, db, rl, iu, it, ev, lb);
       }
     }
 
@@ -859,7 +1408,9 @@ namespace bpkg
                       iu,
                       it,
                       ev,
-                      lb);
+                      lb,
+                      "" /* reason */,
+                      false /* no_dir_progress */);
   }
 
   // Return an existing repository fragment or create a new one. Update the
@@ -1169,8 +1720,7 @@ namespace bpkg
       bool persist (false);
 
       shared_ptr<available_package> p (
-        db.find<available_package> (
-          available_package_id (pm.name, pm.version)));
+        db.find<available_package> (package_id (pm.name, pm.version)));
 
       if (p == nullptr)
       {
@@ -1207,13 +1757,12 @@ namespace bpkg
             // If we fetch all the repositories then the mismatch is
             // definitely caused by the broken repository. Otherwise, it may
             // also happen due to the old available package that is not wiped
-            // out yet.  Thus, we advice the user to perform the full fetch,
+            // out yet. Thus, we advice the user to perform the full fetch,
             // unless the filesystem state is already changed and so this
             // advice will be given anyway (see rep_fetch() for details).
             //
             if (full_fetch)
-              dr << info << "consider reporting this to the repository "
-                         << "maintainers";
+              dr << info << "consider reporting this to repository maintainers";
             else if (!filesystem_state_changed)
               dr << info << "run 'bpkg rep-fetch' to update";
           }
@@ -1237,8 +1786,6 @@ namespace bpkg
 
   using repositories = set<shared_ptr<repository>>;
 
-  // If reason is absent, then don't print the "fetching ..." progress line.
-  //
   static void
   rep_fetch (const common_options& co,
              database& db,
@@ -1251,7 +1798,8 @@ namespace bpkg
              repository_fragments& removed_fragments,
              bool shallow,
              bool full_fetch,
-             const optional<string>& reason)
+             const string& reason,
+             bool no_dir_progress)
   {
     tracer trace ("rep_fetch(rep)");
 
@@ -1273,12 +1821,14 @@ namespace bpkg
       // authenticated).
       //
       if (need_auth (co, r->location))
+      {
         authenticate_certificate (co,
-                                  &db.config_orig,
                                   &db,
+                                  nullptr /* fetch_cache */,
                                   r->certificate,
                                   r->location,
                                   dependent_trust);
+      }
 
       return;
     }
@@ -1292,19 +1842,6 @@ namespace bpkg
     // for reachability of the repository being removed.
     //
     removed_repositories.erase (r);
-
-    // The fetch_*() functions below will be quiet at level 1, which can be
-    // quite confusing if the download hangs.
-    //
-    if (verb && reason)
-    {
-      diag_record dr (text);
-
-      dr << "fetching " << r->name;
-
-      if (!reason->empty ())
-        dr << " (" << *reason << ")";
-    }
 
     // Save the current complements and prerequisites to later check if the
     // shallow repository fetch is possible and to register them for removal
@@ -1357,7 +1894,9 @@ namespace bpkg
                  true /* ignore_unknow */,
                  true /* ignore_toolchain */,
                  false /* expand_values */,
-                 true /* load_buildfiles */));
+                 true /* load_buildfiles */,
+                 reason,
+                 no_dir_progress));
 
     // Save for subsequent certificate authentication for repository use by
     // its dependents.
@@ -1475,7 +2014,8 @@ namespace bpkg
                    removed_fragments,
                    false /* shallow */,
                    full_fetch,
-                   what + rl.canonical_name ());
+                   what + rl.canonical_name (),
+                   false /* no_dir_progress */);
       };
 
       // Fetch complements and prerequisites.
@@ -1505,7 +2045,8 @@ namespace bpkg
              const vector<lazy_shared_ptr<repository>>& repos,
              bool shallow,
              bool full_fetch,
-             const optional<string>& reason)
+             const string& reason,
+             bool no_dir_progress)
   {
     tracer trace ("rep_fetch(repos)");
 
@@ -1546,7 +2087,8 @@ namespace bpkg
                    removed_fragments,
                    shallow,
                    full_fetch,
-                   reason);
+                   reason,
+                   no_dir_progress);
 
       // Remove dangling repositories.
       //
@@ -1603,7 +2145,7 @@ namespace bpkg
                qv.revision + "," +
                qv.iteration);
 
-      available_package_id ap;
+      package_id ap;
       shared_ptr<repository_fragment> rf;
 
       for (const auto& prf: db.query<package_repository_fragment> (q))
@@ -1615,7 +2157,7 @@ namespace bpkg
         // Fail if the external package is of the same upstream version and
         // revision as the previous one.
         //
-        const available_package_id& id (prf.package_id);
+        const package_id& id (prf.package_id);
 
         if (id.name == ap.name &&
             compare_version_eq (id.version,
@@ -1860,8 +2402,7 @@ namespace bpkg
   rep_fetch (const common_options& o,
              database& db,
              const vector<repository_location>& rls,
-             bool shallow,
-             const optional<string>& reason)
+             bool shallow)
   {
     assert (session::has_current ());
 
@@ -1893,7 +2434,14 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, db, t, repos, shallow, false /* full_fetch */, reason);
+    rep_fetch (o,
+               db,
+               t,
+               repos,
+               shallow,
+               false /* full_fetch */,
+               "" /* reason */,
+               false /* no_dir_progress */);
 
     t.commit ();
   }
@@ -1924,7 +2472,6 @@ namespace bpkg
     //
     repository_fragment::dependencies& ua (root->complements);
 
-    optional<string> reason;
     bool full_fetch (!args.more ());
 
     if (full_fetch)
@@ -1935,11 +2482,6 @@ namespace bpkg
 
       for (const lazy_weak_ptr<repository>& r: ua)
         repos.push_back (lazy_shared_ptr<repository> (r));
-
-      // Always print "fetching ..." for complements of the root, even if
-      // there is only one.
-      //
-      reason = "";
 
       // Cleanup the available packages in advance to avoid sha256sum mismatch
       // for packages being fetched and the old available packages, that are
@@ -1983,35 +2525,16 @@ namespace bpkg
 
         repos.emplace_back (move (r));
       }
-
-      // If the user specified a single repository, then don't insult them
-      // with a pointless "fetching ..." line for this repository, unless this
-      // is a remote archive-based repository for which we will print the
-      // packages.manifest fetch progress.
-      //
-      assert (!repos.empty ());
-
-      const repository_location& rl (repos[0].load ()->location);
-
-      if (repos.size () > 1 || (rl.remote () && rl.archive_based ()))
-      {
-        // Also, as a special case (or hack, if you will), suppress these
-        // lines if all the repositories are directory-based. For such
-        // repositories there will never be any fetch progress nor can
-        // they hang.
-        //
-        for (lazy_shared_ptr<repository> r: repos)
-        {
-          if (!r.load ()->location.directory_based ())
-          {
-            reason = "";
-            break;
-          }
-        }
-      }
     }
 
-    rep_fetch (o, db, t, repos, o.shallow (), full_fetch, reason);
+    rep_fetch (o,
+               db,
+               t,
+               repos,
+               o.shallow (),
+               full_fetch,
+               "" /* reason */,
+               o.no_dir_progress ());
 
     size_t rcount (0), pcount (0);
     if (verb)

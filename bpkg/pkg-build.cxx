@@ -15,6 +15,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -82,7 +83,7 @@ namespace bpkg
                                 const shared_ptr<selected_package>& p,
                                 config_repo_fragments& r)
   {
-    available_package_id id (p->name, p->version);
+    package_id id (p->name, p->version);
 
     // Add a repository fragment to the specified list, suppressing duplicates.
     //
@@ -3514,15 +3515,15 @@ namespace bpkg
               //
               const auto& url (query::location.url);
 
-#ifndef _WIN32
-              query q (url == l);
-#else
               string u (url.table ());
               u += '.';
               u += url.column ();
 
+#ifndef _WIN32
+              query q (u + " = " + query::_val (l));
+#else
               query q (
-                (!query::local && url == l) ||
+                (!query::local && u + " = " + query::_val (l)) ||
                 ( query::local && u + " COLLATE nocase = " + query::_val (l)));
 #endif
 
@@ -3617,11 +3618,7 @@ namespace bpkg
       // the main database will be used.
       //
       for (const auto& l: locations)
-        rep_fetch (o,
-                   l.first,
-                   l.second,
-                   o.fetch_shallow (),
-                   string () /* reason for "fetching ..." */);
+        rep_fetch (o, l.first, l.second, o.fetch_shallow ());
     }
 
     // Now, as repo_configs is filled and the repositories are fetched mask
@@ -7066,7 +7063,7 @@ namespace bpkg
           // that and it doesn't feel like affects the performance too much.
           // However, in the future we may decide to optimize this by, for
           // example, collecting existing dependents in
-          // try_replace_dependency() by demand and for only those
+          // try_replace_dependency() on demand and for only those
           // dependencies which are considered for replacement.
           //
           if (!refine && !unsatisfied_depts.empty () && !cmdline_refine_index)
@@ -8003,7 +8000,32 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout
     //
+    // Note that pkg_checkout() may reuse the same fetch cache entry for
+    // multiple packages (see pkg_checkout_cache for details). Thus, we use a
+    // single fetch cache object for all the pkg_checkout(), pkg_fetch(), and
+    // pkg_unpack() calls in the loop, opening (locking) the cache on demand,
+    // and only closing it when the loop is finished. Note that save_git_*()
+    // is called for the respective fetch cache entries only when the loop is
+    // finished.
+    //
+    bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
+
+    // Set database-specific mode for the fetch cache object, unless it is
+    // already set for this database.
+    //
+    auto fetch_cache_mode = [&fetch_cache,
+                             &o,
+                             pdb = static_cast<const database*> (nullptr)]
+                            (const database& db) mutable
+    {
+      if (&db != pdb)
+      {
+        fetch_cache.mode (o, &db);
+        pdb = &db;
+      }
+    };
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8104,11 +8126,70 @@ namespace bpkg
 
             // Go through package repository fragments to decide if we should
             // fetch, checkout or unpack depending on the available repository
-            // basis. Preferring a local one over the remotes and the dir
-            // repository type over the others seems like a sensible thing to
-            // do.
+            // basis and based on the fact whether the fetch cache is enabled
+            // or not.
             //
-            optional<repository_basis> basis;
+            // Note that for the git repository the package commit is always
+            // already fetched at this point, regardless whether it comes from
+            // the configuration-specific or global fetch cache. However, the
+            // submodules, if present, may not be fetched yet, but will be
+            // fetched on the first checkout (and then the commit data becomes
+            // fully local).
+            //
+            // Also note that if the fetch cache is enabled, then for an
+            // archive-based repository the package archive becomes local
+            // after the first fetch. So based on this it feels correct to
+            // always prefer archive over git checkout if fetch cache is
+            // enabled.
+            //
+            // Note also that checking for the archive presence in the cache
+            // is likely a bad idea since it's quite expensive (and we could
+            // be simulating).
+            //
+            // The overall preference order of the package repositories is as
+            // follows:
+            //
+            // 1: directory-based
+            // 2: local archive-based
+            //
+            // If fetch cache is enabled:
+            //   3: archive-based
+            //   4: version control-based
+            //
+            // Otherwise:
+            //   3: version control-based
+            //   4: archive-based
+            //
+            auto pref_order = [&fetch_cache, &fetch_cache_mode, &pdb]
+                              (const repository_location& rl) -> int
+            {
+              if (rl.directory_based ())
+                return 1;
+
+              if (rl.archive_based () && rl.local ())
+                return 2;
+
+              fetch_cache_mode (pdb);
+
+              if (fetch_cache.enabled ())
+              {
+                if (rl.archive_based ())
+                  return 3;
+
+                assert (rl.version_control_based ());
+              }
+              else
+              {
+                if (rl.version_control_based ())
+                  return 3;
+
+                assert (rl.archive_based ());
+              }
+
+              return 4;
+            };
+
+            const repository_location* prl (nullptr);
 
             for (const package_location& l: ap->locations)
             {
@@ -8117,25 +8198,40 @@ namespace bpkg
                 const repository_location& rl (
                   l.repository_fragment.load ()->location);
 
-                if (!basis || rl.local ()) // First or local?
+                int po (pref_order (rl));
+                if (prl == nullptr || po < pref_order (*prl))
                 {
-                  basis = rl.basis ();
+                  prl = &rl;
 
-                  if (rl.directory_based ())
+                  // Bail out if the preference order can't be less.
+                  //
+                  if (po == 1)
                     break;
                 }
               }
             }
 
-            assert (basis); // Shouldn't be here otherwise.
+            assert (prl != nullptr); // Shouldn't be here otherwise.
+
+            repository_basis basis (prl->basis ());
+
+            if (!simulate && (basis == repository_basis::archive ||
+                              basis == repository_basis::version_control))
+            {
+              fetch_cache_mode (pdb);
+
+              if (fetch_cache.enabled () && !fetch_cache.is_open ())
+                fetch_cache.open (trace);
+            }
 
             // All calls commit the transaction.
             //
-            switch (*basis)
+            switch (basis)
             {
             case repository_basis::archive:
               {
                 sp = pkg_fetch (o,
+                                fetch_cache,
                                 pdb,
                                 af.database (),
                                 t,
@@ -8148,8 +8244,9 @@ namespace bpkg
             case repository_basis::version_control:
               {
                 sp = p.checkout_root
-                  ? pkg_checkout (checkout_cache,
-                                  o,
+                  ? pkg_checkout (o,
+                                  fetch_cache,
+                                  checkout_cache,
                                   pdb,
                                   af.database (),
                                   t,
@@ -8159,8 +8256,9 @@ namespace bpkg
                                   true /* replace */,
                                   p.checkout_purge,
                                   simulate)
-                  : pkg_checkout (checkout_cache,
-                                  o,
+                  : pkg_checkout (o,
+                                  fetch_cache,
+                                  checkout_cache,
                                   pdb,
                                   af.database (),
                                   t,
@@ -8250,11 +8348,19 @@ namespace bpkg
         {
           if (sp != nullptr)
           {
+            if (!simulate && !sp->repository_fragment.empty ())
+            {
+              fetch_cache_mode (pdb);
+
+              if (fetch_cache.cache_src () && !fetch_cache.is_open ())
+                fetch_cache.open (trace);
+            }
+
             transaction t (pdb, !simulate /* start */);
 
             // Commits the transaction.
             //
-            sp = pkg_unpack (o, pdb, t, ap->id.name, simulate);
+            sp = pkg_unpack (o, fetch_cache, pdb, t, ap->id.name, simulate);
 
             if (result)
               text << "unpacked " << *sp << pdb;
@@ -8285,7 +8391,11 @@ namespace bpkg
         break; // Get out from the breakout loop.
       }
     }
-    checkout_cache.clear (); // Detect errors.
+
+    checkout_cache.clear (); // Save repositories to fetch cache.
+
+    if (fetch_cache.is_open ())
+      fetch_cache.close ();
 
     // configure
     //

@@ -229,16 +229,21 @@ namespace bpkg
   }
 
   pkg_repository_manifests
-  pkg_fetch_repositories (const dir_path& d, bool iu)
+  pkg_fetch_repositories (const path& f, bool iu)
   {
     pkg_repository_manifests r (
-      fetch_manifest<pkg_repository_manifests> (
-        nullptr, d / repositories_file, iu).first);
+      fetch_manifest<pkg_repository_manifests> (nullptr, f, iu).first);
 
     if (r.empty ())
       r.emplace_back (repository_manifest ()); // Add the base repository.
 
     return r;
+  }
+
+  pkg_repository_manifests
+  pkg_fetch_repositories (const dir_path& d, bool iu)
+  {
+    return pkg_fetch_repositories (d / repositories_file, iu);
   }
 
   pair<pkg_repository_manifests, string/*checksum*/>
@@ -265,10 +270,15 @@ namespace bpkg
   }
 
   pkg_package_manifests
+  pkg_fetch_packages (const path& f, bool iu)
+  {
+    return fetch_manifest<pkg_package_manifests> (nullptr, f, iu).first;
+  }
+
+  pkg_package_manifests
   pkg_fetch_packages (const dir_path& d, bool iu)
   {
-    return fetch_manifest<pkg_package_manifests> (
-      nullptr, d / packages_file, iu).first;
+    return pkg_fetch_packages (d / packages_file, iu);
   }
 
   pair<pkg_package_manifests, string/*checksum*/>

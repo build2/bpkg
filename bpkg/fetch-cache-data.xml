@@ -1,0 +1,137 @@
+<changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" schema-name="fetch-cache" version="1">
+  <model version="1">
+    <table name="pkg_repository_auth" kind="object">
+      <column name="id" type="TEXT" null="true"/>
+      <column name="fingerprint" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="true"/>
+      <column name="end_date" type="INTEGER" null="true"/>
+      <primary-key>
+        <column name="id"/>
+      </primary-key>
+    </table>
+    <table name="pkg_repository_metadata" kind="object">
+      <column name="url" type="TEXT" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="session" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="repositories_path" type="TEXT" null="true"/>
+      <column name="repositories_checksum" type="TEXT" null="true"/>
+      <column name="packages_path" type="TEXT" null="true"/>
+      <column name="packages_checksum" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="url"/>
+      </primary-key>
+      <index name="pkg_repository_metadata_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+      <index name="pkg_repository_metadata_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
+    <table name="pkg_repository_package" kind="object">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="archive" type="TEXT" null="true"/>
+      <column name="checksum" type="TEXT" null="true"/>
+      <column name="repository" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </primary-key>
+      <index name="pkg_repository_package_archive_i" type="UNIQUE">
+        <column name="archive"/>
+      </index>
+      <index name="pkg_repository_package_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
+    <table name="git_repository_state" kind="object">
+      <column name="url" type="TEXT" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="session" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <primary-key>
+        <column name="url"/>
+      </primary-key>
+      <index name="git_repository_state_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+      <index name="git_repository_state_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
+    <table name="shared_source_directory" kind="object">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="origin_id" type="TEXT" null="true"/>
+      <column name="src_root_file" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </primary-key>
+      <index name="shared_source_directory_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+      <index name="shared_source_directory_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
+    <table name="shared_source_directory_untracked_configurations" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="src_root_file" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="shared_source_directory">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="shared_source_directory_untracked_configurations_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+    </table>
+  </model>
+</changelog>

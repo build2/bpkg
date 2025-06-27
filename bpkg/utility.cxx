@@ -346,6 +346,49 @@ namespace bpkg
     return true;
   }
 
+  void
+  hardlink (const path& target, const path& link)
+  {
+    // Note that this implementation is inspired by libbutl's mkanylink()
+    // function.
+    //
+    try
+    {
+      mkhardlink (target, link);
+    }
+    catch (const system_error& e)
+    {
+      if (e.code ().category () == generic_category ())
+      {
+        int c (e.code ().value ());
+        if (c == ENOSYS || // Not implemented.
+            c == EPERM  || // Not supported by the filesystem(s).
+            c == EXDEV)    // On different filesystems.
+        {
+          auto_rmfile arm (link + ".tmp");
+          const path& p (arm.path);
+
+          try
+          {
+            cpfile (target, p);
+          }
+          catch (const system_error& e)
+          {
+            fail << "unable to copy file " << target << " to " << p << ": "
+                 << e;
+          }
+
+          mv (p, link);
+          arm.cancel ();
+          return;
+        }
+      }
+
+      fail << "unable to create hard link for " << target << " at " << link
+           << ": " << e;
+    }
+  }
+
   dir_path
   change_wd (const dir_path& d)
   {

@@ -30,6 +30,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -37,6 +38,7 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -49,6 +51,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -56,6 +59,7 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -74,6 +78,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -81,6 +86,7 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -101,6 +107,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -108,6 +115,7 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -122,6 +130,7 @@ EOE
       %initialized existing configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -129,6 +138,7 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -148,6 +158,7 @@ EOE
       %  uuid: .{36}%
         type: target
         name: foo
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -155,6 +166,7 @@ EOE
       %uuid: .{36}%
       type: target
       name: foo
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -181,6 +193,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: host
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -188,6 +201,7 @@ EOE
       %uuid: .{36}%
       type: host
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -217,6 +231,7 @@ EOE
         uuid: $uuid
         type: target
         name: foo
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -224,6 +239,7 @@ EOE
       uuid: $uuid
       type: target
       name: foo
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'
@@ -253,6 +269,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info --link >>/~"%EOO%"
@@ -260,16 +277,19 @@ EOE
       %uuid: .{36}%
       type: target
       %name: %
+      mode: fetch-cache=false
 
       %path: .+/host/%
       %uuid: .{36}%
       type: host
       %name: %
+      mode: fetch-cache=false
 
       %path: .+/build2/%
       %uuid: .{36}%
       type: build2
       %name: %
+      mode: fetch-cache=false
       EOO
 
     $pkg_status libfoo >'libfoo unknown'

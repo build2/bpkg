@@ -38,7 +38,8 @@ namespace bpkg
         (const dir_path& path,
          const uuid& uid,
          const string& type,
-         const optional<string>& name) mutable
+         const optional<string>& name,
+         const optional<string>& fc_mode) mutable
       {
         if (!printed.insert (path).second)
           return false;
@@ -48,10 +49,13 @@ namespace bpkg
         else
           first = false;
 
-        cout << "path: " << path                << endl
-             << "uuid: " << uid                 << endl
-             << "type: " << type                << endl
-             << "name: " << (name ? *name : "") << endl;
+        cout << "path: " << path                << '\n'
+             << "uuid: " << uid                 << '\n'
+             << "type: " << type                << '\n'
+             << "name: " << (name ? *name : "") << '\n';
+
+        if (fc_mode)
+          cout << "mode: " << "fetch-cache=" << *fc_mode << '\n';
 
         return true;
       };
@@ -74,7 +78,7 @@ namespace bpkg
                                         bool links,
                                         const auto& print_db)
       {
-        if (!print (db.config, db.uuid, db.type, db.name))
+        if (!print (db.config, db.uuid, db.type, db.name, db.fetch_cache_mode))
           return;
 
         if (links)
@@ -107,7 +111,7 @@ namespace bpkg
                 print_link ();
             }
             else if (o.dangling ())
-              print (d, c.uuid, c.type, c.name);
+              print (d, c.uuid, c.type, c.name, nullopt /* fetch_cache_mode */);
           }
         }
       };

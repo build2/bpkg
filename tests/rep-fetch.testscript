@@ -31,7 +31,7 @@
 # |       |-- libfoo-1.1.0.tar.gz
 # |       `-- repositories.manifest
 # |
-# `-- hello
+# |-- hello
 # |   |-- libhello-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
@@ -81,6 +81,13 @@ posix = ($cxx.target.class != 'windows')
 
   $rep_create --key $key $out/hello &$out/hello/packages.manifest \
                                     &$out/hello/signature.manifest
+
+  # Create the unsigned 'hello' repository.
+  #
+  cp -r $src/hello $out/hello-unsigned
+
+  $rep_create $out/hello-unsigned &$out/hello-unsigned/packages.manifest \
+                                  &$out/hello-unsigned/signature.manifest
 
   # Create 'foo/*' repositories.
   #
@@ -355,9 +362,12 @@ $* 2>>/EOE != 0
         3 package(s) in 3 repository(s)
         EOE
 
-      $* --trust-yes $stable_rep 2>>EOE
+      $* --trust-yes $stable_rep 2>>~%EOE%
         updated pkg:build2.org/rep-fetch/cycle/stable
+        fetching pkg:build2.org/rep-fetch/cycle/stable
+        %querying .+stable%
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
+        %querying .+extra%
         2 package(s) in 2 repository(s)
         EOE
 
@@ -382,12 +392,15 @@ $* 2>>/EOE != 0
         3 package(s) in 3 repository(s)
         EOE
 
-      $* --trust-yes $math_rep $stable_rep 2>>EOE
+      $* --trust-yes $math_rep $stable_rep 2>>~%EOE%
         added pkg:build2.org/rep-fetch/cycle/math
         updated pkg:build2.org/rep-fetch/cycle/stable
         fetching pkg:build2.org/rep-fetch/cycle/math
+        %querying .+math%
         fetching pkg:build2.org/rep-fetch/cycle/stable
+        %querying .+stable%
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
+        %querying .+extra%
         3 package(s) in 3 repository(s)
         EOE
 
@@ -565,6 +578,7 @@ if! $remote
     $* 2>!
 
     $* "dir:($d/libbar.git)" 2>>"EOE"
+      fetching dir:($d/libbar.git)
       fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
       3 package\(s\) in 2 repository\(s\)
       EOE
@@ -586,7 +600,8 @@ if! $remote
       $clone_cfg
       $* 2>!
 
-      $* --shallow "dir:($d/libbar.git)" 2>>"EOE"
+      $* --shallow "dir:($d/libbar.git)" 2>>~"%EOE%"
+        %fetching .+libbar.git%
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -843,11 +858,12 @@ else
 
     $* "$rep/libbar.git#master" 2>>~%EOE% &cfg/.bpkg/repos/*/***
       %added git:.+libbar#master%
+      %fetching git:.+libbar#master%
       %querying .+libbar\.git%
-      %fetching from .+libbar\.git%
+      %fetching .+libbar\.git%
       %fetching git:.+style-basic#stable \(prerequisite of git:.+libbar#master\)%
       %querying .+style-basic%
-      %fetching from .+style-basic%
+      %fetching .+style-basic%
       3 package(s) in 2 repository(s)
       EOE
 
@@ -868,14 +884,14 @@ else
     $* 2>>~%EOE% &cfg/.bpkg/repos/*/***
       %fetching git:.+libfox#master%
       %querying .+libfox\.git%
-      %fetching from .+libfox\.git%
+      %fetching .+libfox\.git%
       %info: .+%{0,2}
       %querying .+libbar\.git%?
-      %fetching submodule 'libbar' from .+libbar\.git%
+      %fetching .+libbar\.git for submodule 'libbar'%
       %info: .+%{0,2}
       %submodule path 'libbar': checked out '.+'%
       %querying .+style-basic\.git%?
-      %fetching submodule 'libbar/extras' from .+style-basic\.git%
+      %fetching .+style-basic\.git for submodule 'libbar/extras'%
       %info: .+%{0,2}
       %submodule path 'libbar/extras': checked out '.+'%
       2 package(s) in 1 repository(s)
@@ -916,7 +932,7 @@ else
     # fetching from <url> in 'cfg/.bpkg/tmp/4bde15f59461'...
     #
     $* -v 2>&1                                         | \
-      sed -n -e "s/fetching from .+ in '\(.+\)'/\$1/p" | \
+      sed -n -e "s/fetching .+ in '\(.+\)'/\$1/p" | \
       sed -n -e 's%(.+[\\/])tmp([\\/].+)%$1repos$2%p'  | \
       set r
 
@@ -948,8 +964,9 @@ else
 
         $* "$rep_git/state0/libfoo.git#v**" 2>>~%EOE%
           %added .+libfoo#v\*\*%
+          %fetching .+libfoo#v\*\*%
           %querying .+libfoo\.git%
-          %fetching from .+libfoo\.git%
+          %fetching .+libfoo\.git%
           %info: .+%{0,2}
           2 package(s) in 1 repository(s)
           EOE
@@ -962,6 +979,7 @@ else
 
         $* "$rep_git/state0/libfoo.git#tags/mast*" 2>>~%EOE%
           %added .+libfoo#tags/mast\*%
+          %fetching .+libfoo#tags/mast\*%
           %querying .+libfoo\.git%
           0 package(s) in 1 repository(s)
           EOE
@@ -978,6 +996,7 @@ else
 
         $* "$rep_git/state0/libfoo.git#foo" 2>>~%EOE% != 0
           %added .+libfoo#foo%
+          %fetching .+libfoo#foo%
           %querying .+libfoo\.git%
           error: reference 'foo' is not found
           EOE
@@ -996,6 +1015,7 @@ else
         {
           $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
             %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
             %querying .+libfoo\.git%
             error: no names match pattern 'foo*'
             EOE
@@ -1004,7 +1024,8 @@ else
         {
           $* "$rep_git/state0/libfoo.git#foo*@9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
             %added .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
-            %fetching from .+libfoo\.git%
+            %fetching .+libfoo#foo\*@9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching .+libfoo\.git%
             %.+
             %error: unable to fetch .+%
             %.+
@@ -1021,8 +1042,9 @@ else
         {
           $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
             %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
             %querying .+libfoo\.git%
-            %fetching from .+libfoo\.git%
+            %fetching .+libfoo\.git%
             %info: .+%{0,2}
             error: unable to fetch commit 9ab039761936802d61b8e591d6812a4dd4605029
             EOE
@@ -1031,7 +1053,8 @@ else
         {
           $* "$rep_git/state0/libfoo.git#9ab039761936802d61b8e591d6812a4dd4605029" 2>>~%EOE% != 0
             %added .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
-            %fetching from .+libfoo\.git%
+            %fetching .+libfoo#9ab039761936802d61b8e591d6812a4dd4605029%
+            %fetching .+libfoo\.git%
             %.+
             %error: unable to fetch .+%
             %.+
@@ -1047,6 +1070,7 @@ else
 
       $* "$rep_git/state0/libfoo.git#mast*,-master" 2>>~%EOE%
         %added .+libfoo#mast\*,-master%
+        %fetching .+libfoo#mast\*,-master%
         %querying .+libfoo\.git%
         0 package(s) in 1 repository(s)
         EOE
@@ -1059,8 +1083,9 @@ else
 
       $* "$rep_git/state0/libfoo.git#tags/mast*,+master" 2>>~%EOE%
         %added .+libfoo#tags/mast\*,\+master%
+        %fetching .+libfoo#tags/mast\*,\+master%
         %querying .+libfoo\.git%
-        %fetching from .+libfoo\.git%
+        %fetching .+libfoo\.git%
         %info: .+%{0,2}
         1 package(s) in 1 repository(s)
         EOE
@@ -1076,8 +1101,9 @@ else
 
         $* "$rep_git/state0/libfoo.git" 2>>~%EOE%
           %added .+libfoo%
+          %fetching .+libfoo%
           %querying .+libfoo\.git%
-          %fetching from .+libfoo\.git%
+          %fetching .+libfoo\.git%
           %info: .+%{0,2}
           2 package(s) in 1 repository(s)
           EOE
@@ -1090,8 +1116,9 @@ else
 
         $* "$rep_git/state0/libfoo.git##-/tags/v1*" 2>>~%EOE%
           %added .+libfoo##-/tags/v1\*%
+          %fetching .+libfoo##-/tags/v1\*%
           %querying .+libfoo\.git%
-          %fetching from .+libfoo\.git%
+          %fetching .+libfoo\.git%
           %info: .+%{0,2}
           1 package(s) in 1 repository(s)
           EOE
@@ -1110,5 +1137,185 @@ else
         $pkg_status libbar >'libbar available 1.0.0+1'
       }
     }}
+  }}
+}}
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export -u BPKG_FETCH_CACHE
+  test.options += --fetch-cache-path cache
+
+  +$cfg_create -d cfg 2>- &cfg/***
+
+  : pkg-rep
+  :
+  {{
+    test.options += --auth all -v
+
+    +$clone_cfg
+
+    : signed-repository
+    :
+    {
+      $clone_cfg && $rep_add $rep/hello
+
+      # Verify that for the first repository fetch we download all the manifest
+      # files and authenticate the certificate.
+      #
+      $* --trust $cert_fp 2>&1 &cache/*** | set out
+
+      sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >~/.+/
+
+      if $remote
+      {
+        sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+
+        sed -n -e 's%(https://.*/packages.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+
+        sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+      }
+
+      # Verify that the fetched manifest files are cached.
+      #
+      ms = $sort($filesystem.path_search(*/*.manifest, $~/cache/pkg/metadata))
+
+      sed -n -e 's%^(.+packages.manifest)$%\1%p'     <($ms[0]) >~/.+/
+      sed -n -e 's%^(.+repositories.manifest)$%\1%p' <($ms[1]) >~/.+/
+
+      rm -r cfg
+
+      $clone_cfg && $rep_add $rep/hello
+
+      # Verify that now, as the metadata and authentication answers are cached,
+      # we don't download the repositories and packages manifest files nor
+      # authenticate the certificate.
+      #
+      $* 2>&1 | set out
+
+      sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >:''
+
+      if $remote
+      {
+        sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >:''
+        sed -n -e 's%(https://.*/packages.manifest)%\1%p'     <$out >:''
+
+        # Note: we should still be downloading the signature manifest to perform
+        # the up-to-dateness check.
+        #
+        sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+      }
+
+      $rep_list >~'%pkg:build2.org/rep-fetch/hello.+%'
+      $pkg_status libhello >'libhello available 1.0.0'
+
+      $rep_remove --all
+    }
+
+    : unsigned-repository
+    :
+    {
+      $clone_cfg && $rep_add $rep/hello-unsigned
+
+      # Verify that for the first unsigned repository fetch we trust the
+      # repository by command line.
+      #
+      $* --trust-yes 2>&1 &cache/*** | set out
+
+      sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_cfg && $rep_add $rep/hello-unsigned
+
+      # Verify that now, as the authentication answers are cached, the unsigned
+      # repository is trusted automatically.
+      #
+      $* 2>&1 | set out
+
+      sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >:''
+
+      $rep_list >~'%pkg:build2.org/rep-fetch/hello-unsigned.+%'
+      $pkg_status libhello >'libhello available 1.0.0'
+
+      $rep_remove --all
+    }
+  }}
+
+  : git-rep
+  :
+  if $git_supported
+  {{
+    rep_git = ($remote ? $rep_git_https_smart_unadv : $rep_git_local)
+
+    +$clone_cfg
+
+    : basics
+    :
+    {
+      $clone_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
+
+      $* --offline &cache/*** 2>>~%EOE% != 0
+        %fetching git:.+libfoo#master%
+        %error: no state in fetch cache for repository .+libfoo.git#master in offline mode%
+          info: consider turning offline mode off
+        EOE
+
+      test.options += --fetch-cache-session 2487f19f-230e-4692-b9e3-0c3654d88a5b
+
+      # Verify that for the first repository fetch we run git-ls-remote and
+      # git-fetch.
+      #
+      $* -v 2>&1 &cache/*** | set out
+
+      sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >~/.+/
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
+
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'          <$out >~/.+/
+      sed -n -e 's%^(validating .*libfoo.git \(cache\))$%\1%p'     <$out >~/.+/
+      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p' <$out >~/.+/
+
+      # Verify that the fetched filesystem entries are cached.
+      #
+      out=$filesystem.path_search(*/repository/, $~/cache/git)
+      sed -n -e 's%^(.+repository.)$%\1%p' <$out >~/.+/
+
+      out=$filesystem.path_search(*/ls-remote.txt, $~/cache/git)
+      sed -n -e 's%^(.+ls-remote.txt)$%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
+
+      # Verify that now, as the repository is cached, we don't run
+      # git-ls-remote nor git-fetch.
+      #
+      $* -v 2>&1 | set out
+
+      sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >:''
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
+
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'                       <$out >~/.+/
+      sed -n -e 's%^(skipped validating .*libfoo.git \(cache, session\))$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p'              <$out >:''
+
+      $rep_list >~'%git:.+libfoo#master.+%'
+      $pkg_status libfoo >'libfoo available 1.0.0'
+
+      $rep_remove --all
+    }
   }}
 }}

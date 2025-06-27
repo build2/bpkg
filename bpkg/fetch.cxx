@@ -7,6 +7,7 @@
 #include <libbutl/semantic-version.hxx>
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 
 using namespace std;
 using namespace butl;
@@ -922,6 +923,8 @@ namespace bpkg
                const strings& headers,
                const url& proxy)
   {
+    assert (!fetch_cache::offline (o)); // Shouldn't be here otherwise.
+
     // Currently, for the sake of simplicity, we don't support redirecting
     // stderr if we fetch into a file.
     //

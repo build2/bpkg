@@ -45,6 +45,7 @@ else
   pkg_disfigure += -d cfg 2>!
   pkg_purge     += -d cfg 2>!
   pkg_status    += -d cfg
+  pkg_drop      += -d cfg --yes 2>!
 
   test.cleanups += &?cfg/.bpkg/repos/*/***
 
@@ -56,7 +57,7 @@ else
     $rep_fetch
 
     $* libmbar/1.0.0 2>>~%EOE%
-      checking out libmbar/1.0.0
+      checking out libmbar/1.0.0 (local cache)
       %.+
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
@@ -75,8 +76,9 @@ else
     $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v
 
     $* "style-basic/$v" 2>>~"%EOE%"
-      verifying symlinks...
-      %fixing up symlinks...%?
+      checking out style-basic/$v \(local cache\)
+      verifying symlinks
+      %fixing up symlinks%?
       distributing style-basic/$v
       checked out style-basic/$v
       EOE
@@ -84,7 +86,7 @@ else
     $pkg_configure style-basic
 
     $* libmbar/1.0.0 2>>~%EOE%
-      checking out libmbar/1.0.0
+      checking out libmbar/1.0.0 (local cache)
       %.+
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
@@ -154,10 +156,10 @@ else
     $rep_fetch "$rep/links.git#v0.0.1"
 
     $* links/0.0.1 2>>~%EOE%
-      checking out links/0.0.1
+      checking out links/0.0.1 (local cache)
       %.*
-      verifying symlinks...
-      %fixing up symlinks...%?
+      verifying symlinks
+      %fixing up symlinks%?
       distributing links/0.0.1
       checked out links/0.0.1
       EOE
@@ -184,19 +186,19 @@ else
     #
     if $posix
       $* links/1.0.1 2>>~%EOE% != 0
-        checking out links/1.0.1
+        checking out links/1.0.1 (local cache)
         %.*
-        verifying symlinks...
-        %fixing up symlinks...%?
+        verifying symlinks
+        %fixing up symlinks%?
         distributing links/1.0.1
         %warning: skipping dangling symlink .+%
         %error: unable to stat .+%
         EOE
     else
       $* links/1.0.1 2>>~%EOE% != 0
-        checking out links/1.0.1
-        verifying symlinks...
-        %fixing up symlinks...%?
+        checking out links/1.0.1 (local cache)
+        verifying symlinks
+        %fixing up symlinks%?
         error: target 'bl' for symlink 'lc' does not exist
           info: re-run with -v for more information
         warning: repository state is now broken
@@ -214,7 +216,7 @@ else
         EOE
     else
       $* links/1.0.2 2>>~%EOE% != 0
-        checking out links/1.0.2
+        checking out links/1.0.2 (local cache)
         %.*
         %error: target '..' for symlink '..' does not exist%
           info: re-run with -v for more information
@@ -234,7 +236,7 @@ else
       $rep_fetch
 
       $* --output-root $~ libmbar/1.0.0 &libmbar-1.0.0/*** 2>>~%EOE%
-        checking out libmbar/1.0.0
+        checking out libmbar/1.0.0 (local cache)
         %.+
         distributing libmbar/1.0.0
         checked out libmbar/1.0.0
@@ -245,7 +247,7 @@ else
       # While at it, test that the package is buildable.
       #
       $pkg_build libmbar -d cfg/ --yes 2>!
-      $pkg_drop  libmbar -d cfg/ --yes 2>!
+      $pkg_drop libmbar
     }
 
     : purge
@@ -256,7 +258,7 @@ else
       $rep_fetch
 
       $* --output-root $~ libmbar/1.0.0 --output-purge 2>>~%EOE%
-        checking out libmbar/1.0.0
+        checking out libmbar/1.0.0 (local cache)
         %.+
         distributing libmbar/1.0.0
         checked out libmbar/1.0.0
@@ -265,6 +267,123 @@ else
       test -f libmbar-1.0.0/manifest
 
       $pkg_purge libmbar
+    }
+  }}
+
+  : fetch-cache
+  :
+  {{
+    # Enable the test-specific fetch caches.
+    #
+    options_guard = $~/.build2
+    +mkdir $options_guard
+    +echo '--no-default-options' >=$options_guard/bpkg.options
+    +export BPKG_FETCH_CACHE=src
+    rep_fetch    += --fetch-cache-path cache
+    test.options += --fetch-cache-path cache
+
+    +$cfg_create -d cfg 2>- &cfg/***
+
+    : no-src
+    :
+    {
+      export BPKG_FETCH_CACHE=no-src
+
+      $clone_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch &cache/***
+
+      # Verify that for the first repository fetch we run git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch
+
+      # Verify that now, as the repository is cached, we don't run
+      # git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >:''
+
+      $pkg_status libbar >'libbar unpacked 1.0.0+1'
+
+      $pkg_drop libbar
+    }
+
+    : src
+    :
+    {
+      pkg_build += -d cfg --yes --no-default-options --fetch-cache-path cache
+
+      $clone_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch &cache/***
+
+      # Verify that for the first repository fetch we run git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(checking out libbar. from .* \(cache, shared src\))$%\1%p'      <$out >~/.+/
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p'                               <$out >~/.+/
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >~/.+/
+
+      $pkg_status libbar >'libbar unpacked 1.0.0+1'
+
+      # Verify that the source directory is cached.
+      #
+      test -d cache/src/libbar-1.0.0+1
+      test -d cfg/libbar-1.0.0+1 != 0
+
+      # Verify that the unpacked package is buildable.
+      #
+      $pkg_build libbar 2>>~%EOE%
+        %.+
+        updated libbar/1.0.0+1
+        EOE
+
+      test -d cfg/libbar-1.0.0+1
+
+      rm -r cfg
+
+      $clone_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch
+
+      # Verify that now, as the repository is cached, we don't run
+      # git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(checking out libbar. from .* \(cache, shared src\))$%\1%p'      <$out >~/.+/
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p'                               <$out >:''
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >:''
+
+      $pkg_status libbar >'libbar unpacked 1.0.0+1'
+
+      # Verify that the source directory is cached.
+      #
+      test -d cache/src/libbar-1.0.0+1
+      test -d cfg/libbar-1.0.0+1 != 0
+
+      # Verify that the unpacked package is buildable.
+      #
+      $pkg_build libbar 2>>~%EOE%
+        %.+
+        updated libbar/1.0.0+1
+        EOE
+
+      test -d cfg/libbar-1.0.0+1
+
+      $pkg_drop libbar
     }
   }}
 }}

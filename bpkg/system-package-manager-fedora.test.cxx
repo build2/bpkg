@@ -114,7 +114,8 @@ namespace bpkg
                                        false   /* install */,
                                        false   /* fetch */,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       m.dnf_list (pis, false /* modify_system */);
@@ -145,7 +146,8 @@ namespace bpkg
                                        false   /* install */,
                                        false   /* fetch */,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       for (const pair<string, string>& d:
@@ -371,7 +373,8 @@ namespace bpkg
                                        install,
                                        fetch,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       // Query each package.

@@ -10,6 +10,7 @@
 
 #include <odb/sqlite/traits.hxx>
 
+#include <libbpkg/manifest.hxx>
 #include <libbpkg/package-name.hxx>
 
 namespace odb
@@ -47,7 +48,39 @@ namespace odb
         base_type::set_image (b, n, is_null, v.string ());
       }
     };
-  };
+
+    template <>
+    class value_traits<bpkg::repository_url, id_text>:
+      value_traits<std::string, id_text>
+    {
+    public:
+      using value_type = bpkg::repository_url;
+      using query_type = bpkg::repository_url;
+      using image_type = details::buffer;
+
+      using base_type = value_traits<std::string, id_text>;
+
+      static void
+      set_value (value_type& v,
+                 const details::buffer& b,
+                 std::size_t n,
+                 bool is_null)
+      {
+        std::string s;
+        base_type::set_value (s, b, n, is_null);
+        v = !s.empty () ? value_type (s) : value_type ();
+      }
+
+      static void
+      set_image (details::buffer& b,
+                 std::size_t& n,
+                 bool& is_null,
+                 const value_type& v)
+      {
+        base_type::set_image (b, n, is_null, v.string ());
+      }
+    };
+  }
 }
 
-#endif // BPKG_WRAPPER_TRAITS_HXX
+#endif // BPKG_VALUE_TRAITS_HXX

@@ -776,6 +776,8 @@ namespace bpkg
   void system_package_manager_debian::
   apt_get_update ()
   {
+    assert (!offline_); // Shouldn't be here otherwise.
+
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
       apt_get_common ("update", args_storage));
@@ -790,7 +792,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "updating " << os_release.name_id << " package index...";
+        text << "updating " << os_release.name_id << " package index";
 
       process pr;
       if (!simulate_)
@@ -838,6 +840,12 @@ namespace bpkg
   void system_package_manager_debian::
   apt_get_install (const strings& pkgs)
   {
+    // Note that this function may be called for only the fully installed
+    // packages to make sure they are all set to manually installed. Thus, we
+    // we don't assert the offline mode here.
+    //
+    //assert (!offline_);
+
     assert (!pkgs.empty ());
 
     strings args_storage;
@@ -857,7 +865,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "installing " << os_release.name_id << " packages...";
+        text << "installing " << os_release.name_id << " packages";
 
       process pr;
       if (!simulate_)
@@ -1172,7 +1180,7 @@ namespace bpkg
       // don't need to re-run apt_cache_policy().
       //
       bool requery;
-      if ((requery = fetch_ && !fetched_))
+      if ((requery = fetch_ && !offline_ && !fetched_))
       {
         apt_get_update ();
         fetched_ = true;
@@ -1443,6 +1451,12 @@ namespace bpkg
       // version, expecting the candidate version to be installed.
       //
       bool fi (ps.status == package_status::installed);
+
+      if (!fi && offline_)
+        fail << "unable to install " << os_release.name_id << " package "
+             << ps.system_name << ' ' << ps.system_version
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
 
       for (const package_policy& pp: ps.package_policies)
       {

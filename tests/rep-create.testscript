@@ -13,6 +13,8 @@
 #     |-- foo-2.tar.gz (manifest with unknown name)
 #     `-- repositories.manifest
 
+rep_info += 2>!
+
 : unsigned
 :
 {{
