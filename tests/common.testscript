@@ -10,7 +10,7 @@
 build = $recall($build.path)
 
 # Disable loading the user's default options files (that may affect the test
-# commands execution) for bpkg and build2.
+# commands execution) for bpkg and build2. Also disable the fetch cache.
 #
 # Note that this works without quoting on Windows because of the effective
 # escaping during the command line re-parse.
@@ -20,6 +20,7 @@ options_guard = $~/.build2
 
 +echo '--no-default-options' >=$options_guard/b.options
 +echo '--no-default-options' >=$options_guard/bpkg.options
++echo '--no-fetch-cache'     >+$options_guard/bpkg.options
 
 test.options += --default-options $options_guard \
 --build $build --build-option "--default-options=$options_guard"

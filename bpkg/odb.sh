@@ -38,8 +38,9 @@ else
 fi
 
 $odb "${inc[@]}"                                                      \
-    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2 --generate-schema          \
-    -d sqlite --std c++14 --generate-query                            \
+    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
+    -d sqlite --std c++14 --generate-query --generate-prepared        \
+    --generate-schema                                                 \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'          \
     --odb-epilogue '#include <bpkg/pointer-traits.hxx>'               \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
@@ -47,7 +48,15 @@ $odb "${inc[@]}"                                                      \
     --hxx-prologue '#include <bpkg/pointer-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
-    --generate-prepared --include-with-brackets --include-prefix bpkg \
-    --guard-prefix BPKG --schema main                                 \
-    --schema-version-table main.schema_version                        \
+    --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
+    --schema main --schema-version-table main.schema_version          \
     --sqlite-override-null package.hxx
+
+$odb "${inc[@]}"                                                      \
+    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
+    -d sqlite --std c++14 --generate-query                            \
+    --generate-schema --schema-name 'fetch-cache'                     \
+    --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
+    --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
+    --sqlite-override-null fetch-cache-data.hxx
