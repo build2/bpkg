@@ -1,0 +1,3 @@
+<changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" schema-name="fetch-cache" version="1">
+  <model version="1"/>
+</changelog>

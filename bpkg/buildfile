@@ -67,6 +67,7 @@ libue{bpkg}: {hxx ixx txx cxx}{** -bpkg              \
              {hxx ixx cxx}{$options_topics}          \
              {hxx cxx}{$help_topics}                 \
              {hxx ixx cxx}{package-odb}              \
+             {hxx ixx cxx}{fetch-cache-data-odb}     \
              {hxx}{version}                          \
              $libs                                   \
              xml{*}
