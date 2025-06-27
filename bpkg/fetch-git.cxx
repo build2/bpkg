@@ -103,18 +103,54 @@ namespace bpkg
     return *git_line (co, 0 /* no_result */, what, forward<A> (args)...);
   }
 
-  // Start git process. On the first call check that git version is 2.11.0 or
-  // above, and fail if that's not the case. Note that supporting earlier
-  // versions doesn't seem worth it (plus other parts of the toolchain also
-  // require 2.11.0).
+  // On the first call query git version and check that it is 2.11.0 or above,
+  // failing if that's not the case, and cache this version.
   //
-  // Also note that git is executed in the "sanitized" environment, having the
+  // Note that supporting earlier versions doesn't seem worth it (plus other
+  // parts of the toolchain also require 2.11.0).
+  //
+  static optional<semantic_version> git_ver;
+
+  static const semantic_version&
+  git_version (const common_options& co)
+  {
+    if (!git_ver)
+    {
+      // Make sure git_version() is not called recursively via git_line() ->
+      // start_git() calls.
+      //
+      git_ver = semantic_version ();
+
+      string s (git_line (co, "git version",
+                          co.git_option (),
+                          "--version"));
+
+      optional<semantic_version> v (butl::git_version (s));
+
+      if (!v)
+        fail << "'" << s << "' doesn't appear to contain a git version" <<
+          info << "produced by '" << co.git () << "'; "
+             << "use --git to override" << endg;
+
+      if (*v < semantic_version {2, 11, 0})
+        fail << "unsupported git version " << *v <<
+          info << "minimum supported version is 2.11.0" << endf;
+
+      git_ver = move (*v);
+    }
+
+    return *git_ver;
+  }
+
+  // Start git process. On the first call check that git version is fresh
+  // enough (see above for details).
+  //
+  // Note that git is executed in the "sanitized" environment, having the
   // environment variables that are local to the repository being unset (all
   // except GIT_CONFIG_PARAMETERS). We do the same as the git-submodule script
   // does for commands executed for submodules. Though we do it for all
   // commands (including the ones related to the top repository).
   //
-  static semantic_version git_ver;
   static optional<strings> unset_vars;
 
   template <typename O, typename E, typename... A>
@@ -132,30 +168,21 @@ namespace bpkg
       //
       if (!unset_vars)
       {
+        // Make sure that we don't end up here for the recursive, via
+        // git_version(), call.
+        //
         unset_vars = strings ();
 
         for (;;) // Breakout loop.
         {
-          // Check git version.
+          // Call git_version() if it has not been called yet, to check if we
+          // support this version of git.
           //
-          // We assume that non-sanitized git environment can't harm this call.
+          // We assume that non-sanitized git environment can't harm the
+          // underlying `git --version` call.
           //
-          string s (git_line (co, "git version",
-                              co.git_option (),
-                              "--version"));
-
-          optional<semantic_version> v (git_version (s));
-
-          if (!v)
-            fail << "'" << s << "' doesn't appear to contain a git version" <<
-              info << "produced by '" << co.git () << "'; "
-                 << "use --git to override" << endg;
-
-          if (*v < semantic_version {2, 11, 0})
-            fail << "unsupported git version " << *v <<
-              info << "minimum supported version is 2.11.0" << endf;
-
-          git_ver = move (*v);
+          if (!git_ver)
+            git_version (co);
 
           // Sanitize the environment.
           //
@@ -576,9 +603,7 @@ namespace bpkg
   using capabilities = git_protocol_capabilities;
 
   static capabilities
-  sense_capabilities (const common_options& co,
-                      const repository_url& repo_url,
-                      const semantic_version& git_ver)
+  sense_capabilities (const common_options& co, const repository_url& repo_url)
   {
     assert (repo_url.path);
 
@@ -591,7 +616,7 @@ namespace bpkg
         // NOTE: remember to update rep_git_local_unadv assignment in
         //       tests/remote-git.testscript if changing anything here.
         //
-        return git_ver >= semantic_version {2, 28, 0}
+        return git_version (co) >= semantic_version {2, 28, 0}
                ? capabilities::unadv
                : capabilities::smart;
       }
@@ -648,7 +673,7 @@ namespace bpkg
                         is /* out */,
                         fdstream_mode::skip | fdstream_mode::binary,
                         stderr_mode::redirect_quiet,
-                        "git/" + git_ver.string (),
+                        "git/" + git_version (co).string (),
                         {"Git-Protocol: version=2"}));
 
     process& pr (ps.first);
@@ -1259,7 +1284,7 @@ namespace bpkg
         }
 
         if (!cap)
-          cap = sense_capabilities (co, u, git_ver);
+          cap = sense_capabilities (co, u);
       }
 
       return *cap;
@@ -2154,6 +2179,8 @@ namespace bpkg
 
     // Initialize submodules.
     //
+    const semantic_version& v (git_version (co));
+
     if (!run_git (
           co,
           co.git_option (),
@@ -2163,9 +2190,9 @@ namespace bpkg
           // recognize the --super-prefix option but seem to behave correctly
           // without any additional efforts when it is omitted.
           //
-          (!prefix.empty ()                       &&
-           git_ver >= semantic_version {2, 14, 0} &&
-           git_ver <  semantic_version {2, 38, 0}
+          (!prefix.empty ()                 &&
+           v >= semantic_version {2, 14, 0} &&
+           v <  semantic_version {2, 38, 0}
            ? strings ({"--super-prefix", prefix.posix_representation ()})
            : strings ()),
 
