@@ -2546,11 +2546,11 @@ namespace bpkg
   }
 
   static void
-  git_checkout (const common_options& co,
-                const dir_path& dir,
-                const string& commit,
+  checkout (const common_options& co,
+            const dir_path& dir,
+            const string& commit,
 #ifdef _WIN32
-                const dir_path& prefix)
+            const dir_path& prefix)
   {
     // Note that on Windows git may incorrectly deduce the type of a symlink
     // it needs to create. Thus, it is recommended to specify the link type
@@ -2647,7 +2647,7 @@ namespace bpkg
                 const dir_path& dir,
                 const string& commit)
   {
-    git_checkout (co, dir, commit, dir_path () /* prefix */);
+    checkout (co, dir, commit, dir_path () /* prefix */);
   }
 
   // Verify symlinks in a working tree of a top repository or submodule,
@@ -3062,7 +3062,7 @@ namespace bpkg
   git_fixup_worktree (const common_options& co,
                       const dir_path& dir,
                       bool revert,
-                      bool ie)
+                      bool fail)
   {
     if (!revert && ((verb && !co.no_progress ()) || co.progress ()))
       text << "fixing up symlinks...";
@@ -3076,12 +3076,45 @@ namespace bpkg
     }
     catch (const failed&)
     {
-      if (ie)
-        return nullopt;
+      if (fail)
+        throw;
 
-      throw;
+      return nullopt;
     }
   }
 
 #endif
+
+  bool
+  git_remove_worktree (const common_options& co, const dir_path& dir, bool f)
+  {
+    try
+    {
+      if (!run_git (co,
+                    co.git_option (),
+                    "-C", dir,
+                    "read-tree",
+                    "--empty"))
+        fail << "unable to clear index in " << dir << endg;
+
+      if (!run_git (co,
+                    co.git_option (),
+                    "-C", dir,
+                    "clean",
+                    "-d",
+                    "-x",
+                    "-ff",
+                    verb < 2 ? "-q" : nullptr))
+        fail << "unable to clean " << dir << endg;
+
+      return true;
+    }
+    catch (const failed&)
+    {
+      if (f)
+        throw;
+
+      return false;
+    }
+  }
 }

@@ -764,13 +764,16 @@ namespace bpkg
       r.fragments.push_back (move (fr));
     }
 
-    // Move the state directory to its proper place.
+    // Remove the working tree from the state directory and return it to its
+    // proper place.
     //
     // If there is no configuration directory then we let auto_rmdir clean it
     // up from the the temporary directory.
     //
     if (!rd.empty ())
     {
+      git_remove_worktree (co, td);
+
       // Make sure the repos/ directory exists (could potentially be manually
       // removed).
       //

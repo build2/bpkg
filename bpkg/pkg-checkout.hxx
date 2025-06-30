@@ -32,14 +32,16 @@ namespace bpkg
     //
     pkg_checkout_cache (const common_options& o): options_ (o) {}
 
-    // Restore the cached repositories in their permanent locations (move back
-    // from the temporary directory, fixup, etc) and erase the entries.
+    // Restore the cached repositories in their permanent locations (remove
+    // the working trees, move back from the temporary directory, etc) and
+    // erase the entries. On error issue diagnostics and return false if fail
+    // is false and throw failed otherwise.
     //
-    // Note that the destructor will clear the cache but will ignore any
+    // Note that the destructor will clear the cache but will not fail on
     // errors. To detect such errors, call clear() explicitly.
     //
     bool
-    clear (bool ignore_errors = false);
+    clear (bool fail = true);
 
     // Call clear() in the ignore errors mode and issue the "repository is now
     // broken" warning on failure.
@@ -67,13 +69,23 @@ namespace bpkg
     state_map map_;
     const common_options& options_;
 
-    // Restore the repository in its permanent location and erase the cache
-    // entry. On error issue diagnostics and return false in the ignore errors
-    // mode and throw failed otherwise. Note that erasing an incomplete entry
-    // is an error.
+    // Remove the repository working tree, return the repository to its
+    // permanent location, and erase the cache entry. On error issue
+    // diagnostics and return false if fail is false and throw failed
+    // otherwise. Note that erasing an incomplete entry is an error.
     //
     bool
-    erase (state_map::iterator, bool ignore_errors = false);
+    erase (state_map::iterator, bool fail = true);
+
+    // Restore the repository working tree state (revert fixups, etc) and
+    // erase the cache entry. Leave the repository in the temporary directory
+    // and return the corresponding auto_rmdir object. On error issue
+    // diagnostics and return an empty auto_rmdir object if fail is false and
+    // throw failed otherwise. Note that releasing an incomplete entry is an
+    // error.
+    //
+    auto_rmdir
+    release (state_map::iterator, bool fail = true);
   };
 
   // Note that for the following functions both package and repository

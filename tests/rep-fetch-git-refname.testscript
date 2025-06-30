@@ -126,7 +126,6 @@
       %querying .+libfoo\.git%
       %fetching from .+libfoo\.git%
       $info
-      %warning: unable to rmdir .?libbar.?: .+%
       1 package\(s\) in 1 repository\(s\)
       EOE
 

@@ -67,9 +67,7 @@ namespace bpkg
   // Fetch a git repository in the specifid directory (previously created by
   // git_init() for the references obtained with the repository URL fragment
   // filters, returning commit ids these references resolve to in the earliest
-  // to latest order. Update the remote repository URL, if changed. After
-  // fetching the repository working tree state is unspecified (see
-  // git_checkout()).
+  // to latest order. Update the remote repository URL, if changed.
   //
   // Note that submodules are not fetched.
   //
@@ -115,8 +113,8 @@ namespace bpkg
   // Fix up or revert the fixes (including in submodules, recursively) in a
   // working tree previously checked out by git_checkout() or
   // git_checkout_submodules(). Return true if any changes have been made to
-  // the filesystem. On error issue diagnostics and return nullopt in the
-  // ignore errors mode and throw failed otherwise.
+  // the filesystem. On error issue diagnostics and return nullopt if fail is
+  // false and throw failed otherwise.
   //
   // Noop on POSIX. On Windows it may replace git's filesystem-agnostic
   // symlinks with hardlinks for the file targets and junctions for the
@@ -127,7 +125,16 @@ namespace bpkg
   git_fixup_worktree (const common_options&,
                       const dir_path&,
                       bool revert,
-                      bool ignore_errors = false);
+                      bool fail = true);
+
+  // Turn the repository directory into the state when it only contains the
+  // .git subdirectory, as if no checkouts have been made. On error issue
+  // diagnostics and return false if fail is false and throw failed otherwise.
+  //
+  bool
+  git_remove_worktree (const common_options&,
+                       const dir_path&,
+                       bool fail = true);
 
   // Low-level fetch API (fetch.cxx).
   //

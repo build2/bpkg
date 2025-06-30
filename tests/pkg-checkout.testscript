@@ -155,6 +155,7 @@ else
 
     $* links/0.0.1 2>>~%EOE%
       checking out links/0.0.1
+      %.*
       verifying symlinks...
       %fixing up symlinks...%?
       distributing links/0.0.1
@@ -184,6 +185,7 @@ else
     if $posix
       $* links/1.0.1 2>>~%EOE% != 0
         checking out links/1.0.1
+        %.*
         verifying symlinks...
         %fixing up symlinks...%?
         distributing links/1.0.1

@@ -66,7 +66,7 @@ namespace bpkg
          const repository_location& rl,
          const dir_path& dir,
          bool revert = false,
-         bool ie = false)
+         bool fail = true)
   {
     optional<bool> r;
 
@@ -74,10 +74,10 @@ namespace bpkg
     {
     case repository_type::git:
       {
-        if (!revert && !ie)
+        if (!revert && fail)
           git_verify_symlinks (o, dir);
 
-        r = git_fixup_worktree (o, dir, revert, ie);
+        r = git_fixup_worktree (o, dir, revert, fail);
         break;
       }
     case repository_type::pkg:
@@ -215,26 +215,28 @@ namespace bpkg
 
       if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
       {
+        // The repository temporary directory.
+        //
+        auto_rmdir rmt;
+
         // Restore the repository if some different fragment is checked out.
         //
         if (i != cm.end ())
-          cache.erase (i);
-
-        // Checkout and cache the fragment.
-        //
-        if (!exists (rd))
-          fail << "missing repository directory for package " << n << " " << v
-               << " in its repository information configuration "
-               << rdb.config_orig <<
-            info << "run 'bpkg rep-fetch' to repair";
-
-        // The repository temporary directory.
-        //
-        auto_rmdir rmt (tdir / sd, !keep_tmp);
-
-        // Move the repository to the temporary directory.
-        //
         {
+          rmt = cache.release (i);
+        }
+        else
+        {
+          if (!exists (rd))
+            fail << "missing repository directory for package " << n << " "
+                 << v << " in its repository information configuration "
+                 << rdb.config_orig <<
+              info << "run 'bpkg rep-fetch' to repair";
+
+          rmt = auto_rmdir (tdir / sd, !keep_tmp);
+
+          // Move the repository to the temporary directory.
+          //
           const dir_path& td (rmt.path);
 
           if (exists (td))
@@ -243,6 +245,8 @@ namespace bpkg
           mv (rd, td);
         }
 
+        // Checkout and cache the fragment.
+        //
         // Pre-insert the incomplete repository entry into the cache and
         // "finalize" it by setting the fixed up value later, after the
         // repository fragment checkout succeeds. Until then the repository
@@ -521,7 +525,7 @@ namespace bpkg
   pkg_checkout_cache::
   ~pkg_checkout_cache ()
   {
-    if (!map_.empty () && !clear (true /* ignore_errors */))
+    if (!map_.empty () && !clear (false /* fail */))
     {
       // We assume that the diagnostics has already been issued.
       //
@@ -531,11 +535,15 @@ namespace bpkg
   }
 
   bool pkg_checkout_cache::
-  clear (bool ie)
+  clear (bool fail)
   {
+    // It would good to return to the permanent location as many repositories
+    // as possible before throwing an exception. Let's, however, keep it
+    // simple for now.
+    //
     while (!map_.empty ())
     {
-      if (!erase (map_.begin (), ie))
+      if (!erase (map_.begin (), fail))
         return false;
     }
 
@@ -543,7 +551,7 @@ namespace bpkg
   }
 
   bool pkg_checkout_cache::
-  erase (state_map::iterator i, bool ie)
+  erase (state_map::iterator i, bool fail)
   {
     state& s (i->second);
 
@@ -551,8 +559,44 @@ namespace bpkg
     //
     if (!s.fixedup)
     {
-      assert (ie); // Only makes sense in the ignore errors mode.
+      assert (!fail); // Only makes sense if we don't fail on errors.
       return false;
+    }
+
+    // Remove the working tree and return the repository to the permanent
+    // location.
+    //
+    // But first make the entry incomplete, so on error we don't try to
+    // restore the partially restored repository later.
+    //
+    s.fixedup = nullopt;
+
+    if (!git_remove_worktree (options_, s.rmt.path, fail))
+      return false;
+
+    // Manipulations over the repository are now complete, so we can return it
+    // to the permanent location.
+    //
+    if (!mv (s.rmt.path, i->first, !fail))
+      return false;
+
+    s.rmt.cancel ();
+
+    map_.erase (i);
+    return true;
+  }
+
+  auto_rmdir pkg_checkout_cache::
+  release (state_map::iterator i, bool fail)
+  {
+    state& s (i->second);
+
+    // Bail out if the entry is incomplete.
+    //
+    if (!s.fixedup)
+    {
+      assert (!fail);       // Only makes sense if we don't fail on errors.
+      return auto_rmdir ();
     }
 
     // Revert the fix-ups.
@@ -564,18 +608,11 @@ namespace bpkg
 
     s.fixedup = nullopt;
 
-    if (f && !fixup (options_, s.rl, s.rmt.path, true /* revert */, ie))
-      return false;
+    if (f && !fixup (options_, s.rl, s.rmt.path, true /* revert */, fail))
+      return auto_rmdir ();
 
-    // Manipulations over the repository are now complete, so we can return it
-    // to the permanent location.
-    //
-    if (!mv (s.rmt.path, i->first, ie))
-      return false;
-
-    s.rmt.cancel ();
-
+    auto_rmdir r (move (s.rmt));
     map_.erase (i);
-    return true;
+    return r;
   }
 }
