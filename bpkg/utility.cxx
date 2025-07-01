@@ -299,7 +299,7 @@ namespace bpkg
   }
 
   bool
-  mv (const dir_path& from, const dir_path& to, bool ie)
+  mv (const dir_path& from, const dir_path& to, bool fail)
   {
     if (verb >= 3)
       text << "mv " << from << ' ' << to; // Prints trailing slashes.
@@ -313,17 +313,17 @@ namespace bpkg
       error << "unable to move directory " << from << " to " << to << ": "
             << e;
 
-      if (ie)
-        return false;
+      if (fail)
+        throw failed ();
 
-      throw failed ();
+      return false;
     }
 
     return true;
   }
 
   bool
-  mv (const path& from, const path& to, bool ie)
+  mv (const path& from, const path& to, bool fail)
   {
     if (verb >= 3)
       text << "mv " << from << ' ' << to;
@@ -337,10 +337,10 @@ namespace bpkg
     {
       error << "unable to move file " << from << " to " << to << ": " << e;
 
-      if (ie)
-        return false;
+      if (fail)
+        throw failed ();
 
-      throw failed ();
+      return false;
     }
 
     return true;

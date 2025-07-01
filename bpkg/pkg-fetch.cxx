@@ -306,7 +306,7 @@ namespace bpkg
           //
           if (!earm.path.empty () && exists (earm.path))
           {
-            if (mv (earm.path, a, true /* ignore_error */))
+            if (mv (earm.path, a, false /* fail */))
             {
               earm.cancel ();
               arm.cancel ();  // Note: may not be armed yet, which is ok.

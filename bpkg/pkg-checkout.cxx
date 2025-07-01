@@ -577,7 +577,7 @@ namespace bpkg
     // Manipulations over the repository are now complete, so we can return it
     // to the permanent location.
     //
-    if (!mv (s.rmt.path, i->first, !fail))
+    if (!mv (s.rmt.path, i->first, fail))
       return false;
 
     s.rmt.cancel ();

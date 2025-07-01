@@ -216,13 +216,14 @@ namespace bpkg
         uint16_t verbosity = 3,
         rm_error_mode = rm_error_mode::fail);
 
-  // Note that if ignore_error is true, the diagnostics is still issued.
+  // On error issue diagnostics and return false if fail is false and throw
+  // failed otherwise.
   //
   bool
-  mv (const dir_path& from, const dir_path& to, bool ignore_errors = false);
+  mv (const dir_path& from, const dir_path& to, bool fail = true);
 
   bool
-  mv (const path& from, const path& to, bool ignore_errors = false);
+  mv (const path& from, const path& to, bool fail = true);
 
   // Set (with diagnostics at verbosity level 3 or higher) the new and return
   // the previous working directory.
