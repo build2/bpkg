@@ -27,8 +27,6 @@ namespace bpkg
   //   src/  -- package source directories unpacked from archives or checked
   //            out (and distributed) from git repositories
   //
-  // @@ How do we retreive the above directory paths?
-  //
   class fetch_cache
   {
   public:
