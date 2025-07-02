@@ -93,8 +93,6 @@ namespace bpkg
   bool fetch_cache::
   offline (const common_options& co)
   {
-    // @@ So --offline prevails over BPKG_FETCH_CACHE=0, enabling the cache?
-    //
     return mode (co).offline;
   }
 
@@ -311,9 +309,6 @@ namespace bpkg
     }
   }
 
-  // @@ So do we open/lock the database even if the cache is disabled? If yes,
-  //    how do we normally create the fetch_cache object?
-  //
   fetch_cache::
   fetch_cache (const common_options& co, tracer& tr)
       : db_ (open (co, tr))
