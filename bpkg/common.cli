@@ -234,12 +234,12 @@ namespace bpkg
        failing otherwise. Note that no up-to-date checks of cached repository
        metadata are performed when offline. This mode can also be enabled by
        setting the \cb{BPKG_FETCH_CACHE} environment variable, see the
-       {--fetch-cache} option description for details."
+       \cb{--fetch-cache} option description for details."
     }
 
     bool --no-fetch-cache
     {
-      "Disable local caching of download resources (packages, repository
+      "Disable local caching of downloaded resources (packages, repository
        metadata, etc). By default these are cached in a persistent local
        cache. For the location of the cache, see the \cb{--fetch-cache-path}
        option. The local cache can also be disabled by setting the
