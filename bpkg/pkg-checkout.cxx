@@ -198,6 +198,19 @@ namespace bpkg
       dir_path sd (repository_state (rl));
       dir_path rd (rdb.config_orig / repos_dir / sd);
 
+      // Convert the 12 characters checksum abbreviation to 16 characters for
+      // the repository directory names.
+      //
+      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+      //
+      {
+        const string& s (rd.string ());
+        dir_path d (s, s.size () - 4);
+
+        if (exists (d))
+          mv (d, rd);
+      }
+
       // Use the temporary directory from the repository information source
       // configuration, so that we can always move the repository into and out
       // of it (note that if they appear on different filesystems that won't

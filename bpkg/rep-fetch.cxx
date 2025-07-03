@@ -585,6 +585,19 @@ namespace bpkg
       rsd = *conf / repos_dir;
       rd = rsd / sd;
 
+      // Convert the 12 characters checksum abbreviation to 16 characters for
+      // the repository directory names.
+      //
+      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+      //
+      {
+        const string& s (rd.string ());
+        dir_path d (s, s.size () - 4);
+
+        if (exists (d))
+          mv (d, rd);
+      }
+
       if (exists (rd))
       {
         mv (rd, td);

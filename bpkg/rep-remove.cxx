@@ -198,6 +198,19 @@ namespace bpkg
       {
         dir_path sd (db.config_orig / repos_dir / d);
 
+        // Convert the 12 characters checksum abbreviation to 16 characters
+        // for the repository directory names.
+        //
+        // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+        //
+        {
+          const string& s (sd.string ());
+          dir_path d (s, s.size () - 4);
+
+          if (exists (d))
+            mv (d, sd);
+        }
+
         if (exists (sd))
         {
           // There is no way to get the list of repositories that share this

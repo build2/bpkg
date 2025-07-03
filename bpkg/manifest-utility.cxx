@@ -277,7 +277,7 @@ namespace bpkg
         u.fragment = nullopt;
 
         repository_location l (u, rl.type ());
-        return dir_path (sha256 (l.canonical_name ()).abbreviated_string (12));
+        return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));
       }
     }
 
