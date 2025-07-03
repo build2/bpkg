@@ -22,10 +22,34 @@ namespace bpkg
   // file is called fetch-cache.sqlite3. The cache data is stored in the
   // following subdirectories next to it:
   //
-  //   pkg/  -- archive repositories metadata and package archives
-  //   git/  -- git repositories in the fetched state
-  //   src/  -- package source directories unpacked from archives or checked
-  //            out (and distributed) from git repositories
+  // ~/.build2/cache/
+  // |
+  // |-- pkg/  -- archive repositories metadata and package archives
+  // |-- git/  -- git repositories in the fetched state
+  // `-- src/  -- package source directories unpacked from archives or checked
+  //              out (and distributed) from git repositories
+  //
+  // The pkg/ subdirectory has the following structure:
+  //
+  // pkg/
+  // |-- metadata/
+  // |   `-- 1ecc6299db9ec823/
+  // |       |-- packages.manifest
+  // |       `-- repositories.manifest
+  // `-- packages/
+  //     `-- libfoo-1.2.3.tar.gz
+  //
+  // The directories inside metadata/ are abbreviated SHA256 hashes of
+  // repository URLs. Note that the signature.manifest files are not stored:
+  // the signature is verified immediately after downloading and the checksum
+  // is stored in the database.
+  //
+  // The package archive directory is shared among all the repositories,
+  // meaning that if two repositories contain the same package version, we
+  // will only store one archive (this makes sense considering that we can
+  // only use one archive in any given build configuration). Currently we warn
+  // if archive checksums don't match. In the future, once we have support for
+  // reproducible source archives, we can consider upgrading this to an error.
   //
   class fetch_cache
   {
