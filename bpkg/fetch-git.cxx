@@ -1186,6 +1186,11 @@ namespace bpkg
         const repository_url& url,
         const dir_path& git_dir = dir_path ())
   {
+    // Let's save a bit of space by instructing git not to copy the template
+    // files into the being created .git directory. Note, though, that while
+    // an empty value for the --template option does the trick for all the
+    // supported git versions, it is not documented.
+    //
     if (!run_git (
           co,
           co.git_option (),
@@ -1195,6 +1200,7 @@ namespace bpkg
           ? strings ({"--separate-git-dir=" + git_dir.string ()})
           : strings (),
 
+          "--template=",
           verb < 2 ? "-q" : nullptr,
           dir))
       fail << "unable to init " << dir << endg;
