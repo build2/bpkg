@@ -26,7 +26,7 @@
   {
     $clone_rep
 
-    $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest
+    $* 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest &1/stable/signature.manifest
       added bar 1
       added foo 1
       %2 package\(s\) in .+/stable/%
@@ -70,7 +70,7 @@
   {
     $clone_rep
 
-    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest
+    $* --key $key 1/stable/ 2>>/~%EOE% &1/stable/packages.manifest &1/stable/signature.manifest
       added bar 1
       added foo 1
       warning: --key option ignored
@@ -223,7 +223,7 @@
   : ignore
   :
   $clone_rep;
-  $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages.manifest
+  $* --ignore-unknown testing/ 2>>/~%EOE% &testing/packages.manifest &testing/signature.manifest
     added foo 2
     %1 package\(s\) in .+/testing/%
     EOE

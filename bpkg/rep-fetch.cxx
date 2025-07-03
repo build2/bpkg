@@ -114,6 +114,11 @@ namespace bpkg
         throw recoverable ();
       }
 
+      if (!sm.signature)
+        fail << "no signature specified in signature manifest for signed "
+             << rl.canonical_name () <<
+          info << "consider reporting this to the repository maintainers";
+
       assert (cert != nullptr);
       authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
     }

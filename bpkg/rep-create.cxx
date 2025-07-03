@@ -225,6 +225,9 @@ namespace bpkg
         ofs.close ();
       }
 
+      signature_manifest m;
+      m.sha256sum = sha256sum (o, p);
+
       const optional<string>& cert (find_base_repository (rms).certificate);
 
       if (cert)
@@ -235,17 +238,7 @@ namespace bpkg
             info << "repository manifest contains a certificate" <<
             info << "run 'bpkg help rep-create' for more information";
 
-        signature_manifest m;
-        m.sha256sum = sha256sum (o, p);
         m.signature = sign_repository (o, m.sha256sum, key, *cert, d);
-
-        p = path (d / signature_file);
-
-        ofdstream ofs (p, fdopen_mode::binary);
-
-        manifest_serializer s (ofs, p.string ());
-        m.serialize (s);
-        ofs.close ();
       }
       else
       {
@@ -253,9 +246,15 @@ namespace bpkg
           warn << "--key option ignored" <<
             info << "repository manifest contains no certificate" <<
             info << "run 'bpkg help rep-create' for more information";
-
-        try_rmfile (path (d / signature_file), true);
       }
+
+      p = path (d / signature_file);
+
+      ofdstream ofs (p, fdopen_mode::binary);
+
+      manifest_serializer s (ofs, p.string ());
+      m.serialize (s);
+      ofs.close ();
     }
     catch (const manifest_serialization& e)
     {

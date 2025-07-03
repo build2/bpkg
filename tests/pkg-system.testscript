@@ -36,9 +36,14 @@
 {
   rep_create += 2>!
 
-  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
-  cp -r $src/t2 $out/t2 && $rep_create $out/t2 &$out/t2/packages.manifest
-  cp -r $src/t3 $out/t3 && $rep_create $out/t3 &$out/t3/packages.manifest
+  cp -r $src/t1 $out/t1
+  $rep_create $out/t1 &$out/t1/packages.manifest &$out/t1/signature.manifest
+
+  cp -r $src/t2 $out/t2
+  $rep_create $out/t2 &$out/t2/packages.manifest &$out/t2/signature.manifest
+
+  cp -r $src/t3 $out/t3
+  $rep_create $out/t3 &$out/t3/packages.manifest &$out/t3/signature.manifest
 }
 
 pkg_build  += -d cfg --yes

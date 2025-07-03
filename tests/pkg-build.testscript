@@ -541,55 +541,152 @@ posix = ($cxx.target.class != 'windows')
 {
   rep_create += 2>!
 
-  cp -r $src/t0a  $out/t0a  && $rep_create $out/t0a  &$out/t0a/packages.manifest
-  cp -r $src/t0b  $out/t0b  && $rep_create $out/t0b  &$out/t0b/packages.manifest
-  cp -r $src/t0c  $out/t0c  && $rep_create $out/t0c  &$out/t0c/packages.manifest
-  cp -r $src/t0d  $out/t0d  && $rep_create $out/t0d  &$out/t0d/packages.manifest
-  cp -r $src/t1   $out/t1   && $rep_create $out/t1   &$out/t1/packages.manifest
-  cp -r $src/t2   $out/t2   && $rep_create $out/t2   &$out/t2/packages.manifest
-  cp -r $src/t3   $out/t3   && $rep_create $out/t3   &$out/t3/packages.manifest
-  cp -r $src/t4a  $out/t4a  && $rep_create $out/t4a  &$out/t4a/packages.manifest
-  cp -r $src/t4b  $out/t4b  && $rep_create $out/t4b  &$out/t4b/packages.manifest
-  cp -r $src/t4c  $out/t4c  && $rep_create $out/t4c  &$out/t4c/packages.manifest
-  cp -r $src/t4d  $out/t4d  && $rep_create $out/t4d  &$out/t4d/packages.manifest
-  cp -r $src/t4e  $out/t4e  && $rep_create $out/t4e  &$out/t4e/packages.manifest
-  cp -r $src/t4f  $out/t4f  && $rep_create $out/t4f  &$out/t4f/packages.manifest
-  cp -r $src/t4i  $out/t4i  && $rep_create $out/t4i  &$out/t4i/packages.manifest
-  cp -r $src/t4j  $out/t4j  && $rep_create $out/t4j  &$out/t4j/packages.manifest
-  cp -r $src/t4k  $out/t4k  && $rep_create $out/t4k  &$out/t4k/packages.manifest
-  cp -r $src/t5   $out/t5   && $rep_create $out/t5   &$out/t5/packages.manifest
-  cp -r $src/t6   $out/t6   && $rep_create $out/t6   &$out/t6/packages.manifest
-  cp -r $src/t7a  $out/t7a  && $rep_create $out/t7a  &$out/t7a/packages.manifest
-  cp -r $src/t7b  $out/t7b  && $rep_create $out/t7b  &$out/t7b/packages.manifest
-  cp -r $src/t8a  $out/t8a  && $rep_create $out/t8a  &$out/t8a/packages.manifest
-  cp -r $src/t9   $out/t9   && $rep_create $out/t9   &$out/t9/packages.manifest
-  cp -r $src/t10  $out/t10  && $rep_create $out/t10  &$out/t10/packages.manifest
-  cp -r $src/t11a $out/t11a && $rep_create $out/t11a &$out/t11a/packages.manifest
-  cp -r $src/t12a $out/t12a && $rep_create $out/t12a &$out/t12a/packages.manifest
-  cp -r $src/t12b $out/t12b && $rep_create $out/t12b &$out/t12b/packages.manifest
-  cp -r $src/t13a $out/t13a && $rep_create $out/t13a &$out/t13a/packages.manifest
-  cp -r $src/t13b $out/t13b && $rep_create $out/t13b &$out/t13b/packages.manifest
-  cp -r $src/t13c $out/t13c && $rep_create $out/t13c &$out/t13c/packages.manifest
-  cp -r $src/t13d $out/t13d && $rep_create $out/t13d &$out/t13d/packages.manifest
-  cp -r $src/t13e $out/t13e && $rep_create $out/t13e &$out/t13e/packages.manifest
-  cp -r $src/t13f $out/t13f && $rep_create $out/t13f &$out/t13f/packages.manifest
-  cp -r $src/t13g $out/t13g && $rep_create $out/t13g &$out/t13g/packages.manifest
-  cp -r $src/t13h $out/t13h && $rep_create $out/t13h &$out/t13h/packages.manifest
-  cp -r $src/t13i $out/t13i && $rep_create $out/t13i &$out/t13i/packages.manifest
-  cp -r $src/t13j $out/t13j && $rep_create $out/t13j &$out/t13j/packages.manifest
-  cp -r $src/t13k $out/t13k && $rep_create $out/t13k &$out/t13k/packages.manifest
-  cp -r $src/t13l $out/t13l && $rep_create $out/t13l &$out/t13l/packages.manifest
-  cp -r $src/t13m $out/t13m && $rep_create $out/t13m &$out/t13m/packages.manifest
-  cp -r $src/t13n $out/t13n && $rep_create $out/t13n &$out/t13n/packages.manifest
-  cp -r $src/t13o $out/t13o && $rep_create $out/t13o &$out/t13o/packages.manifest
-  cp -r $src/t14a $out/t14a && $rep_create $out/t14a &$out/t14a/packages.manifest
-  cp -r $src/t14b $out/t14b && $rep_create $out/t14b &$out/t14b/packages.manifest
-  cp -r $src/t14c $out/t14c && $rep_create $out/t14c &$out/t14c/packages.manifest
-  cp -r $src/t14d $out/t14d && $rep_create $out/t14d &$out/t14d/packages.manifest
-  cp -r $src/t14e $out/t14e && $rep_create $out/t14e &$out/t14e/packages.manifest
-  cp -r $src/t14f $out/t14f && $rep_create $out/t14f &$out/t14f/packages.manifest
-  cp -r $src/t14i $out/t14i && $rep_create $out/t14i &$out/t14i/packages.manifest
-  cp -r $src/t15  $out/t15  && $rep_create $out/t15  &$out/t15/packages.manifest --ignore-unknown
+  cp -r $src/t0a $out/t0a
+  $rep_create $out/t0a &$out/t0a/packages.manifest &$out/t0a/signature.manifest
+
+  cp -r $src/t0b  $out/t0b
+  $rep_create $out/t0b  &$out/t0b/packages.manifest &$out/t0b/signature.manifest
+
+  cp -r $src/t0c $out/t0c
+  $rep_create $out/t0c &$out/t0c/packages.manifest &$out/t0c/signature.manifest
+
+  cp -r $src/t0d $out/t0d
+  $rep_create $out/t0d &$out/t0d/packages.manifest &$out/t0d/signature.manifest
+
+  cp -r $src/t1 $out/t1
+  $rep_create $out/t1 &$out/t1/packages.manifest &$out/t1/signature.manifest
+
+  cp -r $src/t2 $out/t2
+  $rep_create $out/t2 &$out/t2/packages.manifest &$out/t2/signature.manifest
+
+  cp -r $src/t3 $out/t3
+  $rep_create $out/t3 &$out/t3/packages.manifest &$out/t3/signature.manifest
+
+  cp -r $src/t4a $out/t4a
+  $rep_create $out/t4a &$out/t4a/packages.manifest &$out/t4a/signature.manifest
+
+  cp -r $src/t4b $out/t4b
+  $rep_create $out/t4b &$out/t4b/packages.manifest &$out/t4b/signature.manifest
+
+  cp -r $src/t4c $out/t4c
+  $rep_create $out/t4c &$out/t4c/packages.manifest &$out/t4c/signature.manifest
+
+  cp -r $src/t4d $out/t4d
+  $rep_create $out/t4d &$out/t4d/packages.manifest &$out/t4d/signature.manifest
+
+  cp -r $src/t4e $out/t4e
+  $rep_create $out/t4e &$out/t4e/packages.manifest &$out/t4e/signature.manifest
+
+  cp -r $src/t4f $out/t4f
+  $rep_create $out/t4f &$out/t4f/packages.manifest &$out/t4f/signature.manifest
+
+  cp -r $src/t4i $out/t4i
+  $rep_create $out/t4i &$out/t4i/packages.manifest &$out/t4i/signature.manifest
+
+  cp -r $src/t4j $out/t4j
+  $rep_create $out/t4j &$out/t4j/packages.manifest &$out/t4j/signature.manifest
+
+  cp -r $src/t4k $out/t4k
+  $rep_create $out/t4k &$out/t4k/packages.manifest &$out/t4k/signature.manifest
+
+  cp -r $src/t5 $out/t5
+  $rep_create $out/t5 &$out/t5/packages.manifest &$out/t5/signature.manifest
+
+  cp -r $src/t6 $out/t6
+  $rep_create $out/t6 &$out/t6/packages.manifest &$out/t6/signature.manifest
+
+  cp -r $src/t7a $out/t7a
+  $rep_create $out/t7a &$out/t7a/packages.manifest &$out/t7a/signature.manifest
+
+  cp -r $src/t7b $out/t7b
+  $rep_create $out/t7b &$out/t7b/packages.manifest &$out/t7b/signature.manifest
+
+  cp -r $src/t8a $out/t8a
+  $rep_create $out/t8a &$out/t8a/packages.manifest &$out/t8a/signature.manifest
+
+  cp -r $src/t9 $out/t9
+  $rep_create $out/t9 &$out/t9/packages.manifest &$out/t9/signature.manifest
+
+  cp -r $src/t10 $out/t10
+  $rep_create $out/t10 &$out/t10/packages.manifest &$out/t10/signature.manifest
+
+  cp -r $src/t11a $out/t11a
+  $rep_create $out/t11a &$out/t11a/packages.manifest &$out/t11a/signature.manifest
+
+  cp -r $src/t12a $out/t12a
+  $rep_create $out/t12a &$out/t12a/packages.manifest &$out/t12a/signature.manifest
+
+  cp -r $src/t12b $out/t12b
+  $rep_create $out/t12b &$out/t12b/packages.manifest &$out/t12b/signature.manifest
+
+  cp -r $src/t13a $out/t13a
+  $rep_create $out/t13a &$out/t13a/packages.manifest &$out/t13a/signature.manifest
+
+  cp -r $src/t13b $out/t13b
+  $rep_create $out/t13b &$out/t13b/packages.manifest &$out/t13b/signature.manifest
+
+  cp -r $src/t13c $out/t13c
+  $rep_create $out/t13c &$out/t13c/packages.manifest &$out/t13c/signature.manifest
+
+  cp -r $src/t13d $out/t13d
+  $rep_create $out/t13d &$out/t13d/packages.manifest &$out/t13d/signature.manifest
+
+  cp -r $src/t13e $out/t13e
+  $rep_create $out/t13e &$out/t13e/packages.manifest &$out/t13e/signature.manifest
+
+  cp -r $src/t13f $out/t13f
+  $rep_create $out/t13f &$out/t13f/packages.manifest &$out/t13f/signature.manifest
+
+  cp -r $src/t13g $out/t13g
+  $rep_create $out/t13g &$out/t13g/packages.manifest &$out/t13g/signature.manifest
+
+  cp -r $src/t13h $out/t13h
+  $rep_create $out/t13h &$out/t13h/packages.manifest &$out/t13h/signature.manifest
+
+  cp -r $src/t13i $out/t13i
+  $rep_create $out/t13i &$out/t13i/packages.manifest &$out/t13i/signature.manifest
+
+  cp -r $src/t13j $out/t13j
+  $rep_create $out/t13j &$out/t13j/packages.manifest &$out/t13j/signature.manifest
+
+  cp -r $src/t13k $out/t13k
+  $rep_create $out/t13k &$out/t13k/packages.manifest &$out/t13k/signature.manifest
+
+  cp -r $src/t13l $out/t13l
+  $rep_create $out/t13l &$out/t13l/packages.manifest &$out/t13l/signature.manifest
+
+  cp -r $src/t13m $out/t13m
+  $rep_create $out/t13m &$out/t13m/packages.manifest &$out/t13m/signature.manifest
+
+  cp -r $src/t13n $out/t13n
+  $rep_create $out/t13n &$out/t13n/packages.manifest &$out/t13n/signature.manifest
+
+  cp -r $src/t13o $out/t13o
+  $rep_create $out/t13o &$out/t13o/packages.manifest &$out/t13o/signature.manifest
+
+  cp -r $src/t14a $out/t14a
+  $rep_create $out/t14a &$out/t14a/packages.manifest &$out/t14a/signature.manifest
+
+  cp -r $src/t14b $out/t14b
+  $rep_create $out/t14b &$out/t14b/packages.manifest &$out/t14b/signature.manifest
+
+  cp -r $src/t14c $out/t14c
+  $rep_create $out/t14c &$out/t14c/packages.manifest &$out/t14c/signature.manifest
+
+  cp -r $src/t14d $out/t14d
+  $rep_create $out/t14d &$out/t14d/packages.manifest &$out/t14d/signature.manifest
+
+  cp -r $src/t14e $out/t14e
+  $rep_create $out/t14e &$out/t14e/packages.manifest &$out/t14e/signature.manifest
+
+  cp -r $src/t14f $out/t14f
+  $rep_create $out/t14f &$out/t14f/packages.manifest &$out/t14f/signature.manifest
+
+  cp -r $src/t14i $out/t14i
+  $rep_create $out/t14i &$out/t14i/packages.manifest &$out/t14i/signature.manifest
+
+  cp -r $src/t15 $out/t15
+  $rep_create $out/t15 --ignore-unknown &$out/t15/packages.manifest &$out/t15/signature.manifest
 
   # Create git repositories.
   #
@@ -2128,7 +2225,7 @@ test.arguments += --sys-no-query
      sed -i -e 's/(version:).+/\1 2.0.0/' $r/libbar-2.0.0/manifest && \
      $tar cfz $r/libbar-2.0.0.tar.gz -C $r libbar-2.0.0 &$r/libbar-2.0.0.tar.gz && \
      rm -r $r/libbar-2.0.0 && \
-     $rep_create $r &$r/packages.manifest
+     $rep_create $r &$r/packages.manifest &$r/signature.manifest
 
     # Repository state 2: libbaz/2.0.0 is released, which depends on
     #                     libbar ^2.0.0.
@@ -2140,7 +2237,7 @@ test.arguments += --sys-no-query
      sed -i -e 's/(version:).+/\1 2.0.0/' -e 's/(depends: libbar).+/\1 ^2.0.0/' $r/libbaz-2.0.0/manifest && \
      $tar cfz $r/libbaz-2.0.0.tar.gz -C $r libbaz-2.0.0 &$r/libbaz-2.0.0.tar.gz && \
      rm -r $r/libbaz-2.0.0 && \
-     $rep_create $r &$r/packages.manifest
+     $rep_create $r &$r/packages.manifest &$r/signature.manifest
 
     # Repository state 3: libbox/1.1.0 is released, which still depends on
     #                     libbar ^1.0.0.
@@ -2152,7 +2249,7 @@ test.arguments += --sys-no-query
      sed -i -e 's/(version:).+/\1 1.1.0/' $r/libbox-1.1.0/manifest && \
      $tar cfz $r/libbox-1.1.0.tar.gz -C $r libbox-1.1.0 &$r/libbox-1.1.0.tar.gz && \
      rm -r $r/libbox-1.1.0 && \
-     $rep_create $r &$r/packages.manifest
+     $rep_create $r &$r/packages.manifest &$r/signature.manifest
 
     : repo-state-1
     :

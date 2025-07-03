@@ -18,13 +18,12 @@ namespace bpkg
 
      \h|DESCRIPTION|
 
-     The \cb{rep-create} command regenerates the \cb{packages.manifest} file
-     based on the files present in the repository directory. If the
-     \cb{repositories.manifest} file contains a certificate, then the
-     \cb{signature.manifest} file is regenerated as well. In this case the
-     \cb{--key} option must be used to specify the certificate's private
-     key. If <dir> is not specified, then the current working directory is
-     used as the repository root."
+     The \cb{rep-create} command regenerates the \cb{packages.manifest} and
+     \cb{signature.manifest} files based on the files present in the
+     repository directory. If the \cb{repositories.manifest} file contains a
+     certificate, then the \cb{--key} option must be used to specify the
+     certificate's private key. If <dir> is not specified, then the current
+     working directory is used as the repository root."
   }
 
   class rep_create_options: common_options

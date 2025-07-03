@@ -66,9 +66,11 @@
   # Create the 'stable' repository.
   #
   cp -r $src/stable $out/stable
-  $rep_create $out/stable &$out/stable/packages.manifest
+  $rep_create $out/stable &$out/stable/packages.manifest \
+                          &$out/stable/signature.manifest
 
-  cp -r $src/t8a $out/t8a && $rep_create $out/t8a &$out/t8a/packages.manifest
+  cp -r $src/t8a $out/t8a
+  $rep_create $out/t8a &$out/t8a/packages.manifest &$out/t8a/signature.manifest
 }
 
 test.arguments += config.cxx=$quote($recall($cxx.path) $cxx.config.mode)

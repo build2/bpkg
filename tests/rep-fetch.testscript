@@ -100,21 +100,28 @@ posix = ($cxx.target.class != 'windows')
 
   sed -i -e "s/^\(:\)\$/$tv/" $out/foo/testing/repositories.manifest
 
-  $rep_create $out/foo/testing &$out/foo/testing/packages.manifest
+  $rep_create $out/foo/testing &$out/foo/testing/packages.manifest \
+                               &$out/foo/testing/signature.manifest
 
   # Create 'bar/*' repositories.
   #
   cp -r $src/bar $out/bar
-  $rep_create $out/bar/stable   &$out/bar/stable/packages.manifest
-  $rep_create $out/bar/testing  &$out/bar/testing/packages.manifest
-  $rep_create $out/bar/unstable &$out/bar/unstable/packages.manifest
+  $rep_create $out/bar/stable   &$out/bar/stable/packages.manifest \
+                                &$out/bar/stable/signature.manifest
+  $rep_create $out/bar/testing  &$out/bar/testing/packages.manifest \
+                                &$out/bar/testing/signature.manifest
+  $rep_create $out/bar/unstable &$out/bar/unstable/packages.manifest \
+                                &$out/bar/unstable/signature.manifest
 
   # Create 'cycle/*' repositories.
   #
   cp -r $src/cycle $out/cycle
-  $rep_create $out/cycle/extra  &$out/cycle/extra/packages.manifest
-  $rep_create $out/cycle/math   &$out/cycle/math/packages.manifest
-  $rep_create $out/cycle/stable &$out/cycle/stable/packages.manifest
+  $rep_create $out/cycle/extra  &$out/cycle/extra/packages.manifest \
+                                &$out/cycle/extra/signature.manifest
+  $rep_create $out/cycle/math   &$out/cycle/math/packages.manifest \
+                                &$out/cycle/math/signature.manifest
+  $rep_create $out/cycle/stable &$out/cycle/stable/packages.manifest \
+                                &$out/cycle/stable/signature.manifest
 
   # Create git repositories.
   #
@@ -323,9 +330,12 @@ $* 2>>/EOE != 0
     +mkdir -p $path.directory($nc_rep)
     +cp -r $src/no-cycle "$nc_rep"     # Strip trailing slash.
 
-    +$rep_create $nc_rep/extra  2>! &$nc_rep/extra/packages.manifest
-    +$rep_create $nc_rep/math   2>! &$nc_rep/math/packages.manifest
-    +$rep_create $nc_rep/stable 2>! &$nc_rep/stable/packages.manifest
+    +$rep_create $nc_rep/extra  2>! &$nc_rep/extra/packages.manifest \
+                                    &$nc_rep/extra/signature.manifest
+    +$rep_create $nc_rep/math   2>! &$nc_rep/math/packages.manifest \
+                                    &$nc_rep/math/signature.manifest
+    +$rep_create $nc_rep/stable 2>! &$nc_rep/stable/packages.manifest \
+                                    &$nc_rep/stable/signature.manifest
 
     math_rep   = $nc_rep/math
     stable_rep = $nc_rep/stable

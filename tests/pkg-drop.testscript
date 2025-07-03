@@ -18,11 +18,20 @@
 {
   rep_create += 2>!
 
-  cp -r $src/t4a $out/t4a && $rep_create $out/t4a &$out/t4a/packages.manifest
-  cp -r $src/t4b $out/t4b && $rep_create $out/t4b &$out/t4b/packages.manifest
-  cp -r $src/t4c $out/t4c && $rep_create $out/t4c &$out/t4c/packages.manifest
-  cp -r $src/t4d $out/t4d && $rep_create $out/t4d &$out/t4d/packages.manifest
-  cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
+  cp -r $src/t4a $out/t4a
+  $rep_create $out/t4a &$out/t4a/packages.manifest &$out/t4a/signature.manifest
+
+  cp -r $src/t4b $out/t4b
+  $rep_create $out/t4b &$out/t4b/packages.manifest &$out/t4b/signature.manifest
+
+  cp -r $src/t4c $out/t4c
+  $rep_create $out/t4c &$out/t4c/packages.manifest &$out/t4c/signature.manifest
+
+  cp -r $src/t4d $out/t4d
+  $rep_create $out/t4d &$out/t4d/packages.manifest &$out/t4d/signature.manifest
+
+  cp -r $src/t7a $out/t7a
+  $rep_create $out/t7a &$out/t7a/packages.manifest &$out/t7a/signature.manifest
 }
 
 cfg_create += 2>!

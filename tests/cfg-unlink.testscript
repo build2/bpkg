@@ -14,7 +14,8 @@
 {
   rep_create += 2>!
 
-  cp -r $src/t7a $out/t7a && $rep_create $out/t7a &$out/t7a/packages.manifest
+  cp -r $src/t7a $out/t7a
+  $rep_create $out/t7a &$out/t7a/packages.manifest &$out/t7a/signature.manifest
 }
 
 cfg_create +=             2>!

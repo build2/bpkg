@@ -57,6 +57,9 @@ namespace bpkg
   // configuration (the file is supposed to have been created by the preceding
   // authenticate_certificate() call).
   //
+  // Note that it's the caller's responsibility to make sure that the
+  // signature value is present in the signature manifest.
+  //
   void
   authenticate_repository (const common_options&,
                            const dir_path* configuration,

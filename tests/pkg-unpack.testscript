@@ -42,7 +42,8 @@
 
   # Create the 't1' repository.
   #
-  cp -r $src/t1 $out/t1 && $rep_create $out/t1 &$out/t1/packages.manifest
+  cp -r $src/t1 $out/t1
+  $rep_create $out/t1 &$out/t1/packages.manifest &$out/t1/signature.manifest
 
   # Create git repositories.
   #

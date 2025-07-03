@@ -43,10 +43,10 @@
 
   c = [cmdline] $rep_create 2>!
 
-  $c $out/extra    &$out/extra/packages.manifest
-  $c $out/stable   &$out/stable/packages.manifest
-  $c $out/testing  &$out/testing/packages.manifest
-  $c $out/unstable &$out/unstable/packages.manifest
+  $c $out/extra    &$out/extra/packages.manifest    &$out/extra/signature.manifest
+  $c $out/stable   &$out/stable/packages.manifest   &$out/stable/signature.manifest
+  $c $out/testing  &$out/testing/packages.manifest  &$out/testing/signature.manifest
+  $c $out/unstable &$out/unstable/packages.manifest &$out/unstable/signature.manifest
 
   # Create git repositories.
   #

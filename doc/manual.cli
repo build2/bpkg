@@ -3327,18 +3327,19 @@ with the \c{none} value.
 \h#manifest-signature-pkg|Signature Manifest for \cb{pkg} Repositories|
 
 The signature manifest (the \c{signature.manifest} file found in the \cb{pkg}
-repository root directory) contains the signature of the repository's
-\c{packages.manifest} file. In order to detect the situation where the
-downloaded \c{signature.manifest} and \c{packages.manifest} files belong to
-different updates, the manifest contains both the checksum and the signature
-(which is the encrypted checksum). \N{We cannot rely on just the signature
-since a mismatch could mean either a split update or tampering.} The manifest
-synopsis is presented next followed by the detailed description of each value
-in subsequent sections.
+repository root directory) contains the checksum of the repository's
+\c{packages.manifest} file. If the \c{repositories.manifest} file contains the
+\c{certificate} value, then the \c{signature.manifest} file also contains the
+signature of the \c{packages.manifest} file (which is the encrypted
+checksum). The checksum is used to detect the situation where the downloaded
+\c{signature.manifest} and \c{packages.manifest} files belong to different
+updates. \N{We cannot rely on just the signature since a mismatch could mean
+either a split update or tampering.} The manifest synopsis is presented next
+followed by the detailed description of each value in subsequent sections.
 
 \
 sha256sum: <sum>
-signature: <sig>
+[signature]: <sig>
 \
 
 \h2#manifest-signature-pkg-sha256sum|\c{sha256sum}|
@@ -3356,12 +3357,13 @@ letters.
 \h2#manifest-signature-pkg-signature|\c{signature}|
 
 \
-signature: <sig>
+[signature]: <sig>
 \
 
-The signature of the \c{packages.manifest} file. It should be calculated by
-encrypting the above \c{sha256sum} value with the repository certificate's
-private key and then \c{base64}-encoding the result.
+The signature of the \c{packages.manifest} file. It should only be present if
+the \c{repositories.manifest} file contains the \c{certificate} value. It
+should be calculated by encrypting the above \c{sha256sum} value with the
+repository certificate's private key and then \c{base64}-encoding the result.
 
 
 \h1#bindist-mapping|Binary Distribution Package Mapping|

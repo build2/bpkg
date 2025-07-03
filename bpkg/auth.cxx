@@ -789,6 +789,8 @@ namespace bpkg
   {
     tracer trace ("authenticate_repository");
 
+    assert (sm.signature);
+
     path f;
     auto_rmfile rm;
 
@@ -946,7 +948,7 @@ namespace bpkg
                   "-inkey",
                   f);
 
-      for (const auto& c: sm.signature)
+      for (const auto& c: *sm.signature)
         os.out.put (c); // Sets badbit on failure.
 
       os.out.close ();

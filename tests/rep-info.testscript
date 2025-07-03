@@ -28,7 +28,8 @@
   # Create the unsigned 'testing' repository.
   #
   cp -r $src/testing $out/testing
-  $rc $out/testing &$out/testing/packages.manifest
+  $rc $out/testing &$out/testing/packages.manifest \
+                   &$out/testing/signature.manifest
 
   # Create the signed 'testing' repository.
   #
@@ -41,7 +42,8 @@
   # Create the compatibility repository.
   #
   cp -r $src/t15 $out/compatibility
-  $rc $out/compatibility &$out/compatibility/packages.manifest --ignore-unknown
+  $rc $out/compatibility --ignore-unknown &$out/compatibility/packages.manifest \
+                                          &$out/compatibility/signature.manifest
 
   # Create git repositories.
   #

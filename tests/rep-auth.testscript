@@ -30,7 +30,9 @@
   # Create the 'unsigned1' repository.
   #
   cp -r $src/unsigned $out/unsigned1
-  $rc $out/unsigned1 &$out/unsigned1/packages.manifest
+
+  $rc $out/unsigned1 &$out/unsigned1/packages.manifest \
+      &$out/unsigned1/signature.manifest
 
   # Create the 'unsigned2' repository. This is a copy of the just created
   # 'unsigned1' repository.
