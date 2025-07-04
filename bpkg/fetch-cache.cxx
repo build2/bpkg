@@ -19,6 +19,9 @@ namespace bpkg
   using namespace odb::sqlite;
   using odb::schema_catalog;
 
+  // Note that directory and session are only initialized if the cache is
+  // enabled.
+  //
   struct cache_mode
   {
     bool src = true;
@@ -26,7 +29,10 @@ namespace bpkg
     bool offline = false;
   };
 
+  static optional<bool> enabled_;
   static optional<cache_mode> mode_;
+  static dir_path directory_;
+  static string session_;
 
   static const cache_mode&
   mode (const common_options& co)
@@ -68,10 +74,8 @@ namespace bpkg
     return *mode_;
   }
 
-  static optional<bool> enabled_;
-
-  bool fetch_cache::
-  enabled (const common_options& co)
+  fetch_cache::
+  fetch_cache (const common_options& co)
   {
     if (!enabled_)
     {
@@ -87,33 +91,14 @@ namespace bpkg
         enabled_ = true;
     }
 
-    return *enabled_;
-  }
+    // Initialize mode for non-static accessors below. We have to do it
+    // regardless of whether the cache is enabled due to offline().
+    //
+    mode (co);
 
-  bool fetch_cache::
-  offline (const common_options& co)
-  {
-    return mode (co).offline;
-  }
-
-  bool fetch_cache::
-  cache_src (const common_options& co)
-  {
-    return enabled (co) && mode (co).src;
-  }
-
-  bool fetch_cache::
-  cache_trust (const common_options& co)
-  {
-    return enabled (co) && mode (co).trust;
-  }
-
-  static dir_path directory_;
-
-  static const dir_path&
-  directory (const common_options& co)
-  {
-    if (directory_.empty ())
+    // Get specified or calculate default cache directory.
+    //
+    if (*enabled_ && directory_.empty ())
     {
       const char* w (nullptr);
       try
@@ -158,15 +143,6 @@ namespace bpkg
       }
     }
 
-    return directory_;
-  }
-
-  static string session_;
-
-#if 0 // @@ TMP
-  static const string&
-  session (const common_options& co)
-  {
     // Get specified or generate new fetch cache session id.
     //
     // Note that we shouldn't be rechecking up-to-dateness of the same
@@ -178,9 +154,9 @@ namespace bpkg
     // Note also that a session doesn't really make sense when working offline
     // (we don't do up-to-date checks anyway). But let's keep it the same as
     // the online case for simplicity (plus someone could come up with a use-
-    // case where they force-validate the cache while offline).
+    // case where they want force-validate the cache by fetching offline).
     //
-    if (session_.empty ())
+    if (*enabled_ && session_.empty ())
     {
       if (co.fetch_cache_session_specified ())
         session_ = co.fetch_cache_session ();
@@ -190,10 +166,7 @@ namespace bpkg
       if (session_.empty ())
         session_ = uuid::generate ().string ();
     }
-
-    return session_;
   }
-#endif
 
   static const string schema_name ("fetch-cache"); // Database schema name.
 
@@ -210,14 +183,14 @@ namespace bpkg
   schema_name);
 #endif
 
-  odb::sqlite::database
-  open (const common_options& co, tracer& tr)
+  void fetch_cache::
+  open (tracer& tr)
   {
-    assert (fetch_cache::enabled (co));
+    assert (enabled () && db_ == nullptr);
 
-    tracer trace ("fetch_cache");
+    tracer trace ("fetch_cache::open");
 
-    dir_path d (directory (co));
+    const dir_path& d (directory_);
     path f (d / "fetch-cache.sqlite3");
 
     bool create (!exists (f));
@@ -233,11 +206,15 @@ namespace bpkg
       //
       unique_ptr<connection_factory> cf (new single_connection_factory);
 
-      database db (f.string (),
-                   SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
-                   true,                  // Enable FKs.
-                   "",                    // Default VFS.
-                   move (cf));
+      db_.reset (
+        new database (
+          f.string (),
+          SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
+          true,                  // Enable FKs.
+          "",                    // Default VFS.
+          move (cf)));
+
+      database& db (*db_);
 
       db.tracer (trace);
 
@@ -251,7 +228,6 @@ namespace bpkg
       //
       try
       {
-
         connection_ptr c (db.connection ());
         c->execute ("PRAGMA locking_mode = EXCLUSIVE");
         transaction t (c->begin_exclusive ());
@@ -301,7 +277,6 @@ namespace bpkg
       }
 
       db.tracer (tr); // Switch to the caller's tracer.
-      return db;
     }
     catch (const database_exception& e)
     {
@@ -309,10 +284,43 @@ namespace bpkg
     }
   }
 
-  fetch_cache::
-  fetch_cache (const common_options& co, tracer& tr)
-      : db_ (open (co, tr))
+  void fetch_cache::
+  close ()
   {
+    if (db_ != nullptr)
+    {
+      db_.reset ();
+    }
+  }
+
+  bool fetch_cache::
+  enabled () const
+  {
+    return *enabled_;
+  }
+
+  bool fetch_cache::
+  offline () const
+  {
+    return mode_->offline;
+  }
+
+  bool fetch_cache::
+  offline (const common_options& co)
+  {
+    return mode (co).offline;
+  }
+
+  bool fetch_cache::
+  cache_src () const
+  {
+    return *enabled_ && mode_->src;
+  }
+
+  bool fetch_cache::
+  cache_trust () const
+  {
+    return *enabled_ && mode_->trust;
   }
 
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::

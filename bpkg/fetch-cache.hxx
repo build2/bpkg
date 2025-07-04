@@ -55,11 +55,37 @@ namespace bpkg
   //
   class fetch_cache
   {
+    // Construction and open/close.
+    //
+  public:
+    // Create an unopened object.
+    //
+    explicit
+    fetch_cache (const common_options&);
+
+    // Lock and open the fetch cache database.
+    //
+    // Issue diagnotics and throw failed if anything goes wrong. Issue
+    // progress indication if waiting for the cache to become unlocked.
+    //
+    void
+    open (tracer&);
+
+    void
+    close ();
+
+    ~fetch_cache ()
+    {
+      close ();
+    }
+
+    // Cache settings.
+    //
   public:
     // Return true if the fetch caching is not diabled (--no-fetch-cache).
     //
-    static bool
-    enabled (const common_options&);
+    bool
+    enabled () const;
 
     // Return true if we are in the offline mode (--offline).
     //
@@ -67,27 +93,23 @@ namespace bpkg
     // don't allow specifying --offline with --no-fetch-cache, caching can
     // also be disabled via BPKG_FETCH_CACHE=0.
     //
+    bool
+    offline () const;
+
     static bool
     offline (const common_options&);
 
     // Return true if fetch caching is enabled and sharing of source
     // directories for dependencies is not disabled (--fetch-cache=no-src).
     //
-    static bool
-    cache_src (const common_options&);
+    bool
+    cache_src () const;
 
     // Return true if fetch caching is enabled and caching of repository
     // authentication answers is not disabled (--fetch-cache=no-trust).
     //
-    static bool
-    cache_trust (const common_options&);
-
-    // Lock and open the fetch cache.
-    //
-    // Issue diagnotics and throw failed if anything goes wrong. Issue
-    // progress indication if waiting for the cache to become unlocked.
-    //
-    fetch_cache (const common_options&, tracer&);
+    bool
+    cache_trust () const;
 
     // Metadata cache API for pkg repositories.
     //
@@ -133,7 +155,7 @@ namespace bpkg
                                   string repositories_checksum);
 
   private:
-    odb::sqlite::database db_;
+    unique_ptr<odb::sqlite::database> db_;
   };
 }
 
