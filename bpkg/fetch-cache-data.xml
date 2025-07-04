@@ -1,3 +1,20 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" schema-name="fetch-cache" version="1">
-  <model version="1"/>
+  <model version="1">
+    <table name="pkg_repository_metadata" kind="object">
+      <column name="url" type="TEXT" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="session" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="repositories_path" type="TEXT" null="true"/>
+      <column name="repositories_checksum" type="TEXT" null="true"/>
+      <column name="packages_path" type="TEXT" null="true"/>
+      <column name="packages_checksum" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="url"/>
+      </primary-key>
+      <index name="pkg_repository_metadata_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+    </table>
+  </model>
 </changelog>

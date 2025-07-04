@@ -4,7 +4,14 @@
 #ifndef BPKG_FETCH_CACHE_DATA_HXX
 #define BPKG_FETCH_CACHE_DATA_HXX
 
+#include <chrono>
+#include <type_traits> // static_assert
+
 #include <odb/core.hxx>
+
+#include <libbutl/timestamp.hxx>
+
+#include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -21,6 +28,44 @@
 
 namespace bpkg
 {
+  // timestamp
+  //
+  using butl::timestamp;
+  using butl::timestamp_unknown;
+
+  // Ensure that timestamp can be represented in nonoseconds without loss of
+  // accuracy, so the following ODB mapping is adequate.
+  //
+  static_assert (
+    std::ratio_greater_equal<timestamp::period,
+                             std::chrono::nanoseconds::period>::value,
+    "The following timestamp ODB mapping is invalid");
+
+  // As pointed out in libbutl/timestamp.hxx we will overflow in year 2262, but
+  // by that time some larger basic type will be available for mapping.
+  //
+  #pragma db map type(timestamp) as(uint64_t)                 \
+    to(std::chrono::duration_cast<std::chrono::nanoseconds> ( \
+         (?).time_since_epoch ()).count ())                   \
+    from(butl::timestamp (                                    \
+      std::chrono::duration_cast<butl::timestamp::duration> ( \
+        std::chrono::nanoseconds (?))))
+
+  // path
+  //
+  // In some contexts it may denote directory, so lets preserve the trailing
+  // slash, if present.
+  //
+  #pragma db map type(path) as(string)  \
+    to((?).representation ()) from(bpkg::path (?))
+
+  #pragma db map type(dir_path) as(string)  \
+    to((?).string ()) from(bpkg::dir_path (?))
+
+  // repository_url
+  //
+  #pragma db value(repository_url) type("TEXT")
+
   // Cache entry for metadata of pkg type repositories.
   //
   #pragma db object pointer(unique_ptr)
@@ -29,7 +74,14 @@ namespace bpkg
   public:
     // Repository URL.
     //
-    // @@ Do we canonicalize local URLs to something uniform?
+    // May not contain fragment. For local URLs may not be a relative path.
+    //
+    // Note that the following local URLs end up with the same /foo string
+    // representation:
+    //
+    // /foo
+    // file:///foo
+    // file://localhost/foo
     //
     repository_url url;
 
@@ -63,7 +115,7 @@ namespace bpkg
     // Database mapping.
     //
     #pragma db member(url) id
-    #pragma db member(dir) unique
+    #pragma db member(directory) unique
   };
 }
 

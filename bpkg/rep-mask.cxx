@@ -105,11 +105,11 @@ namespace bpkg
         {
           using query = query<repository>;
 
-          // Verify that the repository URL is not misspelled or empty.
-          //
+          repository_url u;
+
           try
           {
-            repository_url u (rp);
+            u = repository_url (rp);
             assert (!u.empty ());
           }
           catch (const invalid_argument& e)
@@ -120,7 +120,7 @@ namespace bpkg
 
           for (shared_ptr<repository> r:
                  pointer_result (
-                   db.query<repository> (query::location.url == rp)))
+                   db.query<repository> (query::location.url == u)))
             add (move (r));
         }
       }
@@ -190,11 +190,11 @@ namespace bpkg
       {
         using query = query<repository>;
 
-        // Verify that the repository URL is not misspelled or empty.
-        //
+        repository_url u;
+
         try
         {
-          repository_url u (rp);
+          u = repository_url (rp);
           assert (!u.empty ());
         }
         catch (const invalid_argument& e)
@@ -205,7 +205,7 @@ namespace bpkg
         bool found (false);
         for (shared_ptr<repository> r:
                pointer_result (
-                 db->query<repository> (query::location.url == rp)))
+                 db->query<repository> (query::location.url == u)))
         {
           add_repo (*db, move (r));
           found = true;
