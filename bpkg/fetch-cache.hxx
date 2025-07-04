@@ -6,6 +6,8 @@
 
 #include <odb/sqlite/database.hxx>
 
+#include <libbpkg/manifest.hxx>
+
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
 
@@ -86,6 +88,49 @@ namespace bpkg
     // progress indication if waiting for the cache to become unlocked.
     //
     fetch_cache (const common_options&, tracer&);
+
+    // Metadata cache API for pkg repositories.
+    //
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between.
+    //
+  public:
+    // Load (find) metadata for the specified pkg repository URL.
+    //
+    // If returned *_checksum members are not empty, then an up-to-date check
+    // is necessary.
+    //
+    struct loaded_pkg_repository_metadata
+    {
+      path   repositories_path;
+      string repositories_checksum;
+
+      path   packages_path;
+      string packages_checksum;
+    };
+
+    optional<loaded_pkg_repository_metadata>
+    load_pkg_repository_metadata (const repository_url&);
+
+    // Save (insert of update) metadata for the specified pkg repository
+    // URL. The metadata should be written to the returned paths. Note that
+    // the caller is expected to use the "write to temporary and atomically
+    // move into place" technique.
+    //
+    // If repositories_checksum is empty, then repositories.manifest file
+    // need not be updated. In this case, repositories_path will be empty
+    // as well.
+    //
+    struct saved_pkg_repository_metadata
+    {
+      path repositories_path;
+      path packages_path;
+    };
+
+    saved_pkg_repository_metadata
+    save_pkg_repository_metadata (const repository_url&,
+                                  string packages_checksum,
+                                  string repositories_checksum);
 
   private:
     odb::sqlite::database db_;

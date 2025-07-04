@@ -314,4 +314,46 @@ namespace bpkg
       : db_ (open (co, tr))
   {
   }
+
+  optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
+  load_pkg_repository_metadata (const repository_url&)
+  {
+    // The overall plan is as follows:
+    //
+    // 1. See if there is an entry for this URL in the database. If not,
+    //    return, nullopt.
+    //
+    // 2. Check if filesystem entries for this cache entry are present on
+    //    disk. If not, remove the entry from the database, remove the
+    //    metadata directory on disk, and return nullopt.
+    //
+    // 3. Unless offline, if the current session doesn't match entry session,
+    //    then return checksums to indicate an up-to-date check is necessary.
+    //
+    // 4. Update entry session and access_time.
+    //
+    // 5. Return paths and checksums.
+
+    return loaded_pkg_repository_metadata ();
+  }
+
+  fetch_cache::saved_pkg_repository_metadata fetch_cache::
+  save_pkg_repository_metadata (const repository_url&,
+                                string /*packages_checksum*/,
+                                string /*repositories_checksum*/)
+  {
+    // The overall plan is as follows:
+    //
+    // 1. Try to load the current entry from the database:
+    //
+    //    a. If present, update checksums and remove files to be updated.
+    //
+    //    b. If absent, then assert repositories_checksum is specified and
+    //       recreate the metadata directory on disk. Create new database
+    //       entry with current session and access time.
+    //
+    // 2. Return the paths the metadata should be written to.
+
+    return saved_pkg_repository_metadata ();
+  }
 }
