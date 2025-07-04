@@ -58,5 +58,6 @@ $odb "${inc[@]}"                                                      \
     --generate-schema --schema-name 'fetch-cache'                     \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
     --sqlite-override-null fetch-cache-data.hxx

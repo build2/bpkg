@@ -355,9 +355,7 @@ namespace bpkg
         : url (move (u)), type (t) {}
   };
 
-  #pragma db map type(repository_url) as(string)                            \
-    to((?).string ())                                                       \
-    from((?).empty () ? bpkg::repository_url () : bpkg::repository_url (?))
+  #pragma db value(repository_url) type("TEXT")
 
   #pragma db map type(repository_type) as(string) \
     to(to_string (?))                             \

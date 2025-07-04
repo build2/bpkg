@@ -3514,15 +3514,15 @@ namespace bpkg
               //
               const auto& url (query::location.url);
 
-#ifndef _WIN32
-              query q (url == l);
-#else
               string u (url.table ());
               u += '.';
               u += url.column ();
 
+#ifndef _WIN32
+              query q (u + " = " + query::_val (l));
+#else
               query q (
-                (!query::local && url == l) ||
+                (!query::local && u + " = " + query::_val (l)) ||
                 ( query::local && u + " COLLATE nocase = " + query::_val (l)));
 #endif
 
