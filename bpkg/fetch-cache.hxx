@@ -111,6 +111,22 @@ namespace bpkg
     bool
     cache_trust () const;
 
+    // Trusted (authenticated) pkg repository certificates cache API.
+    //
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between (this could easily be relaxed, however,
+    // currently these two functions are called inside the
+    // load/save_pkg_repository_metadata() calls).
+    //
+  public:
+    bool
+    load_pkg_repository_auth (const string& id);
+
+    void
+    save_pkg_repository_auth (string id,
+                              string fingerprint,
+                              string name);
+
     // Metadata cache API for pkg repositories.
     //
     // Note that the load_*() and save_*() functions should be called without

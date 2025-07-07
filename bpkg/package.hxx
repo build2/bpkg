@@ -1558,7 +1558,7 @@ namespace bpkg
   {
   public:
     string id;          // SHA256 fingerprint truncated to 16 characters.
-    string fingerprint; // Fingerprint canonical representation.
+    string fingerprint; // Fingerprint canonical representation (empty if dummy).
 
     string name;         // CN component of Subject.
     string organization; // O component of Subject.

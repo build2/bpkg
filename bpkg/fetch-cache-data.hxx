@@ -66,6 +66,32 @@ namespace bpkg
   //
   #pragma db value(repository_url) type("TEXT")
 
+  // Cache entry for trusted (authenticated) pkg repository certificates.
+  //
+  // See the certificate class in package.hxx for background.
+  //
+  #pragma db object pointer(unique_ptr)
+  class pkg_repository_auth
+  {
+  public:
+    // Note that we only keep a minimum subset of data compared to what is
+    // stored in the certificate class since whenever the cache is consulted,
+    // the caller should have access to the full certificate. We don't even
+    // need to store fingerprint and name, but let's keep them for
+    // debuggability.
+    //
+    // Note that the cache includes entries for dummy certificates
+    // corresponding to unsigned repositories.
+    //
+    string id;          // SHA256 fingerprint truncated to 16 characters.
+    string fingerprint; // Fingerprint canonical representation (empty if dummy).
+    string name;        // CN component of Subject.
+
+    // Database mapping.
+    //
+    #pragma db member(id) id
+  };
+
   // Cache entry for metadata of pkg type repositories.
   //
   #pragma db object pointer(unique_ptr)
