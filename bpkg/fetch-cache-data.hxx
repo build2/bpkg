@@ -143,6 +143,35 @@ namespace bpkg
     #pragma db member(url) id
     #pragma db member(directory) unique
   };
+
+  // Cache entry for package archive of pkg type repositories.
+  //
+  /*
+  #pragma db object pointer(unique_ptr)
+  class pkg_repository_package
+  {
+  public:
+    // @@ TODO: need to factor these (and the above) into package-common.hxx.
+    //
+
+    // Note that currently we don't really need the original version, but
+    // let's keep it if that changes in the future and for debuggability.
+    //
+    package_id id;
+    original_version version;
+
+    // Timestamp of the last time this cached entry was accessed.
+    //
+    timestamp access_time;
+
+    // The package archive file path inside the packages/ directory and its
+    // SHA256 checksum as recorded in the packages.manifest file (which should
+    // match the actual contents checksum).
+    //
+    path archive;
+    string checksum;
+  };
+  */
 }
 
 #endif // BPKG_FETCH_CACHE_DATA_HXX

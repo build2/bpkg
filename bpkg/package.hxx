@@ -269,6 +269,8 @@ namespace bpkg
     #pragma db member(canonical_release) options("COLLATE BINARY")
   };
 
+  // @@ TODO: try to rename to original_version
+  //
   #pragma db value transient
   struct upstream_version: version
   {

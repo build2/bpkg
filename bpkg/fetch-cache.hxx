@@ -170,6 +170,32 @@ namespace bpkg
                                   string repositories_checksum,
                                   string packages_checksum);
 
+    // Package cache API for pkg repositories.
+    //
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between.
+    //
+  public:
+    /*
+    // Load (find) package archive for the specified package name and version.
+    //
+    // @@ Maybe it's more convenient to pass package name and version?
+    //
+    optional<loaded_pkg_repository_metadata>
+    load_pkg_repository_package (const package_id&);
+
+    // Save (update) package archive for the specified package name and
+    // version. The archive should be place (copied, moved, hard-linked) to
+    // the returned path. Note that the caller is expected to use the "place
+    // to temporary and atomically move into place" technique.
+    //
+    // @@ Maybe it's more convenient to pass package name and version and
+    //    then derive everything from that?
+    //
+    path
+    save_pkg_repository_package (package_id&, version, string checksum);
+    */
+
   private:
     unique_ptr<odb::sqlite::database> db_;
   };
