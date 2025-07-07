@@ -352,8 +352,10 @@ namespace bpkg
     optional<loaded_pkg_repository_metadata> r;
 
     if (pkg_repository_metadata_directory_.empty ())
+    {
       pkg_repository_metadata_directory_ =
-        directory_ / dir_path ("pkg/metadata");
+        ((dir_path (directory_) /= "pkg") /= "metadata");
+    }
 
     transaction t (db.begin ());
 
@@ -375,7 +377,7 @@ namespace bpkg
       }
       else
       {
-        bool check_checksums (!offline () && m.session != session_);
+        bool utd (!offline () && m.session != session_); // Up-to-date check.
 
         m.session = session_;
         m.access_time = butl::system_clock::now ();
@@ -384,9 +386,9 @@ namespace bpkg
 
         r = loaded_pkg_repository_metadata {
           move (rf),
-          check_checksums ? move (m.repositories_checksum) : string (),
+          utd ? move (m.repositories_checksum) : string (),
           move (pf),
-          check_checksums ? move (m.packages_checksum) : string ()};
+          utd ? move (m.packages_checksum) : string ()};
       }
     }
 
@@ -447,10 +449,10 @@ namespace bpkg
     }
     else
     {
-      assert (!repositories_checksum.empty ()); // Wouldn't be here otherwise.
+      assert (!repositories_checksum.empty ()); // Shouldn't be here otherwise.
 
-      dir_path d (pkg_repository_metadata_directory_ /
-                  dir_path (sha256 (u.string ()).abbreviated_string (16)));
+      dir_path dn (sha256 (u.string ()).abbreviated_string (16));
+      dir_path d (pkg_repository_metadata_directory_ / dn);
 
       // If the metadata directory already exists, probably as a result of
       // some previous failure, then re-create it.
@@ -465,7 +467,7 @@ namespace bpkg
 
       pkg_repository_metadata md {
         u,
-        move (d),
+        move (dn),
         session_,
         butl::system_clock::now (),
         repositories_file,
