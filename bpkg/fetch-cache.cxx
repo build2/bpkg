@@ -10,6 +10,7 @@
 #include <odb/sqlite/exceptions.hxx>
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/manifest-utility.hxx> // {repositories,packages}_file
 
 #include <bpkg/fetch-cache-data.hxx>
 #include <bpkg/fetch-cache-data-odb.hxx>
@@ -323,8 +324,10 @@ namespace bpkg
     return *enabled_ && mode_->trust;
   }
 
+  static dir_path pkg_repository_metadata_directory_;
+
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
-  load_pkg_repository_metadata (const repository_url&)
+  load_pkg_repository_metadata (const repository_url& u)
   {
     // The overall plan is as follows:
     //
@@ -342,13 +345,60 @@ namespace bpkg
     //
     // 5. Return paths and checksums.
 
-    return loaded_pkg_repository_metadata ();
+    assert (db_ != nullptr); // The open() function should have been called.
+
+    odb::sqlite::database& db (*db_);
+
+    optional<loaded_pkg_repository_metadata> r;
+
+    if (pkg_repository_metadata_directory_.empty ())
+      pkg_repository_metadata_directory_ =
+        directory_ / dir_path ("pkg/metadata");
+
+    transaction t (db.begin ());
+
+    pkg_repository_metadata m;
+    if (db.find<pkg_repository_metadata> (u, m))
+    {
+      dir_path d (pkg_repository_metadata_directory_ / m.directory);
+
+      path rf (d / m.repositories_path);
+      path pf (d / m.packages_path);
+
+      if (!exists (rf) || !exists (pf))
+      {
+        // Remove the database entry last, to make sure we are still tracking
+        // the directory if its removal fails for any reason.
+        //
+        rm_r (d);
+        db.erase (m);
+      }
+      else
+      {
+        bool check_checksums (!offline () && m.session != session_);
+
+        m.session = session_;
+        m.access_time = butl::system_clock::now ();
+
+        db.update (m);
+
+        r = loaded_pkg_repository_metadata {
+          move (rf),
+          check_checksums ? move (m.repositories_checksum) : string (),
+          move (pf),
+          check_checksums ? move (m.packages_checksum) : string ()};
+      }
+    }
+
+    t.commit ();
+
+    return r;
   }
 
   fetch_cache::saved_pkg_repository_metadata fetch_cache::
-  save_pkg_repository_metadata (const repository_url&,
-                                string /*packages_checksum*/,
-                                string /*repositories_checksum*/)
+  save_pkg_repository_metadata (const repository_url& u,
+                                string repositories_checksum,
+                                string packages_checksum)
   {
     // The overall plan is as follows:
     //
@@ -362,6 +412,72 @@ namespace bpkg
     //
     // 2. Return the paths the metadata should be written to.
 
-    return saved_pkg_repository_metadata ();
+    // The load_pkg_repository_metadata() function should have been called.
+    //
+    assert (!pkg_repository_metadata_directory_.empty ());
+
+    // Metadata file paths.
+    //
+    path rf;
+    path pf;
+
+    odb::sqlite::database& db (*db_);
+
+    transaction t (db.begin ());
+
+    pkg_repository_metadata m;
+    if (db.find<pkg_repository_metadata> (u, m))
+    {
+      dir_path d (pkg_repository_metadata_directory_ / m.directory);
+
+      if (!repositories_checksum.empty ())
+      {
+        m.repositories_checksum = move (repositories_checksum);
+
+        rf = d / m.repositories_path;
+        rm (rf);
+      }
+
+      m.packages_checksum = move (packages_checksum);
+
+      pf = d / m.packages_path;
+      rm (pf);
+
+      db.update (m);
+    }
+    else
+    {
+      assert (!repositories_checksum.empty ()); // Wouldn't be here otherwise.
+
+      dir_path d (pkg_repository_metadata_directory_ /
+                  dir_path (sha256 (u.string ()).abbreviated_string (16)));
+
+      // If the metadata directory already exists, probably as a result of
+      // some previous failure, then re-create it.
+      //
+      if (exists (d))
+        rm_r (d);
+
+      mk_p (d);
+
+      rf = d / repositories_file;
+      pf = d / packages_file;
+
+      pkg_repository_metadata md {
+        u,
+        move (d),
+        session_,
+        butl::system_clock::now (),
+        repositories_file,
+        move (repositories_checksum),
+        packages_file,
+        move (packages_checksum)};
+
+      db.persist (md);
+    }
+
+    t.commit ();
+
+    return saved_pkg_repository_metadata {move (rf), move (pf)};
   }
 }

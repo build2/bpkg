@@ -151,8 +151,8 @@ namespace bpkg
 
     saved_pkg_repository_metadata
     save_pkg_repository_metadata (const repository_url&,
-                                  string packages_checksum,
-                                  string repositories_checksum);
+                                  string repositories_checksum,
+                                  string packages_checksum);
 
   private:
     unique_ptr<odb::sqlite::database> db_;
