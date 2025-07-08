@@ -17,6 +17,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 
 using namespace std;
 using namespace butl;
@@ -160,6 +161,7 @@ namespace bpkg
   //
   static shared_ptr<certificate>
   auth_dummy (const common_options& co,
+              fetch_cache& cache,
               const string& fp,
               const repository_location& rl)
   {
@@ -167,6 +169,12 @@ namespace bpkg
 
     shared_ptr<certificate> cert (
       make_shared<certificate> (fp, name_prefix (rl)));
+
+    if (cache.enabled () && cache.load_pkg_repository_auth (fp))
+    {
+      l4 ([&]{trace << "cached cert: " << *cert;});
+      return cert;
+    }
 
     l4 ([&]{trace << "new cert: " << *cert;});
 
@@ -189,6 +197,9 @@ namespace bpkg
            string ("continue without authenticating repositories at " +
                    cert->name + "? [y/n]").c_str ())))
       throw failed ();
+
+    if (cache.enabled ())
+      cache.save_pkg_repository_auth (fp, "" /* fingerprint */, cert->name);
 
     return cert;
   }
@@ -596,6 +607,7 @@ namespace bpkg
 
   static cert_auth
   auth_real (const common_options& co,
+             fetch_cache& cache,
              const fingerprint& fp,
              const string& pem,
              const repository_location& rl,
@@ -606,9 +618,22 @@ namespace bpkg
     shared_ptr<certificate> cert (
       parse_cert (co, fp, pem, rl.canonical_name ()));
 
+    // If the certificate is in the cache then it is authenticated by the
+    // user. In this case the dependent trust doesn't really matter as the
+    // user is more authoritative then the dependent.
+    //
+    if (cache.enabled () && cache.load_pkg_repository_auth (fp.abbreviated))
+    {
+      l4 ([&]{trace << "cached cert: " << *cert;});
+      verify_cert (*cert, rl);
+      return cert_auth {move (cert), true};
+    }
+
     l4 ([&]{trace << "new cert: " << *cert;});
 
     verify_cert (*cert, rl);
+
+    bool user (true);
 
     // @@ Is there a way to intercept CLI parsing for the specific option of
     // the standard type to validate/convert the value? If there were, we could
@@ -626,37 +651,41 @@ namespace bpkg
       if (verb >= 2)
         info << "certificate for repository " << rl.canonical_name () <<
           " authenticated by command line";
-
-      return cert_auth {move (cert), true};
     }
-
-    if (dependent_trust &&
-        icasecmp (*dependent_trust, cert->fingerprint) == 0)
+    else if (dependent_trust &&
+             icasecmp (*dependent_trust, cert->fingerprint) == 0)
     {
       if (verb >= 2)
         info << "certificate for repository " << rl.canonical_name () <<
           " authenticated by dependent trust";
 
-      return cert_auth {move (cert), false};
+      user = false;
     }
-
-    (co.trust_no () ? error : warn)
-      << "authenticity of the certificate for repository "
-      << rl.canonical_name () << " cannot be established";
-
-    if (!co.trust_no () && verb)
+    else
     {
-      text << "certificate is for " << cert->name << ", \""
-           << cert->organization << "\" <" << cert->email << ">";
+      (co.trust_no () ? error : warn)
+        << "authenticity of the certificate for repository "
+        << rl.canonical_name () << " cannot be established";
 
-      text << "certificate SHA256 fingerprint:";
-      text << cert->fingerprint;
+      if (!co.trust_no () && verb)
+      {
+        text << "certificate is for " << cert->name << ", \""
+             << cert->organization << "\" <" << cert->email << ">";
+
+        text << "certificate SHA256 fingerprint:";
+        text << cert->fingerprint;
+      }
+
+      if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
+        throw failed ();
     }
 
-    if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
-      throw failed ();
+    if (cache.enabled () && user)
+      cache.save_pkg_repository_auth (fp.abbreviated,
+                                      fp.canonical,
+                                      cert->name);
 
-    return cert_auth {move (cert), true};
+    return cert_auth {move (cert), user};
   }
 
   // Authenticate a certificate with the database. First check if it is
@@ -664,6 +693,7 @@ namespace bpkg
   //
   static shared_ptr<certificate>
   auth_cert (const common_options& co,
+             fetch_cache& cache,
              database& db,
              const optional<string>& pem,
              const repository_location& rl,
@@ -689,9 +719,10 @@ namespace bpkg
     // Note that an unsigned certificate use cannot be authenticated by the
     // dependent trust.
     //
-    cert_auth ca (pem
-                  ? auth_real (co, fp, *pem, rl, dependent_trust)
-                  : cert_auth {auth_dummy (co, fp.abbreviated, rl), true});
+    cert_auth ca (
+      pem
+      ? auth_real (co, cache, fp, *pem, rl, dependent_trust)
+      : cert_auth {auth_dummy (co, cache, fp.abbreviated, rl), true /* user */});
 
     cert = move (ca.cert);
 
@@ -733,6 +764,7 @@ namespace bpkg
 
   shared_ptr<const certificate>
   authenticate_certificate (const common_options& co,
+                            fetch_cache& cache,
                             const dir_path* conf,
                             database* db,
                             const optional<string>& pem,
@@ -755,14 +787,15 @@ namespace bpkg
       //
       fingerprint fp (cert_fingerprint (co, pem, rl));
       r = pem
-        ? auth_real  (co, fp, *pem, rl, dependent_trust).cert
-        : auth_dummy (co, fp.abbreviated, rl);
+        ? auth_real  (co, cache, fp, *pem, rl, dependent_trust).cert
+        : auth_dummy (co, cache, fp.abbreviated, rl);
     }
     else if (db != nullptr)
     {
       assert (transaction::has_current ());
 
       r = auth_cert (co,
+                     cache,
                      *db,
                      pem,
                      rl,
@@ -772,7 +805,7 @@ namespace bpkg
     {
       database db (*conf, trace, false /* pre_attach */, false /* sys_rep */);
       transaction t (db);
-      r = auth_cert (co, db, pem, rl, dependent_trust);
+      r = auth_cert (co, cache, db, pem, rl, dependent_trust);
       t.commit ();
     }
 
@@ -1079,5 +1112,12 @@ namespace bpkg
                        real_fingerprint (co, cert_pem, rl),
                        cert_pem,
                        rl.canonical_name ());
+  }
+
+  shared_ptr<certificate>
+  dummy_certificate (const common_options& co, const repository_location& rl)
+  {
+    fingerprint fp (cert_fingerprint (co, nullopt /* pem */, rl));
+    return make_shared<certificate> (move (fp.abbreviated), name_prefix (rl));
   }
 }

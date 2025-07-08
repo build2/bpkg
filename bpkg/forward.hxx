@@ -8,7 +8,6 @@ namespace bpkg
 {
   // <bpkg/database.hxx>
   //
-  class database;
   class linked_databases;
   class transaction;
 
@@ -18,6 +17,10 @@ namespace bpkg
   class repository;
   class repository_fragment;
   class selected_package;
+
+  // <bpkg/rep-fetch.hxx>
+  //
+  class fetch_cache;
 }
 
 #endif // BPKG_FORWARD_HXX

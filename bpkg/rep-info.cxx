@@ -12,6 +12,7 @@
 #include <bpkg/auth.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/rep-fetch.hxx>
@@ -37,6 +38,8 @@ namespace bpkg
                : "--packages-file")
            << " specified without --manifest" <<
         info << "run 'bpkg help rep-info' for more information";
+
+    bpkg::fetch_cache fetch_cache (o);
 
     repository_location rl (
       parse_location (args.next (),
@@ -75,6 +78,7 @@ namespace bpkg
 
     rep_fetch_data rfd (
       rep_fetch (o,
+                 fetch_cache,
                  conf,
                  rl,
                  ignore_unknown,

@@ -26,7 +26,6 @@ namespace bpkg
   using odb::session;
 
   class configuration;
-  class database;
 
   struct linked_config
   {
@@ -582,7 +581,7 @@ namespace bpkg
            : dependent_db.type;
   }
 
-  // Transaction wrapper that allow the creation of dummy transactions (start
+  // Transaction wrapper that allows the creation of dummy transactions (start
   // is false) that in reality use an existing transaction.
   //
   // Note that there can be multiple databases attached to the main database

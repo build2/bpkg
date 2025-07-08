@@ -7,6 +7,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
@@ -35,6 +36,7 @@ namespace bpkg
   //
   shared_ptr<const certificate>
   authenticate_certificate (const common_options&,
+                            fetch_cache&,
                             const dir_path* configuration,
                             database*,
                             const optional<string>& cert_pem,
@@ -102,6 +104,12 @@ namespace bpkg
   parse_certificate (const common_options&,
                      const string& cert_pem,
                      const repository_location&);
+
+  // Create a dummy certificate for the specified unsigned repository (see
+  // certificate on details).
+  //
+  shared_ptr<certificate>
+  dummy_certificate (const common_options&, const repository_location&);
 }
 
 #endif // BPKG_AUTH_HXX
