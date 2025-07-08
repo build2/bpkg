@@ -83,4 +83,4 @@ namespace odb
   }
 }
 
-#endif // BPKG_WRAPPER_TRAITS_HXX
+#endif // BPKG_VALUE_TRAITS_HXX

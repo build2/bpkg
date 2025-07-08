@@ -15,6 +15,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -82,7 +83,7 @@ namespace bpkg
                                 const shared_ptr<selected_package>& p,
                                 config_repo_fragments& r)
   {
-    available_package_id id (p->name, p->version);
+    package_id id (p->name, p->version);
 
     // Add a repository fragment to the specified list, suppressing duplicates.
     //
@@ -2975,6 +2976,7 @@ namespace bpkg
   //
   static bool
   execute_plan (const pkg_build_options&,
+                fetch_cache&,
                 build_package_list&,
                 unsatisfied_dependents* simulate,
                 const function<find_database_function>&);
@@ -3170,6 +3172,8 @@ namespace bpkg
     if (!args.more () && !o.upgrade () && !o.patch () && !o.deorphan ())
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
+
+    bpkg::fetch_cache fetch_cache (o);
 
     // If multiple current configurations are specified, then open the first
     // one, attach the remaining, verify that their schemas match (which may
@@ -3618,6 +3622,7 @@ namespace bpkg
       //
       for (const auto& l: locations)
         rep_fetch (o,
+                   fetch_cache,
                    l.first,
                    l.second,
                    o.fetch_shallow (),
@@ -6345,6 +6350,7 @@ namespace bpkg
           build_package_list bl (tmp.begin (), tmp.end ());
 
           changed = execute_plan (o,
+                                  fetch_cache,
                                   bl,
                                   &unsatisfied_depts,
                                   find_prereq_database);
@@ -7685,6 +7691,7 @@ namespace bpkg
     // addition update (that update_dependents flag above).
     //
     bool noop (!execute_plan (o,
+                              fetch_cache,
                               pkgs,
                               nullptr /* simulate */,
                               find_prereq_database));
@@ -7765,6 +7772,7 @@ namespace bpkg
 
   static bool
   execute_plan (const pkg_build_options& o,
+                fetch_cache& cache,
                 build_package_list& build_pkgs,
                 unsatisfied_dependents* simulate,
                 const function<find_database_function>& fdb)
@@ -8136,6 +8144,7 @@ namespace bpkg
             case repository_basis::archive:
               {
                 sp = pkg_fetch (o,
+                                cache,
                                 pdb,
                                 af.database (),
                                 t,

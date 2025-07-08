@@ -7,6 +7,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/package.hxx>
@@ -33,8 +34,13 @@ namespace bpkg
   // user's confirmations will be lost. For example, rep-fetch could fail
   // because it was unable to fetch some prerequisite repositories.
   //
+  // Note: if the fetch cache is not open, it may potentially be opened
+  //       internally, in which case it will be closed before the function
+  //       returns.
+  //
   shared_ptr<const certificate>
   authenticate_certificate (const common_options&,
+                            fetch_cache&,
                             const dir_path* configuration,
                             database*,
                             const optional<string>& cert_pem,
@@ -102,6 +108,19 @@ namespace bpkg
   parse_certificate (const common_options&,
                      const string& cert_pem,
                      const repository_location&);
+
+  // Verify the certificate (validity period and such).
+  //
+  // Note that the repository location is only used for diagnostics.
+  //
+  void
+  verify_certificate (const certificate&, const repository_location&);
+
+  // Create a dummy certificate for the specified unsigned repository (see
+  // certificate on details).
+  //
+  shared_ptr<certificate>
+  dummy_certificate (const common_options&, const repository_location&);
 }
 
 #endif // BPKG_AUTH_HXX

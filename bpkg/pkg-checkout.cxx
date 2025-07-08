@@ -137,7 +137,7 @@ namespace bpkg
     // implementation for more details).
     //
     shared_ptr<available_package> ap (
-      rdb.find<available_package> (available_package_id (n, v)));
+      rdb.find<available_package> (package_id (n, v)));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";

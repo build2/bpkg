@@ -3,6 +3,8 @@
 
 #include <bpkg/pkg-fetch.hxx>
 
+#include <libbutl/filesystem.hxx> // mkhardlink(), cpfile()
+
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/fetch.hxx>
@@ -12,6 +14,7 @@
 #include <bpkg/database.hxx>
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
@@ -210,6 +213,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
+             fetch_cache& cache,
              database& pdb,
              database& rdb,
              transaction& t,
@@ -235,8 +239,8 @@ namespace bpkg
     // -- they must spell it out explicitly. This is probably ok since this is
     // a low-level command where some extra precision doesn't hurt.
     //
-    shared_ptr<available_package> ap (
-      rdb.find<available_package> (available_package_id (n, v)));
+    package_id pid (n, v);
+    shared_ptr<available_package> ap (rdb.find<available_package> (pid));
 
     if (ap == nullptr)
       fail << "package " << n << " " << v << " is not available";
@@ -328,6 +332,8 @@ namespace bpkg
           }
         }));
 
+    bool purge (true);
+
     if (!simulate)
     {
       // Stash the existing package archive if it needs to be overwritten (see
@@ -344,24 +350,209 @@ namespace bpkg
         mv (a, earm.path);
       }
 
-      pkg_fetch_archive (
-        co, pl->repository_fragment->location, pl->location, a);
+      // Try to create a hard link to a file and, if that fails, copy this
+      // file to the link location. In the latter case, use the "write to
+      // temporary and atomically move into place" technique.
+      //
+      auto hardlink = [] (const path& target, const path& link)
+      {
+        // Note that this implementation is inspired by libbutl's mkanylink()
+        // function.
+        //
+        try
+        {
+          mkhardlink (target, link);
+        }
+        catch (system_error& e)
+        {
+          if (e.code ().category () == generic_category ())
+          {
+            int c (e.code ().value ());
+            if (c == ENOSYS || // Not implemented.
+                c == EPERM  || // Not supported by the filesystem(s).
+                c == EXDEV)    // On different filesystems.
+            {
+              auto_rmfile arm (link + ".tmp");
+              const path& p (arm.path);
 
-      arm = auto_rmfile (a);
+              try
+              {
+                cpfile (target, p);
+              }
+              catch (system_error& e)
+              {
+                fail << "unable to copy file " << target << " to " << p
+                     << ": " << e;
+              }
+
+              mv (p, link);
+              arm.cancel ();
+            }
+          }
+
+          fail << "unable to create hard link for " << target << " at "
+               << link << ": " << e;
+        }
+      };
+
+      // For the specified package version try to retrieve the archive file
+      // from the fetch cache, if enabled. In the offline mode fail if unable
+      // to do so (cache is disabled or there is no cached entry for the
+      // package version).
+      //
+      optional<fetch_cache::loaded_pkg_repository_package> crp;
+
+      if (cache.enabled ())
+      {
+        cache.open (trace);
+
+        crp = cache.load_pkg_repository_package (pid);
+
+        if (cache.offline () && !crp)
+          fail << "no archive in fetch cache for package " << n << ' ' << v
+               << " in offline mode" <<
+            info << "consider turning off offline mode";
+      }
+      else
+      {
+        if (cache.offline ())
+          fail << "fetch cache is disabled in offline mode" <<
+            info << "consider enabling fetch cache";
+      }
+
+      // Add the package archive file to the configuration, by either using
+      // its cached version in place or fetching it from the repository. In
+      // the latter case, if the cache is open, let's close (release) it for
+      // the time we download the archive. After the download re-open the
+      // cache, re-query the entry, and stick to the plan if it still doesn't
+      // exist or drop the fetched archive and behave as if the entry existed
+      // from the very beginning.
+      //
+      string fcs; // Fetched archive checksum.
 
       // We can't be fetching an archive for a transient object.
       //
       assert (ap->sha256sum);
 
-      const string& cs (sha256sum (co, a));
-      if (cs != *ap->sha256sum)
+      if (!crp)
       {
-        fail << "checksum mismatch for " << n << " " << v <<
-          info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-          info << "fetched archive has " << cs <<
-          info << "consider re-fetching package list and trying again" <<
-          info << "if problem persists, consider reporting this to "
-               << "the repository maintainer";
+        if (cache.is_open ())
+          cache.close ();
+
+        arm = auto_rmfile (a);
+
+        pkg_fetch_archive (
+          co, pl->repository_fragment->location, pl->location, a);
+
+        if (cache.enabled ())
+        {
+          cache.open (trace);
+
+          crp = cache.load_pkg_repository_package (pid);
+        }
+
+        if (!crp)
+        {
+          fcs = sha256sum (co, a);
+          if (fcs != *ap->sha256sum)
+          {
+            fail << "checksum mismatch for " << n << " " << v <<
+              info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
+              info << "fetched archive has " << fcs <<
+              info << "consider re-fetching package list and trying again" <<
+              info << "if problem persists, consider reporting this to "
+                 << "the repository maintainer";
+          }
+        }
+        else
+          rm (a);
+      }
+
+      if (crp)
+      {
+        path& ca (crp->archive);
+
+        // Note that currently there is no scenario when the archive name, as
+        // it comes from a repository, doesn't match the one from the cache.
+        // Let's, however, verify that for good measure.
+        //
+        if (an != ca.leaf ())
+        {
+          fail << "cached archive name " << ca.leaf () << " doesn't match "
+               << "original name " << an <<
+            info << "cached archive: " << ca;
+        }
+
+        // Issue a warning if the checksum of the cached archive differs from
+        // that one of the archive in the repository.
+        //
+        if (crp->checksum != *ap->sha256sum)
+        {
+          warn << "checksum mismatch for " << n << " " << v <<
+            info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
+            info << "cached archive has " << crp->checksum;
+        }
+
+        // If sharing of the cached source directories is enabled, then use
+        // the package archive in place from the cache and don't remove it
+        // when the package is purged. Otherwise, hardlink/copy the archive
+        // from the cache into the configuration directory.
+        //
+        if (cache.cache_src ())
+        {
+          a = move (ca);
+          purge = false;
+        }
+        else
+        {
+          hardlink (ca, a);
+
+          arm = auto_rmfile (a);
+        }
+      }
+
+      // If the fetch cache is enabled, then save the package archive, if we
+      // fetched it, into the cache and close (release) the cache.
+      //
+      if (cache.enabled ())
+      {
+        if (!crp)
+        {
+          path ca (cache.save_pkg_repository_package (move (pid),
+                                                      v,
+                                                      move (fcs)));
+
+          // If sharing of the cached source directories is enabled, then move
+          // the package archive to the fetch cache, use it in place (from the
+          // cache) in the configuration, and don't remove it when the package
+          // is purged. Otherwise, hardlink/copy the archive from the
+          // configuration directory into the cache.
+          //
+          if (cache.cache_src ())
+          {
+            // Note that the move operation can fallback to copy, if the
+            // source and destination paths belong to different filesystems.
+            // Thus, to implement the "write to temporary and atomically move
+            // into place" technique, we move the archive in two steps: first,
+            // to the destination filesystem under the temporary name and then
+            // rename it to the final name.
+            //
+            auto_rmfile rm (ca + ".tmp");
+            const path& p (rm.path);
+            mv (a, p);
+            mv (p, ca);
+            rm.cancel ();
+
+            a = move (ca);
+            purge = false;
+          }
+          else
+          {
+            hardlink (a, ca);
+          }
+        }
+
+        cache.close ();
       }
     }
 
@@ -379,7 +570,7 @@ namespace bpkg
                  move (a),
                  pl->repository_fragment->location,
                  ap->manifest (),
-                 true /* purge */,
+                 purge,
                  simulate));
 
     arm.cancel ();
@@ -393,6 +584,8 @@ namespace bpkg
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
+
+    fetch_cache cache (o);
 
     database db (c, trace, true /* pre_attach */, false /* sys_rep */);
     transaction t (db);
@@ -431,6 +624,7 @@ namespace bpkg
           info << "run 'bpkg help pkg-fetch' for more information";
 
       p = pkg_fetch (o,
+                     cache,
                      db /* pdb */,
                      db /* rdb */,
                      t,

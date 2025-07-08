@@ -14,6 +14,8 @@
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/common-options.hxx>
 
+#include <bpkg/package-common.hxx> // package_id
+
 namespace bpkg
 {
   // The local fetch cache is a singleton that is described by a bunch of
@@ -71,6 +73,12 @@ namespace bpkg
     void
     open (tracer&);
 
+    bool
+    is_open () const
+    {
+      return db_ != nullptr;
+    }
+
     void
     close ();
 
@@ -123,9 +131,7 @@ namespace bpkg
     load_pkg_repository_auth (const string& id);
 
     void
-    save_pkg_repository_auth (string id,
-                              string fingerprint,
-                              string name);
+    save_pkg_repository_auth (string id, string fingerprint, string name);
 
     // Metadata cache API for pkg repositories.
     //
@@ -176,28 +182,88 @@ namespace bpkg
     // unlocking the cache in between.
     //
   public:
-    /*
     // Load (find) package archive for the specified package name and version.
     //
-    // @@ Maybe it's more convenient to pass package name and version?
-    //
-    optional<loaded_pkg_repository_metadata>
+    struct loaded_pkg_repository_package
+    {
+      path archive;
+      string checksum;
+    };
+
+    optional<loaded_pkg_repository_package>
     load_pkg_repository_package (const package_id&);
 
-    // Save (update) package archive for the specified package name and
-    // version. The archive should be place (copied, moved, hard-linked) to
+    // Save (insert) package archive for the specified package name and
+    // version. The archive should be placed (copied, moved, hard-linked) to
     // the returned path. Note that the caller is expected to use the "place
     // to temporary and atomically move into place" technique.
     //
-    // @@ Maybe it's more convenient to pass package name and version and
-    //    then derive everything from that?
-    //
     path
-    save_pkg_repository_package (package_id&, version, string checksum);
-    */
+    save_pkg_repository_package (package_id, version, string checksum);
 
   private:
-    unique_ptr<odb::sqlite::database> db_;
+    using database = odb::sqlite::database;
+
+    // Transaction wrapper that allows starting a transaction and making it
+    // current, for the duration of it's lifetime, in the presence of another
+    // current transaction.
+    //
+    // Note that normally the cache functions will start the cache database
+    // transactions when the caller has already started a configuration
+    // database transaction.
+    //
+    class transaction
+    {
+    public:
+      explicit
+      transaction (odb::sqlite::transaction_impl* t)
+          : t_ (), // Finalized.
+            ct_ (nullptr)
+      {
+        using odb::sqlite::transaction;
+
+        transaction* ct (transaction::has_current ()
+                         ? &transaction::current ()
+                         : nullptr);
+
+        t_.reset (t, ct == nullptr);
+
+        if (ct != nullptr)
+          transaction::current (t_);
+
+        ct_ = ct;
+      }
+
+      explicit
+      transaction (database& db): transaction (db.begin_exclusive ()) {}
+
+      void
+      commit ()
+      {
+        t_.commit ();
+      }
+
+      void
+      rollback ()
+      {
+        t_.rollback ();
+      }
+
+      ~transaction ()
+      {
+        if (!t_.finalized ())
+          t_.rollback ();
+
+        if (ct_ != nullptr)
+          odb::sqlite::transaction::current (*ct_);
+      }
+
+    private:
+      odb::sqlite::transaction t_;
+      odb::sqlite::transaction* ct_;
+    };
+
+    unique_ptr<database> db_;
   };
 }
 

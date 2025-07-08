@@ -438,7 +438,7 @@ validate_common_options (const common_options& o, const path* of = nullptr)
     }
   }
 
-  // Ban certain common options from apperaring in default options files.
+  // Ban certain common options from appearing in default options files.
   //
   if (of != nullptr)
   {

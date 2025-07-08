@@ -566,7 +566,7 @@ namespace bpkg
                   database& db,
                   const shared_ptr<selected_package>& sp)
   {
-    available_package_id pid (sp->name, sp->version);
+    package_id pid (sp->name, sp->version);
     for (database& ddb: db.dependent_configs (true /* sys_rep */))
     {
       shared_ptr<available_package> ap (ddb.find<available_package> (pid));
@@ -584,7 +584,7 @@ namespace bpkg
                            database& db,
                            const shared_ptr<selected_package>& sp)
   {
-    available_package_id pid (sp->name, sp->version);
+    package_id pid (sp->name, sp->version);
     const string& cn (sp->repository_fragment.canonical_name ());
 
     for (database& ddb: db.dependent_configs (true /* sys_rep */))

@@ -39,6 +39,15 @@ fi
 
 $odb "${inc[@]}"                                                      \
     -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
+    -d sqlite --std c++14                                             \
+    --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
+    --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
+    package-common.hxx
+
+$odb "${inc[@]}"                                                      \
+    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
     -d sqlite --std c++14 --generate-query --generate-prepared        \
     --generate-schema                                                 \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'          \
@@ -46,8 +55,6 @@ $odb "${inc[@]}"                                                      \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <libbutl/small-vector-odb.hxx>'          \
     --hxx-prologue '#include <bpkg/pointer-traits.hxx>'               \
-    --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
-    --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
     --schema main --schema-version-table main.schema_version          \
     --sqlite-override-null package.hxx
@@ -57,7 +64,5 @@ $odb "${inc[@]}"                                                      \
     -d sqlite --std c++14 --generate-query                            \
     --generate-schema --schema-name 'fetch-cache'                     \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
-    --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
-    --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
     --sqlite-override-null fetch-cache-data.hxx

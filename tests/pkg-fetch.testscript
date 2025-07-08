@@ -39,6 +39,7 @@ pkg_status += -d cfg
 pkg_unpack += -d cfg
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all 2>!
+rep_list   += -d cfg --prerequisites --complements
 
 # Let's disable the progress indication that complicates stderr output
 # validation.
@@ -197,3 +198,85 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export -u BPKG_FETCH_CACHE
+  rep_fetch    += --fetch-cache-path cache
+  test.options += --fetch-cache-path cache -v
+
+  : signed-repository
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello
+
+    $rep_fetch --trust $cert_fp &cache/***
+
+    # Verify that before the package archive is cached, we download it while
+    # fetching the package.
+    #
+    $* libhello/1.0.0 2>&1 | set out
+
+    if $remote
+      sed -n -e 's%(https://.*/libhello-1.0.0.tar.gz)%\1%p' <$out >>~%EOO%
+        %.+
+        EOO
+
+    # Verify that the fetched package archive is cached.
+    #
+    test -f cache/pkg/packages/libhello-1.0.0.tar.gz
+
+    rm -r cfg
+
+    $clone_root_cfg && $rep_add $rep/hello
+
+    $rep_fetch
+
+    # Verify that now, as the package archive is cached, we don't download it
+    # while fetching the package.
+    #
+    $* libhello/1.0.0 2>&1 | set out
+
+    if $remote
+      sed -n -e 's%(https://.*/libhello-1.0.0.tar.gz)%\1%p' <$out >:''
+
+    # Verify that if sharing of the cached source directories is enabled, the
+    # package archive doesn't appear in the configuration but only in the
+    # cache.
+    #
+    $pkg_status libhello >'libhello fetched 1.0.0'
+    test -f cfg/libhello-1.0.0.tar.gz != 0
+    test -f cache/pkg/packages/libhello-1.0.0.tar.gz
+
+    # Verify that the fetched package is unpackable.
+    #
+    $pkg_unpack libhello 2>'unpacked libhello/1.0.0'
+
+    $pkg_purge libhello 2>!
+
+    # Verify that the archive stays in the cache after the package purge.
+    #
+    test -f cache/pkg/packages/libhello-1.0.0.tar.gz
+
+    # Verify that if sharing of the cached source directories is disabled, the
+    # package archive appears both in the configuration and in the cache.
+    #
+    $* --fetch-cache no-src libhello/1.0.0 2>!
+
+    $pkg_status libhello >'libhello fetched 1.0.0'
+    test -f cfg/libhello-1.0.0.tar.gz
+    test -f cache/pkg/packages/libhello-1.0.0.tar.gz
+
+    # Verify that the fetched package is unpackable.
+    #
+    $pkg_unpack libhello 2>'unpacked libhello/1.0.0'
+
+    $pkg_purge libhello 2>!
+  }
+}}

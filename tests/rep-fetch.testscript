@@ -31,7 +31,7 @@
 # |       |-- libfoo-1.1.0.tar.gz
 # |       `-- repositories.manifest
 # |
-# `-- hello
+# |-- hello
 # |   |-- libhello-1.0.0.tar.gz
 # |   `-- repositories.manifest
 # |
@@ -81,6 +81,13 @@ posix = ($cxx.target.class != 'windows')
 
   $rep_create --key $key $out/hello &$out/hello/packages.manifest \
                                     &$out/hello/signature.manifest
+
+  # Create the unsigned 'hello' repository.
+  #
+  cp -r $src/hello $out/hello-unsigned
+
+  $rep_create $out/hello-unsigned &$out/hello-unsigned/packages.manifest \
+                                  &$out/hello-unsigned/signature.manifest
 
   # Create 'foo/*' repositories.
   #
@@ -1111,4 +1118,110 @@ else
       }
     }}
   }}
+}}
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export -u BPKG_FETCH_CACHE
+  test.options += --fetch-cache-path cache --auth all -v
+
+  : signed-repository
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello
+
+    # Verify that for the first repository fetch we download all the manifest
+    # files and authenticate the certificate.
+    #
+    $* --trust $cert_fp 2>&1 &cache/*** | set out
+
+    sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >~/.+/
+
+    if $remote
+    {
+      sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >>~%EOO%
+        %.+
+        EOO
+
+      sed -n -e 's%(https://.*/packages.manifest)%\1%p' <$out >>~%EOO%
+        %.+
+        EOO
+
+      sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+        %.+
+        EOO
+    }
+
+    # Verify that the fetched manifest files are cached.
+    #
+    ms = $sort($filesystem.path_search(*/*.manifest, $~/cache/pkg/metadata))
+
+    sed -n -e 's%^(.+packages.manifest)$%\1%p'     <($ms[0]) >~/.+/
+    sed -n -e 's%^(.+repositories.manifest)$%\1%p' <($ms[1]) >~/.+/
+
+    rm -r cfg
+
+    $clone_root_cfg && $rep_add $rep/hello
+
+    # Verify that now, as the metadata and authentication answers are cached,
+    # we don't download the repositories and packages manifest files nor
+    # authenticate the certificate.
+    #
+    $* 2>&1 | set out
+
+    sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >:''
+
+    if $remote
+    {
+      sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >:''
+      sed -n -e 's%(https://.*/packages.manifest)%\1%p'     <$out >:''
+
+      # Note: we should still be downloading the signature manifest to perform
+      # the up-to-dateness check.
+      #
+      sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+        %.+
+        EOO
+    }
+
+    $rep_list >~'%pkg:build2.org/rep-fetch/hello.+%'
+    $pkg_status libhello >'libhello available 1.0.0'
+
+    $rep_remove --all
+  }
+
+  : unsigned-repository
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello-unsigned
+
+    # Verify that for the first unsigned repository fetch we trust the
+    # repository by command line.
+    #
+    $* --trust-yes 2>&1 &cache/*** | set out
+
+    sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >~/.+/
+
+    rm -r cfg
+
+    $clone_root_cfg && $rep_add $rep/hello-unsigned
+
+    # Verify that now, as the authentication answers are cached, the unsigned
+    # repository is trusted automatically.
+    #
+    $* 2>&1 | set out
+
+    sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >:''
+
+    $rep_list >~'%pkg:build2.org/rep-fetch/hello-unsigned.+%'
+    $pkg_status libhello >'libhello available 1.0.0'
+
+    $rep_remove --all
+  }
 }}

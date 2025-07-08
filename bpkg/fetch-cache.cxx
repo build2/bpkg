@@ -20,6 +20,8 @@ namespace bpkg
   using namespace odb::sqlite;
   using odb::schema_catalog;
 
+  using butl::system_clock;
+
   // Note that directory and session are only initialized if the cache is
   // enabled.
   //
@@ -187,7 +189,7 @@ namespace bpkg
   void fetch_cache::
   open (tracer& tr)
   {
-    assert (enabled () && db_ == nullptr);
+    assert (enabled () && !is_open ());
 
     tracer trace ("fetch_cache::open");
 
@@ -198,8 +200,6 @@ namespace bpkg
 
     if (create)
       mk_p (d);
-
-    using database = odb::sqlite::database;
 
     try
     {
@@ -288,7 +288,7 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
-    if (db_ != nullptr)
+    if (is_open ())
     {
       db_.reset ();
     }
@@ -324,6 +324,37 @@ namespace bpkg
     return *enabled_ && mode_->trust;
   }
 
+  bool fetch_cache::
+  load_pkg_repository_auth (const string& id)
+  {
+    assert (is_open ()); // The open() function should have been called.
+
+    database& db (*db_);
+    transaction t (db);
+
+    bool r (db.query_value<pkg_repository_auth_count> (
+              query<pkg_repository_auth_count>::id == id) != 0);
+
+    t.commit ();
+    return r;
+  }
+
+  void fetch_cache::
+  save_pkg_repository_auth (string id, string fingerprint, string name)
+  {
+    // The load_pkg_repository_auth() function should have been called.
+    //
+    assert (is_open ());
+
+    database& db (*db_);
+    transaction t (db);
+
+    pkg_repository_auth a {move (id), move (fingerprint), move (name)};
+    db.persist (a);
+
+    t.commit ();
+  }
+
   static dir_path pkg_repository_metadata_directory_;
 
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
@@ -332,7 +363,7 @@ namespace bpkg
     // The overall plan is as follows:
     //
     // 1. See if there is an entry for this URL in the database. If not,
-    //    return, nullopt.
+    //    return nullopt.
     //
     // 2. Check if filesystem entries for this cache entry are present on
     //    disk. If not, remove the entry from the database, remove the
@@ -345,10 +376,6 @@ namespace bpkg
     //
     // 5. Return paths and checksums.
 
-    assert (db_ != nullptr); // The open() function should have been called.
-
-    odb::sqlite::database& db (*db_);
-
     optional<loaded_pkg_repository_metadata> r;
 
     if (pkg_repository_metadata_directory_.empty ())
@@ -357,7 +384,10 @@ namespace bpkg
         ((dir_path (directory_) /= "pkg") /= "metadata");
     }
 
-    transaction t (db.begin ());
+    assert (is_open ()); // The open() function should have been called.
+
+    database& db (*db_);
+    transaction t (db);
 
     pkg_repository_metadata m;
     if (db.find<pkg_repository_metadata> (u, m))
@@ -380,7 +410,7 @@ namespace bpkg
         bool utd (!offline () && m.session != session_); // Up-to-date check.
 
         m.session = session_;
-        m.access_time = butl::system_clock::now ();
+        m.access_time = system_clock::now ();
 
         db.update (m);
 
@@ -423,9 +453,8 @@ namespace bpkg
     path rf;
     path pf;
 
-    odb::sqlite::database& db (*db_);
-
-    transaction t (db.begin ());
+    database& db (*db_);
+    transaction t (db);
 
     pkg_repository_metadata m;
     if (db.find<pkg_repository_metadata> (u, m))
@@ -469,7 +498,7 @@ namespace bpkg
         u,
         move (dn),
         session_,
-        butl::system_clock::now (),
+        system_clock::now (),
         repositories_file,
         move (repositories_checksum),
         packages_file,
@@ -481,5 +510,101 @@ namespace bpkg
     t.commit ();
 
     return saved_pkg_repository_metadata {move (rf), move (pf)};
+  }
+
+  static dir_path pkg_repository_package_directory_;
+
+  optional<fetch_cache::loaded_pkg_repository_package> fetch_cache::
+  load_pkg_repository_package (const package_id& id)
+  {
+    // The overall plan is as follows:
+    //
+    // 1. See if there is an entry for this package id in the database. If
+    //    not, return nullopt.
+    //
+    // 2. Check if the archive file is present for this cache entry. If not,
+    //    remove the entry from the database and return nullopt.
+    //
+    // 3. Update entry access_time.
+    //
+    // 4. Return the archive path and checksum.
+
+    optional<loaded_pkg_repository_package> r;
+
+    if (pkg_repository_package_directory_.empty ())
+    {
+      pkg_repository_package_directory_ =
+        ((dir_path (directory_) /= "pkg") /= "packages");
+    }
+
+    assert (is_open ()); // The open() function should have been called.
+
+    database& db (*db_);
+    transaction t (db);
+
+    pkg_repository_package p;
+    if (db.find<pkg_repository_package> (id, p))
+    {
+      path f (pkg_repository_package_directory_ / p.archive);
+
+      if (!exists (f))
+      {
+        db.erase (p);
+      }
+      else
+      {
+        p.access_time = system_clock::now ();
+
+        db.update (p);
+
+        r = loaded_pkg_repository_package {move (f), move (p.checksum)};
+      }
+    }
+
+    t.commit ();
+
+    return r;
+  }
+
+  path fetch_cache::
+  save_pkg_repository_package (package_id id, version v, string checksum)
+  {
+    // The overall plan is as follows:
+    //
+    // 1. Create new database entry with current access time. Remove the
+    //    archive file, if exists.
+    //
+    // 2. Return the path the archive file should be moved to.
+
+    // The load_pkg_repository_package() function should have been called.
+    //
+    assert (!pkg_repository_package_directory_.empty ());
+
+    if (!exists (pkg_repository_package_directory_))
+      mk_p (pkg_repository_package_directory_);
+
+    path an (id.name.string () + '-' + v.string () + ".tar.gz");
+    path r (pkg_repository_package_directory_ / an);
+
+    database& db (*db_);
+    transaction t (db);
+
+    // If the archive file already exists, probably as a result of some
+    // previous failure, then remove it.
+    //
+    if (exists (r))
+      rm (r);
+
+    pkg_repository_package p {
+      move (id),
+      move (v),
+      system_clock::now (),
+      move (an),
+      move (checksum)};
+
+    db.persist (p);
+
+    t.commit ();
+    return r;
   }
 }

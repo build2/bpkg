@@ -7,6 +7,7 @@
 #include <set>
 
 #include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <bpkg/auth.hxx>
 #include <bpkg/fetch.hxx>
@@ -17,6 +18,7 @@
 #include <bpkg/rep-remove.hxx>
 #include <bpkg/pkg-verify.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -51,6 +53,7 @@ namespace bpkg
 
   static rep_fetch_data
   rep_fetch_pkg (const common_options& co,
+                 fetch_cache& cache,
                  const dir_path* conf,
                  database* db,
                  const repository_location& rl,
@@ -58,16 +61,144 @@ namespace bpkg
                  bool ignore_unknown,
                  bool ignore_toolchain)
   {
-    // First fetch the repositories list and authenticate the base's
-    // certificate.
+    tracer trace ("rep_fetch_pkg");
+
+    // For the specified repository try to retrieve the repositories and
+    // packages metadata from the fetch cache, if enabled. In the offline mode
+    // fail if unable to do so (cache is disabled or there is no cached entry
+    // for the repository).
     //
-    pair<pkg_repository_manifests, string /* checksum */> rmc (
-      pkg_fetch_repositories (co, rl, ignore_unknown));
+    // Note that it's tempting to fetch the signature manifest before opening
+    // (locking) the cache if not in the offline mode, to keep it unlocked for
+    // the duration of the potential download. However, we need to query the
+    // cache entry first, since this fetch may not be necessary due to the
+    // session. On the other hand, if the query we made was the first one in
+    // the session, we need to make sure that all the concurrent queries in
+    // this session for the same repository are blocked until we fetch all the
+    // required manifests and potentially update the metadata in the cache.
+    // This feels quite hairy at the moment, so let's keep it simple for now.
+    //
+    optional<fetch_cache::loaded_pkg_repository_metadata> crm;
+
+    if (cache.enabled ())
+    {
+      cache.open (trace);
+
+      // Note that the fragment for pkg repository URLs is always nullopt, so
+      // can use the repository URL as is.
+      //
+      crm = cache.load_pkg_repository_metadata (rl.url ());
+
+      if (cache.offline () && !crm)
+        fail << "no repository metadata in fetch cache for "
+             << rl.canonical_name () << " in offline mode" <<
+          info << "consider turning off offline mode";
+    }
+    else
+    {
+      if (cache.offline ())
+        fail << "fetch cache is disabled in offline mode" <<
+          info << "consider enabling fetch cache";
+    }
+
+    // If the cached metadata is retrieved, determine which of the cached
+    // metadata files we can use. Specifically:
+    //
+    // - If no checksums are specified, then we use both the cached
+    //   repositories and packages manifest files without any up-to-dateness
+    //   checks.
+    //
+    // - Otherwise (both checksums are specified), we fetch the signature
+    //   manifest and check if the packages manifest checksum still matches
+    //   the cached checksum, and use the both cached manifest files if it
+    //   does.
+    //
+    // - Otherwise (the packages manifest checksum doesn't match), we fetch
+    //   the packages manifest and check if the repositories manifest checksum
+    //   still matches the cached checksum, and use the cached repositories
+    //   manifest file if it does.
+    //
+    // - Otherwise (none of the checksums match), we don't use the cached
+    //   metadata files.
+    //
+    // Note that we either use both cached manifest files, or none of them, or
+    // only the repositories manifest (and never the packages manifest alone).
+    //
+    path cached_repositories_path;
+    path cached_packages_path;
+
+    // While at it, stash all the fetched manifests for potential reuse.
+    //
+    optional<signature_manifest> sm;
+    optional<pair<pkg_package_manifests, string /* checksum */>> pmc;
+
+    if (crm)
+    {
+      if (crm->repositories_checksum.empty ())
+      {
+        cached_repositories_path = move (crm->repositories_path);
+        cached_packages_path = move (crm->packages_path);
+      }
+      else
+      {
+        sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
+
+        if (sm->sha256sum == crm->packages_checksum)
+        {
+          cached_repositories_path = move (crm->repositories_path);
+          cached_packages_path = move (crm->packages_path);
+        }
+        else
+        {
+          pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+
+          if (sm->sha256sum != pmc->second)
+          {
+            error << "packages manifest file checksum mismatch for "
+                  << rl.canonical_name () <<
+              info << "try again";
+
+            throw recoverable ();
+          }
+
+          pkg_package_manifests& pms (pmc->first);
+
+          if (pms.sha256sum == crm->repositories_checksum)
+            cached_repositories_path = move (crm->repositories_path);
+        }
+      }
+    }
 
     rep_fetch_data::fragment fr;
-    fr.repositories = move (rmc.first);
 
-    bool a (need_auth (co, rl));
+    // Parse the repositories manifest file, by either using its cached
+    // version or fetching it from the repository.
+    //
+    optional<pair<pkg_repository_manifests, string /* checksum */>> rmc;
+
+    if (cached_repositories_path.empty ())
+    {
+      rmc = pkg_fetch_repositories (co, rl, ignore_unknown);
+
+      fr.repositories = move (rmc->first);
+    }
+    else
+    {
+      fr.repositories = pkg_fetch_repositories (cached_repositories_path,
+                                                ignore_unknown);
+    }
+
+    // Authenticate the repository certificate or, if unsigned, make sure the
+    // repository is trusted.
+    //
+    // Note that if we use the cached packages manifest file, then we don't
+    // authenticate the repository (nor certificate). Otherwise, if we use the
+    // cached repositories manifest file, then we authenticate the repository
+    // but not the certificate (since it is already cached as a part of the
+    // repositories manifest file). But we still need to verify the
+    // certificate (validity period and such) in the latter case.
+    //
+    bool a (cached_packages_path.empty () && need_auth (co, rl));
 
     shared_ptr<const certificate> cert;
     optional<string> cert_pem (
@@ -75,37 +206,70 @@ namespace bpkg
 
     if (a)
     {
-      cert = authenticate_certificate (
-        co, conf, db, cert_pem, rl, dependent_trust);
+      if (cached_repositories_path.empty ())
+      {
+        cert = authenticate_certificate (
+          co, cache, conf, db, cert_pem, rl, dependent_trust);
+      }
+      else
+      {
+        cert = cert_pem
+          ? parse_certificate (co, *cert_pem, rl)
+          : dummy_certificate (co, rl);
+
+        verify_certificate (*cert, rl);
+      }
 
       a = !cert->dummy ();
     }
 
-    // Now fetch the packages list and make sure it matches the repositories
-    // we just fetched.
+    // Parse the packages manifest file, by either using its cached version or
+    // fetching it from the repository.
     //
-    pair<pkg_package_manifests, string /* checksum */> pmc (
-      pkg_fetch_packages (co, conf, rl, ignore_unknown));
-
-    pkg_package_manifests& pms (pmc.first);
-
-    if (rmc.second != pms.sha256sum)
+    if (cached_packages_path.empty ())
     {
-      error << "repositories manifest file checksum mismatch for "
-            << rl.canonical_name () <<
-        info << "try again";
+      // Note that if we use the cached repositories manifest (rmc is absent),
+      // then here we don't check its checksum against the one recorded in the
+      // packages manifest. That have actually been already done when we
+      // decided to use the cached repositories manifest. This also means that
+      // the packages manifest have been already fetched (pmc is present).
+      //
+      assert (rmc || pmc);
 
-      throw recoverable ();
+      // If the packages manifest is not fetched yet, then fetch it and
+      // verify that it matches the repositories manifest.
+      //
+      if (!pmc)
+      {
+        pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+
+        if (rmc->second != pmc->first.sha256sum)
+        {
+          error << "repositories manifest file checksum mismatch for "
+                << rl.canonical_name () <<
+            info << "try again";
+
+          throw recoverable ();
+        }
+      }
+
+      fr.packages = move (pmc->first);
+    }
+    else
+    {
+      fr.packages = pkg_fetch_packages (cached_packages_path, ignore_unknown);
     }
 
-    fr.packages = move (pms);
-
+    // Authenticate the repository.
+    //
     if (a)
     {
-      signature_manifest sm (
-        pkg_fetch_signature (co, rl, true /* ignore_unknown */));
+      if (!sm)
+        sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
 
-      if (sm.sha256sum != pmc.second)
+      assert (pmc); // Wouldn't be here otherwise.
+
+      if (sm->sha256sum != pmc->second)
       {
         error << "packages manifest file checksum mismatch for "
               << rl.canonical_name () <<
@@ -114,13 +278,108 @@ namespace bpkg
         throw recoverable ();
       }
 
-      if (!sm.signature)
+      if (!sm->signature)
         fail << "no signature specified in signature manifest for signed "
              << rl.canonical_name () <<
           info << "consider reporting this to the repository maintainers";
 
-      assert (cert != nullptr);
-      authenticate_repository (co, conf, cert_pem, *cert, sm, rl);
+      assert (cert != nullptr); // Wouldn't be here otherwise.
+
+      authenticate_repository (co, conf, cert_pem, *cert, *sm, rl);
+    }
+
+    // If the fetch cache is enabled, then save the fetched repositories and
+    // packages manifests, if any, into the cache and close (release) the
+    // cache.
+    //
+    if (cache.enabled ())
+    {
+      // We either use a cached manifest file or we fetch it.
+      //
+      assert (cached_repositories_path.empty () == rmc.has_value () &&
+              cached_packages_path.empty ()     == pmc.has_value ());
+
+      if (pmc)
+      {
+        fetch_cache::saved_pkg_repository_metadata srm (
+          cache.save_pkg_repository_metadata (
+            rl.url (),
+            rmc ? move (rmc->second) : string (),
+            move (pmc->second)));
+
+        // Note: use the "write to temporary and atomically move into place"
+        // technique.
+
+        // repositories.manifest
+        //
+        if (!srm.repositories_path.empty ())
+        {
+          auto_rmfile arm (srm.repositories_path + ".tmp");
+          const path& p (arm.path);
+
+          try
+          {
+            // Let's set the binary mode not to litter the manifest file
+            // with the carriage return characters on Windows.
+            //
+            ofdstream ofs (p, fdopen_mode::binary);
+            manifest_serializer s (ofs, p.string ());
+
+            assert (rmc); // Wouldn't be here otherwise.
+
+            pkg_repository_manifests& rms (rmc->first);
+
+            // Temporarily restore the manifests list in the fetched list
+            // manifest.
+            //
+            static_cast<vector<repository_manifest>&> (rms) =
+              move (fr.repositories);
+
+            rms.serialize (s);
+            fr.repositories = move (rms);
+
+            ofs.close ();
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to write to " << p << ": " << e;
+          }
+
+          mv (p, srm.repositories_path);
+          arm.cancel ();
+        }
+
+        // packages.manifest
+        //
+        {
+          auto_rmfile arm (srm.packages_path + ".tmp");
+          const path& p (arm.path);
+
+          try
+          {
+            ofdstream ofs (p, fdopen_mode::binary);
+            manifest_serializer s (ofs, p.string ());
+
+            pkg_package_manifests& pms (pmc->first);
+
+            static_cast<vector<package_manifest>&> (pms) = move (fr.packages);
+
+            pms.serialize (s);
+            fr.packages = move (pms);
+
+            ofs.close ();
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to write to " << p << ": " << e;
+          }
+
+          mv (p, srm.packages_path);
+          arm.cancel ();
+        }
+      }
+
+      cache.close ();
     }
 
     // If requested, verify that the packages are compatible with the current
@@ -813,6 +1072,7 @@ namespace bpkg
 
   static rep_fetch_data
   rep_fetch (const common_options& co,
+             fetch_cache& cache,
              const dir_path* conf,
              database* db,
              const repository_location& rl,
@@ -826,7 +1086,7 @@ namespace bpkg
     {
     case repository_type::pkg:
       {
-        return rep_fetch_pkg (co, conf, db, rl, dt, iu, it);
+        return rep_fetch_pkg (co, cache, conf, db, rl, dt, iu, it);
       }
     case repository_type::dir:
       {
@@ -844,6 +1104,7 @@ namespace bpkg
 
   rep_fetch_data
   rep_fetch (const common_options& co,
+             fetch_cache& cache,
              const dir_path* conf,
              const repository_location& rl,
              bool iu,
@@ -852,6 +1113,7 @@ namespace bpkg
              bool lb)
   {
     return rep_fetch (co,
+                      cache,
                       conf,
                       nullptr /* database */,
                       rl,
@@ -1169,8 +1431,7 @@ namespace bpkg
       bool persist (false);
 
       shared_ptr<available_package> p (
-        db.find<available_package> (
-          available_package_id (pm.name, pm.version)));
+        db.find<available_package> (package_id (pm.name, pm.version)));
 
       if (p == nullptr)
       {
@@ -1241,6 +1502,7 @@ namespace bpkg
   //
   static void
   rep_fetch (const common_options& co,
+             fetch_cache& cache,
              database& db,
              transaction& t,
              const shared_ptr<repository>& r,
@@ -1273,12 +1535,15 @@ namespace bpkg
       // authenticated).
       //
       if (need_auth (co, r->location))
+      {
         authenticate_certificate (co,
+                                  cache,
                                   &db.config_orig,
                                   &db,
                                   r->certificate,
                                   r->location,
                                   dependent_trust);
+      }
 
       return;
     }
@@ -1350,6 +1615,7 @@ namespace bpkg
     //
     rep_fetch_data rfd (
       rep_fetch (co,
+                 cache,
                  &db.config_orig,
                  &db,
                  rl,
@@ -1450,6 +1716,7 @@ namespace bpkg
         rm (pr);
 
       auto fetch = [&co,
+                    &cache,
                     &db,
                     &t,
                     &fetched_repositories,
@@ -1465,6 +1732,7 @@ namespace bpkg
         assert (i != repo_trust.end ());
 
         rep_fetch (co,
+                   cache,
                    db,
                    t,
                    r,
@@ -1500,6 +1768,7 @@ namespace bpkg
 
   static void
   rep_fetch (const common_options& o,
+             fetch_cache& cache,
              database& db,
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos,
@@ -1536,6 +1805,7 @@ namespace bpkg
       //
       for (const lazy_shared_ptr<repository>& r: repos)
         rep_fetch (o,
+                   cache,
                    db,
                    t,
                    r.load (),
@@ -1603,7 +1873,7 @@ namespace bpkg
                qv.revision + "," +
                qv.iteration);
 
-      available_package_id ap;
+      package_id ap;
       shared_ptr<repository_fragment> rf;
 
       for (const auto& prf: db.query<package_repository_fragment> (q))
@@ -1615,7 +1885,7 @@ namespace bpkg
         // Fail if the external package is of the same upstream version and
         // revision as the previous one.
         //
-        const available_package_id& id (prf.package_id);
+        const package_id& id (prf.package_id);
 
         if (id.name == ap.name &&
             compare_version_eq (id.version,
@@ -1858,6 +2128,7 @@ namespace bpkg
 
   void
   rep_fetch (const common_options& o,
+             fetch_cache& cache,
              database& db,
              const vector<repository_location>& rls,
              bool shallow,
@@ -1893,7 +2164,7 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, db, t, repos, shallow, false /* full_fetch */, reason);
+    rep_fetch (o, cache, db, t, repos, shallow, false /* full_fetch */, reason);
 
     t.commit ();
   }
@@ -1905,6 +2176,8 @@ namespace bpkg
 
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
+
+    fetch_cache cache (o);
 
     // Build the list of repositories the user wants to fetch.
     //
@@ -2011,7 +2284,7 @@ namespace bpkg
       }
     }
 
-    rep_fetch (o, db, t, repos, o.shallow (), full_fetch, reason);
+    rep_fetch (o, cache, db, t, repos, o.shallow (), full_fetch, reason);
 
     size_t rcount (0), pcount (0);
     if (verb)

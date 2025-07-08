@@ -64,11 +64,12 @@ libue{bpkg}: {hxx ixx txx cxx}{** -bpkg              \
                                   -*-odb             \
                                   -version           \
                                   -**.test...}       \
-             {hxx ixx cxx}{$options_topics}          \
-             {hxx cxx}{$help_topics}                 \
-             {hxx ixx cxx}{package-odb}              \
-             {hxx ixx cxx}{fetch-cache-data-odb}     \
-             {hxx}{version}                          \
+             {hxx            }{version}              \
+             {hxx ixx     cxx}{package-common-odb    \
+                               package-odb           \
+                               fetch-cache-data-odb  \
+                               $options_topics}      \
+             {hxx         cxx}{$help_topics}         \
              $libs                                   \
              xml{*}
 

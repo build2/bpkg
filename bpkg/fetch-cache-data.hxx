@@ -4,17 +4,16 @@
 #ifndef BPKG_FETCH_CACHE_DATA_HXX
 #define BPKG_FETCH_CACHE_DATA_HXX
 
-#include <chrono>
-#include <type_traits> // static_assert
-
 #include <odb/core.hxx>
-
-#include <libbutl/timestamp.hxx>
-
-#include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
+
+// Must be included last and have no <libbpkg/manifest.hxx> inclusion in front
+// of it (includes it itself; see assert and _version in package-common.hxx
+// for details).
+//
+#include <bpkg/package-common.hxx>
 
 // Used by the data migration entries.
 //
@@ -28,44 +27,6 @@
 
 namespace bpkg
 {
-  // timestamp
-  //
-  using butl::timestamp;
-  using butl::timestamp_unknown;
-
-  // Ensure that timestamp can be represented in nonoseconds without loss of
-  // accuracy, so the following ODB mapping is adequate.
-  //
-  static_assert (
-    std::ratio_greater_equal<timestamp::period,
-                             std::chrono::nanoseconds::period>::value,
-    "The following timestamp ODB mapping is invalid");
-
-  // As pointed out in libbutl/timestamp.hxx we will overflow in year 2262, but
-  // by that time some larger basic type will be available for mapping.
-  //
-  #pragma db map type(timestamp) as(uint64_t)                 \
-    to(std::chrono::duration_cast<std::chrono::nanoseconds> ( \
-         (?).time_since_epoch ()).count ())                   \
-    from(butl::timestamp (                                    \
-      std::chrono::duration_cast<butl::timestamp::duration> ( \
-        std::chrono::nanoseconds (?))))
-
-  // path
-  //
-  // In some contexts it may denote directory, so lets preserve the trailing
-  // slash, if present.
-  //
-  #pragma db map type(path) as(string)  \
-    to((?).representation ()) from(bpkg::path (?))
-
-  #pragma db map type(dir_path) as(string)  \
-    to((?).string ()) from(bpkg::dir_path (?))
-
-  // repository_url
-  //
-  #pragma db value(repository_url) type("TEXT")
-
   // Cache entry for trusted (authenticated) pkg repository certificates.
   //
   // See the certificate class in package.hxx for background.
@@ -146,14 +107,10 @@ namespace bpkg
 
   // Cache entry for package archive of pkg type repositories.
   //
-  /*
   #pragma db object pointer(unique_ptr)
   class pkg_repository_package
   {
   public:
-    // @@ TODO: need to factor these (and the above) into package-common.hxx.
-    //
-
     // Note that currently we don't really need the original version, but
     // let's keep it if that changes in the future and for debuggability.
     //
@@ -170,8 +127,22 @@ namespace bpkg
     //
     path archive;
     string checksum;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id column("")
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
+    #pragma db member(archive) unique
   };
-  */
+
+  #pragma db view object(pkg_repository_auth)
+  struct pkg_repository_auth_count
+  {
+    #pragma db column("count(*)")
+    size_t result;
+
+    operator size_t () const {return result;}
+  };
 }
 
 #endif // BPKG_FETCH_CACHE_DATA_HXX
