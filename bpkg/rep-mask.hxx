@@ -5,7 +5,7 @@
 #define BPKG_REP_MASK_HXX
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // database, repository
+#include <bpkg/forward.hxx> // repository
 #include <bpkg/utility.hxx>
 
 namespace bpkg

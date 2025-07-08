@@ -22,12 +22,18 @@ namespace bpkg
   // fetching manifests and archives from the remote pkg repository.
   //
   pkg_repository_manifests
+  pkg_fetch_repositories (const path&, bool ignore_unknown);
+
+  pkg_repository_manifests
   pkg_fetch_repositories (const dir_path&, bool ignore_unknown);
 
   pair<pkg_repository_manifests, string /* checksum */>
   pkg_fetch_repositories (const common_options&,
                           const repository_location&,
                           bool ignore_unknown);
+
+  pkg_package_manifests
+  pkg_fetch_packages (const path&, bool ignore_unknown);
 
   pkg_package_manifests
   pkg_fetch_packages (const dir_path&, bool ignore_unknown);

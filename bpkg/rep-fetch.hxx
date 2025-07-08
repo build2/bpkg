@@ -7,6 +7,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-fetch-options.hxx>
@@ -63,6 +64,7 @@ namespace bpkg
   //
   rep_fetch_data
   rep_fetch (const common_options&,
+             fetch_cache&,
              const dir_path* configuration,
              const repository_location&,
              bool ignore_unknown,
@@ -80,6 +82,7 @@ namespace bpkg
   //
   void
   rep_fetch (const common_options&,
+             fetch_cache&,
              database&,
              const vector<repository_location>&,
              bool shallow,

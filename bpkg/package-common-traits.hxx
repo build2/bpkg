@@ -1,8 +1,8 @@
-// file      : bpkg/value-traits.hxx -*- C++ -*-
+// file      : bpkg/package-common-traits.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BPKG_VALUE_TRAITS_HXX
-#define BPKG_VALUE_TRAITS_HXX
+#ifndef BPKG_PACKAGE_COMMON_TRAITS_HXX
+#define BPKG_PACKAGE_COMMON_TRAITS_HXX
 
 #include <string>
 #include <cstddef> // size_t
@@ -83,4 +83,4 @@ namespace odb
   }
 }
 
-#endif // BPKG_WRAPPER_TRAITS_HXX
+#endif // BPKG_PACKAGE_COMMON_TRAITS_HXX

@@ -24,5 +24,29 @@
         <column name="directory"/>
       </index>
     </table>
+    <table name="pkg_repository_package" kind="object">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="archive" type="TEXT" null="true"/>
+      <column name="checksum" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </primary-key>
+      <index name="pkg_repository_package_archive_i" type="UNIQUE">
+        <column name="archive"/>
+      </index>
+    </table>
   </model>
 </changelog>
