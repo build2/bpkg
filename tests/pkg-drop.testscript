@@ -471,9 +471,7 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
 : linked-configs
 :
 {{
-  # Get rid of -d option.
-  #
-  pkg_build = [cmdline] $0 pkg-build --yes --sys-no-query 2>!
+  pkg_build_cfg_bar = [cmdline] $regex.apply($pkg_build, '^cfg$', 'cfg-bar')
 
   : 3-configs
   :
@@ -493,12 +491,12 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       cp -pr ../cfg-bar ./
       cp -pr ../cfg-foo ./
 
-      $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes
+      $pkg_build_cfg_bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
+                         --trust-yes
 
-      $pkg_build -d cfg libbaz
+      $pkg_build libbaz
 
-      $pkg_build -d cfg '?libbar' +{ --config-id 1 }
+      $pkg_build '?libbar' +{ --config-id 1 }
 
       $* libbaz <<EOI 2>>/~%EOE%
           y
@@ -526,16 +524,16 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       cp -pr ../cfg-bar ./
       cp -pr ../cfg-foo ./
 
-      $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes
+      $pkg_build_cfg_bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
+                         --trust-yes
 
-      $pkg_build -d cfg libbaz
+      $pkg_build libbaz
 
       # Make sure that dependents of a package being dropped can be found in
       # implicitly linked configurations recursively. Note that configuring
       # libbar as system, we make libbaz an only dependent of libfoo.
       #
-      $pkg_build -d cfg '?sys:libbar' +{ --config-id 1 }
+      $pkg_build '?sys:libbar' +{ --config-id 1 }
 
       $pkg_status -r libbaz >>/EOO
         !libbaz configured 1.1.0
@@ -586,10 +584,10 @@ $* libfoo/1.0.0 2>>~%EOE% != 0
       $cfg_link -d cfg-bar cfg
       $cfg_link -d cfg-foo cfg-bar
 
-      $pkg_build -d cfg-bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
-                 --trust-yes
+      $pkg_build_cfg_bar libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } \
+                         --trust-yes
 
-      $pkg_build -d cfg libbaz
+      $pkg_build libbaz
 
       $pkg_status -r libbaz >>/EOO
         !libbaz configured 1.1.0
