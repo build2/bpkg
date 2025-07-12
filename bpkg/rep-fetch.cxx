@@ -68,6 +68,16 @@ namespace bpkg
     // fail if unable to do so (cache is disabled or there is no cached entry
     // for the repository).
     //
+    // Note that it's tempting to fetch the signature manifest before opening
+    // (locking) the cache if not in the offline mode, to keep it unlocked for
+    // the duration of the potential download. However, we need to query the
+    // cache entry first, since this fetch may not be necessary due to the
+    // session. Can we just temporarily release the lock before the download
+    // and re-lock and re-query the metadata entry afterwards? Keeping in mind
+    // the we need to do something about the session, which has already been
+    // updated for the entry, it feels too hairy at the moment. So let's keep
+    // it simple for now.
+    //
     optional<fetch_cache::loaded_pkg_repository_metadata> crm;
 
     if (cache.enabled ())
@@ -185,7 +195,8 @@ namespace bpkg
     // authenticate the repository (nor certificate). Otherwise, if we use the
     // cached repositories manifest file, then we authenticate the repository
     // but not the certificate (since it is already cached as a part of the
-    // repositories manifest file).
+    // repositories manifest file). But we still need to verify the
+    // certificate (validity period and such) in the latter case.
     //
     bool a (cached_packages_path.empty () && need_auth (co, rl));
 
@@ -202,9 +213,13 @@ namespace bpkg
       }
       else
       {
-        cert = cert_pem
-          ? parse_certificate (co, *cert_pem, rl)
-          : dummy_certificate (co, rl);
+        if (cert_pem)
+        {
+          cert = parse_certificate (co, *cert_pem, rl);
+          verify_certificate (*cert, rl);
+        }
+        else
+          cert = dummy_certificate (co, rl);
       }
 
       a = !cert->dummy ();
@@ -275,13 +290,13 @@ namespace bpkg
       authenticate_repository (co, conf, cert_pem, *cert, *sm, rl);
     }
 
-    // Save the fetched repositories and packages manifests into the fetch
-    // cache, if enabled. Use the "write to temporary and atomically move into
-    // place" technique.
+    // If the fetch cache is enabled, then save the fetched repositories and
+    // packages manifests, if any, into the cache and close (release) the
+    // cache.
     //
     if (cache.enabled ())
     {
-      // We always either use the cached manifest file or we fetch it.
+      // We either use a cached manifest file or we fetch it.
       //
       assert (cached_repositories_path.empty () == rmc.has_value () &&
               cached_packages_path.empty ()     == pmc.has_value ());
@@ -293,6 +308,9 @@ namespace bpkg
             rl.url (),
             rmc ? move (rmc->second) : string (),
             move (pmc->second)));
+
+        // Note: use the "write to temporary and atomically move into place"
+        // technique.
 
         // repositories.manifest
         //
@@ -1516,9 +1534,6 @@ namespace bpkg
       //
       if (need_auth (co, r->location))
       {
-        if (cache.enabled ())
-          cache.open (trace);
-
         authenticate_certificate (co,
                                   cache,
                                   &db.config_orig,
@@ -1526,9 +1541,6 @@ namespace bpkg
                                   r->certificate,
                                   r->location,
                                   dependent_trust);
-
-        if (cache.enabled ())
-          cache.close ();
       }
 
       return;

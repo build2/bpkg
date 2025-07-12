@@ -39,6 +39,8 @@ namespace bpkg
   //
   // Also note that it should be called in session.
   //
+  // Note: the fetch cache should not be open.
+  //
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
              fetch_cache&,

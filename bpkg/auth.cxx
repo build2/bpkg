@@ -170,36 +170,62 @@ namespace bpkg
     shared_ptr<certificate> cert (
       make_shared<certificate> (fp, name_prefix (rl)));
 
-    if (cache.enabled () && cache.load_pkg_repository_auth (fp))
+    // Should we close (release) the fetch cache before prompting the user and
+    // re-lock and re-query the entry afterwards? Probably not, since this way
+    // we may potentially end up asking the same question in multiple
+    // terminals.
+    //
+    bool cached (false);
+    bool close_cache (false);
+
+    if (cache.enabled ())
     {
-      l4 ([&]{trace << "cached cert: " << *cert;});
-      return cert;
+      if (!cache.is_open ())
+      {
+        cache.open (trace);
+        close_cache = true;
+      }
+
+      cached = cache.load_pkg_repository_auth (fp);
     }
 
-    l4 ([&]{trace << "new cert: " << *cert;});
-
-    if (co.trust_yes ())
+    if (cached)
     {
-      if (verb >= 2)
-        info << "unsigned repository " << rl.canonical_name () <<
-          " trusted by command line";
+      l4 ([&]{trace << "cached cert: " << *cert;});
     }
     else
     {
-      (co.trust_no ()
-       ? error
-       : warn) << "repository " << rl.canonical_name () << " is unsigned";
+      l4 ([&]{trace << "new cert: " << *cert;});
+
+      if (co.trust_yes ())
+      {
+        if (verb >= 2)
+          info << "unsigned repository " << rl.canonical_name () <<
+            " trusted by command line";
+      }
+      else
+      {
+        (co.trust_no ()
+         ? error
+         : warn) << "repository " << rl.canonical_name () << " is unsigned";
+      }
+
+      if (co.trust_no () ||
+          (!co.trust_yes () &&
+           !yn_prompt (
+             string ("continue without authenticating repositories at " +
+                     cert->name + "? [y/n]").c_str ())))
+        throw failed ();
     }
 
-    if (co.trust_no () ||
-        (!co.trust_yes () &&
-         !yn_prompt (
-           string ("continue without authenticating repositories at " +
-                   cert->name + "? [y/n]").c_str ())))
-      throw failed ();
-
     if (cache.enabled ())
-      cache.save_pkg_repository_auth (fp, "" /* fingerprint */, cert->name);
+    {
+      if (!cached)
+        cache.save_pkg_repository_auth (fp, "" /* fingerprint */, cert->name);
+
+      if (close_cache)
+        cache.close ();
+    }
 
     return cert;
   }
@@ -582,10 +608,8 @@ namespace bpkg
     throw failed ();
   }
 
-  // Verify the certificate (validity period and such).
-  //
-  static void
-  verify_cert (const certificate& cert, const repository_location& rl)
+  void
+  verify_certificate (const certificate& cert, const repository_location& rl)
   {
     if (!cert.dummy ())
     {
@@ -618,72 +642,95 @@ namespace bpkg
     shared_ptr<certificate> cert (
       parse_cert (co, fp, pem, rl.canonical_name ()));
 
+    verify_certificate (*cert, rl);
+
     // If the certificate is in the cache then it is authenticated by the
     // user. In this case the dependent trust doesn't really matter as the
     // user is more authoritative then the dependent.
     //
-    if (cache.enabled () && cache.load_pkg_repository_auth (fp.abbreviated))
+    // Note that we don't close (release) the fetch cache before prompting the
+    // user (see auth_dummy() for the reasoning).
+    //
+    bool cached (false);
+    bool close_cache (false);
+
+    if (cache.enabled ())
     {
-      l4 ([&]{trace << "cached cert: " << *cert;});
-      verify_cert (*cert, rl);
-      return cert_auth {move (cert), true};
+      if (!cache.is_open ())
+      {
+        cache.open (trace);
+        close_cache = true;
+      }
+
+      cached = cache.load_pkg_repository_auth (fp.abbreviated);
     }
-
-    l4 ([&]{trace << "new cert: " << *cert;});
-
-    verify_cert (*cert, rl);
 
     bool user (true);
 
-    // @@ Is there a way to intercept CLI parsing for the specific option of
-    // the standard type to validate/convert the value? If there were, we could
-    // validate the option value converting fp to sha (internal representation
-    // of fp).
-    //
-    // @@ Not easily/cleanly. The best way is to derive a custom type which
-    //    will probably be an overkill here.
-    //
-    bool trust (co.trust_yes () ||
-                co.trust ().find (cert->fingerprint) != co.trust ().end ());
-
-    if (trust)
+    if (cached)
     {
-      if (verb >= 2)
-        info << "certificate for repository " << rl.canonical_name () <<
-          " authenticated by command line";
-    }
-    else if (dependent_trust &&
-             icasecmp (*dependent_trust, cert->fingerprint) == 0)
-    {
-      if (verb >= 2)
-        info << "certificate for repository " << rl.canonical_name () <<
-          " authenticated by dependent trust";
-
-      user = false;
+      l4 ([&]{trace << "cached cert: " << *cert;});
     }
     else
     {
-      (co.trust_no () ? error : warn)
-        << "authenticity of the certificate for repository "
-        << rl.canonical_name () << " cannot be established";
+      l4 ([&]{trace << "new cert: " << *cert;});
 
-      if (!co.trust_no () && verb)
+      // @@ Is there a way to intercept CLI parsing for the specific option of
+      //    the standard type to validate/convert the value? If there were, we
+      //    could validate the option value converting fp to sha (internal
+      //    representation of fp).
+      //
+      // @@ Not easily/cleanly. The best way is to derive a custom type which
+      //    will probably be an overkill here.
+      //
+      bool trust (co.trust_yes () ||
+                  co.trust ().find (cert->fingerprint) != co.trust ().end ());
+
+      if (trust)
       {
-        text << "certificate is for " << cert->name << ", \""
-             << cert->organization << "\" <" << cert->email << ">";
-
-        text << "certificate SHA256 fingerprint:";
-        text << cert->fingerprint;
+        if (verb >= 2)
+          info << "certificate for repository " << rl.canonical_name () <<
+            " authenticated by command line";
       }
+      else if (dependent_trust &&
+               icasecmp (*dependent_trust, cert->fingerprint) == 0)
+      {
+        if (verb >= 2)
+          info << "certificate for repository " << rl.canonical_name () <<
+            " authenticated by dependent trust";
 
-      if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
-        throw failed ();
+        user = false;
+      }
+      else
+      {
+        (co.trust_no () ? error : warn)
+          << "authenticity of the certificate for repository "
+          << rl.canonical_name () << " cannot be established";
+
+        if (!co.trust_no () && verb)
+        {
+          text << "certificate is for " << cert->name << ", \""
+               << cert->organization << "\" <" << cert->email << ">";
+
+          text << "certificate SHA256 fingerprint:";
+          text << cert->fingerprint;
+        }
+
+        if (co.trust_no () || !yn_prompt ("trust this certificate? [y/n]"))
+          throw failed ();
+      }
     }
 
-    if (cache.enabled () && user)
-      cache.save_pkg_repository_auth (fp.abbreviated,
-                                      fp.canonical,
-                                      cert->name);
+    if (cache.enabled ())
+    {
+      if (user && !cached)
+        cache.save_pkg_repository_auth (fp.abbreviated,
+                                        fp.canonical,
+                                        cert->name);
+
+      if (close_cache)
+        cache.close ();
+    }
 
     return cert_auth {move (cert), user};
   }
@@ -712,7 +759,7 @@ namespace bpkg
     if (cert != nullptr)
     {
       l4 ([&]{trace << "existing cert: " << *cert;});
-      verify_cert (*cert, rl);
+      verify_certificate (*cert, rl);
       return cert;
     }
 

@@ -73,6 +73,12 @@ namespace bpkg
     void
     open (tracer&);
 
+    bool
+    is_open () const
+    {
+      return db_ != nullptr;
+    }
+
     void
     close ();
 

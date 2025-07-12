@@ -62,6 +62,8 @@ namespace bpkg
   // that for pkg repositories such values are expanded/loaded at the
   // repository creation time.
   //
+  // Note: the fetch cache should not be open.
+  //
   rep_fetch_data
   rep_fetch (const common_options&,
              fetch_cache&,
@@ -79,6 +81,8 @@ namespace bpkg
   // should be called in session.
   //
   // If reason is absent, then don't print the "fetching ..." progress line.
+  //
+  // Note: the fetch cache should not be open.
   //
   void
   rep_fetch (const common_options&,

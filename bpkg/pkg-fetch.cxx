@@ -336,6 +336,20 @@ namespace bpkg
 
     if (!simulate)
     {
+      // Stash the existing package archive if it needs to be overwritten (see
+      // above for details).
+      //
+      // Note: compare the archive absolute paths.
+      //
+      if (replace                                          &&
+          (sp = pdb.find<selected_package> (n)) != nullptr &&
+          sp->archive                                      &&
+          sp->effective_archive (pdb.config) == pdb.config / an)
+      {
+        earm = tmp_file (pdb.config_orig, n.string () + '-' + v.string ());
+        mv (a, earm.path);
+      }
+
       // Try to create a hard link to a file and, if that fails, copy this
       // file to the link location. In the latter case, use the "write to
       // temporary and atomically move into place" technique.
@@ -404,28 +418,53 @@ namespace bpkg
             info << "consider enabling fetch cache";
       }
 
-      // Stash the existing package archive if it needs to be overwritten (see
-      // above for details).
+      // Add the package archive file to the configuration, by either using
+      // its cached version in place or fetching it from the repository. In
+      // the latter case, if the cache is open, let's close (release) it for
+      // the time we download the archive. After the download re-open the
+      // cache, re-query the entry, and stick to the plan if it still doesn't
+      // exist or drop the fetched archive and behave as if the entry existed
+      // from the very beginning.
       //
-      // Note: compare the archive absolute paths.
-      //
-      if (replace                                          &&
-          (sp = pdb.find<selected_package> (n)) != nullptr &&
-          sp->archive                                      &&
-          sp->effective_archive (pdb.config) == pdb.config / an)
-      {
-        earm = tmp_file (pdb.config_orig, n.string () + '-' + v.string ());
-        mv (a, earm.path);
-      }
+      string fcs; // Fetched archive checksum.
 
       // We can't be fetching an archive for a transient object.
       //
       assert (ap->sha256sum);
 
-      // Add the package archive file to the configuration, by either using
-      // its cached version or fetching it from the repository.
-      //
-      string fcs; // Fetched archive checksum.
+      if (!crp)
+      {
+        if (cache.is_open ())
+          cache.close ();
+
+        pkg_fetch_archive (
+          co, pl->repository_fragment->location, pl->location, a);
+
+        if (cache.enabled ())
+        {
+          cache.open (trace);
+
+          crp = cache.load_pkg_repository_package (pid);
+        }
+
+        if (!crp)
+        {
+          arm = auto_rmfile (a);
+
+          fcs = sha256sum (co, a);
+          if (fcs != *ap->sha256sum)
+          {
+            fail << "checksum mismatch for " << n << " " << v <<
+              info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
+              info << "fetched archive has " << fcs <<
+              info << "consider re-fetching package list and trying again" <<
+              info << "if problem persists, consider reporting this to "
+                 << "the repository maintainer";
+          }
+        }
+        else
+          rm (a);
+      }
 
       if (crp)
       {
@@ -469,27 +508,9 @@ namespace bpkg
           arm = auto_rmfile (a);
         }
       }
-      else
-      {
-        pkg_fetch_archive (
-          co, pl->repository_fragment->location, pl->location, a);
 
-        arm = auto_rmfile (a);
-
-        fcs = sha256sum (co, a);
-        if (fcs != *ap->sha256sum)
-        {
-          fail << "checksum mismatch for " << n << " " << v <<
-            info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-            info << "fetched archive has " << fcs <<
-            info << "consider re-fetching package list and trying again" <<
-            info << "if problem persists, consider reporting this to "
-                 << "the repository maintainer";
-        }
-      }
-
-      // Save the fetched package archive into the cache, if enabled. Use the
-      // "write to temporary and atomically move into place" technique.
+      // If the fetch cache is enabled, then save the package archive, if we
+      // fetched it, into the cache and close (release) the cache.
       //
       if (cache.enabled ())
       {

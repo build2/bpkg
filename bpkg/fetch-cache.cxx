@@ -189,7 +189,7 @@ namespace bpkg
   void fetch_cache::
   open (tracer& tr)
   {
-    assert (enabled () && db_ == nullptr);
+    assert (enabled () && !is_open ());
 
     tracer trace ("fetch_cache::open");
 
@@ -288,7 +288,7 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
-    if (db_ != nullptr)
+    if (is_open ())
     {
       db_.reset ();
     }
@@ -327,7 +327,7 @@ namespace bpkg
   bool fetch_cache::
   load_pkg_repository_auth (const string& id)
   {
-    assert (db_ != nullptr); // The open() function should have been called.
+    assert (is_open ()); // The open() function should have been called.
 
     database& db (*db_);
     transaction t (db);
@@ -344,7 +344,7 @@ namespace bpkg
   {
     // The load_pkg_repository_auth() function should have been called.
     //
-    assert (db_ != nullptr);
+    assert (is_open ());
 
     database& db (*db_);
     transaction t (db);
@@ -384,7 +384,7 @@ namespace bpkg
         ((dir_path (directory_) /= "pkg") /= "metadata");
     }
 
-    assert (db_ != nullptr); // The open() function should have been called.
+    assert (is_open ()); // The open() function should have been called.
 
     database& db (*db_);
     transaction t (db);
@@ -537,7 +537,7 @@ namespace bpkg
         ((dir_path (directory_) /= "pkg") /= "packages");
     }
 
-    assert (db_ != nullptr); // The open() function should have been called.
+    assert (is_open ()); // The open() function should have been called.
 
     database& db (*db_);
     transaction t (db);
