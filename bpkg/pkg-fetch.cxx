@@ -372,7 +372,8 @@ namespace bpkg
                 c == EPERM  || // Not supported by the filesystem(s).
                 c == EXDEV)    // On different filesystems.
             {
-              path p (link + ".tmp");
+              auto_rmfile arm (link + ".tmp");
+              const path& p (arm.path);
 
               try
               {
@@ -385,6 +386,7 @@ namespace bpkg
               }
 
               mv (p, link);
+              arm.cancel ();
             }
           }
 
@@ -437,6 +439,8 @@ namespace bpkg
         if (cache.is_open ())
           cache.close ();
 
+        arm = auto_rmfile (a);
+
         pkg_fetch_archive (
           co, pl->repository_fragment->location, pl->location, a);
 
@@ -449,8 +453,6 @@ namespace bpkg
 
         if (!crp)
         {
-          arm = auto_rmfile (a);
-
           fcs = sha256sum (co, a);
           if (fcs != *ap->sha256sum)
           {
@@ -535,9 +537,11 @@ namespace bpkg
             // to the destination filesystem under the temporary name and then
             // rename it to the final name.
             //
-            path p (ca + ".tmp");
+            auto_rmfile rm (ca + ".tmp");
+            const path& p (rm.path);
             mv (a, p);
             mv (p, ca);
+            rm.cancel ();
 
             a = move (ca);
             purge = false;

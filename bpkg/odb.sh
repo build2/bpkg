@@ -42,7 +42,7 @@ $odb "${inc[@]}"                                                      \
     -d sqlite --std c++14                                             \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
-    --hxx-prologue '#include <bpkg/package-common-traits.hxx>'        \
+    --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
     package-common.hxx
 

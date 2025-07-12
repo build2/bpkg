@@ -72,11 +72,11 @@ namespace bpkg
     // (locking) the cache if not in the offline mode, to keep it unlocked for
     // the duration of the potential download. However, we need to query the
     // cache entry first, since this fetch may not be necessary due to the
-    // session. Can we just temporarily release the lock before the download
-    // and re-lock and re-query the metadata entry afterwards? Keeping in mind
-    // the we need to do something about the session, which has already been
-    // updated for the entry, it feels too hairy at the moment. So let's keep
-    // it simple for now.
+    // session. On the other hand, if the query we made was the first one in
+    // the session, we need to make sure that all the concurrent queries in
+    // this session for the same repository are blocked until we fetch all the
+    // required manifests and potentially update the metadata in the cache.
+    // This feels quite hairy at the moment, so let's keep it simple for now.
     //
     optional<fetch_cache::loaded_pkg_repository_metadata> crm;
 
@@ -213,13 +213,11 @@ namespace bpkg
       }
       else
       {
-        if (cert_pem)
-        {
-          cert = parse_certificate (co, *cert_pem, rl);
-          verify_certificate (*cert, rl);
-        }
-        else
-          cert = dummy_certificate (co, rl);
+        cert = cert_pem
+          ? parse_certificate (co, *cert_pem, rl)
+          : dummy_certificate (co, rl);
+
+        verify_certificate (*cert, rl);
       }
 
       a = !cert->dummy ();
@@ -316,7 +314,8 @@ namespace bpkg
         //
         if (!srm.repositories_path.empty ())
         {
-          path p (srm.repositories_path + ".tmp");
+          auto_rmfile arm (srm.repositories_path + ".tmp");
+          const path& p (arm.path);
 
           try
           {
@@ -347,12 +346,14 @@ namespace bpkg
           }
 
           mv (p, srm.repositories_path);
+          arm.cancel ();
         }
 
         // packages.manifest
         //
         {
-          path p (srm.packages_path + ".tmp");
+          auto_rmfile arm (srm.packages_path + ".tmp");
+          const path& p (arm.path);
 
           try
           {
@@ -374,6 +375,7 @@ namespace bpkg
           }
 
           mv (p, srm.packages_path);
+          arm.cancel ();
         }
       }
 

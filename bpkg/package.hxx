@@ -20,7 +20,8 @@
 #include <bpkg/diagnostics.hxx>
 
 // Must be included last and have no <libbpkg/manifest.hxx> inclusion in front
-// of it (includes it itself; see assert and _version).
+// of it (includes it itself; see assert and _version in package-common.hxx
+// for details).
 //
 #include <bpkg/package-common.hxx>
 

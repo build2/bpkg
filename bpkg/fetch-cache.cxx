@@ -349,8 +349,8 @@ namespace bpkg
     database& db (*db_);
     transaction t (db);
 
-    db.persist (
-      pkg_repository_auth {move (id), move (fingerprint), move (name)});
+    pkg_repository_auth a {move (id), move (fingerprint), move (name)};
+    db.persist (a);
 
     t.commit ();
   }
@@ -583,7 +583,7 @@ namespace bpkg
     if (!exists (pkg_repository_package_directory_))
       mk_p (pkg_repository_package_directory_);
 
-    dir_path an (id.name.string () + '-' + v.string () + ".tar.gz");
+    path an (id.name.string () + '-' + v.string () + ".tar.gz");
     path r (pkg_repository_package_directory_ / an);
 
     database& db (*db_);
@@ -595,14 +595,14 @@ namespace bpkg
     if (exists (r))
       rm (r);
 
-    pkg_repository_package rp {
+    pkg_repository_package p {
       move (id),
       move (v),
       system_clock::now (),
       move (an),
       move (checksum)};
 
-    db.persist (rp);
+    db.persist (p);
 
     t.commit ();
     return r;

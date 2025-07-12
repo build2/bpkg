@@ -1136,9 +1136,8 @@ else
   {
     $clone_root_cfg && $rep_add $rep/hello
 
-    # Verify that before the metadata authentication answers are cached, we
-    # download all the manifest files and authenticate the certificate while
-    # fetching the repository.
+    # Verify that for the first repository fetch we download all the manifest
+    # files and authenticate the certificate.
     #
     $* --trust $cert_fp 2>&1 &cache/*** | set out
 
@@ -1202,8 +1201,8 @@ else
   {
     $clone_root_cfg && $rep_add $rep/hello-unsigned
 
-    # Verify that before the authentication answers are cached, we trust the
-    # unsigned repository by command line while fetching this repository.
+    # Verify that for the first unsigned repository fetch we trust the
+    # repository by command line.
     #
     $* --trust-yes 2>&1 &cache/*** | set out
 
