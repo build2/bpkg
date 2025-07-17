@@ -2177,8 +2177,6 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    fetch_cache cache (o);
-
     // Build the list of repositories the user wants to fetch.
     //
     vector<lazy_shared_ptr<repository>> repos;
@@ -2187,6 +2185,8 @@ namespace bpkg
     // package_iteration().
     //
     database db (c, trace, true /* pre_attach */, false /* sys_rep */);
+
+    fetch_cache cache (o, &db); // @@ FC: correct db?
 
     transaction t (db);
     session s; // Repository dependencies can have cycles.

@@ -9,6 +9,7 @@
 
 #include <odb/sqlite/exceptions.hxx>
 
+#include <bpkg/database.hxx>         // database::fetch_cache_mode
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx> // {repositories,packages}_file
 
@@ -25,83 +26,124 @@ namespace bpkg
   // Note that directory and session are only initialized if the cache is
   // enabled.
   //
-  struct cache_mode
-  {
-    bool src = true;
-    bool trust = true;
-    bool offline = false;
-  };
+  using cache_mode = fetch_cache::cache_mode;
 
-  static optional<bool> enabled_;
-  static optional<cache_mode> mode_;
+  static optional<optional<bool>> ops_enabled_;
+  static optional<cache_mode> ops_mode_;
   static dir_path directory_;
   static string session_;
 
-  static const cache_mode&
+  cache_mode fetch_cache::
   mode (const common_options& co)
   {
-    if (!mode_)
+    cache_mode r;
+
+    auto parse = [&r] (const string& s, const char* what)
     {
-      mode_ = cache_mode ();
-
-      auto parse = [] (const string& s, const char* what)
+      // NOTE: see also a special version of this below as well as in bdep.
+      //
+      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
       {
-        for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
+        if      (s.compare (b, n, "src") == 0)      r.src = true;
+        else if (s.compare (b, n, "no-src") == 0)   r.src = false;
+        else if (s.compare (b, n, "trust") == 0)    r.trust = true;
+        else if (s.compare (b, n, "no-trust") == 0) r.trust = false;
+        else if (s.compare (b, n, "offline") == 0)  r.offline = true;
+        else
         {
-          if      (s.compare (b, n, "no-src") == 0)   mode_->src = false;
-          else if (s.compare (b, n, "no-trust") == 0) mode_->trust = false;
-          else if (s.compare (b, n, "offline") == 0)  mode_->offline = true;
-          else
-          {
-            // Ideally this should be detected earlier, but better late than
-            // never.
-            //
-            fail << "invalid " << what << " value '" << string (s, b, n) << "'";
-          }
+          // Ideally this should be detected earlier, but better late than
+          // never.
+          //
+          fail << "invalid " << what << " value '" << string (s, b, n) << "'";
         }
-      };
-
-      if (optional<string> v = getenv ("BPKG_FETCH_CACHE"))
-      {
-        if (*v != "0" && *v != "false")
-          parse (*v, "BPKG_FETCH_CACHE environment variable");
       }
+    };
 
-      if (co.fetch_cache_specified ())
-        parse (co.fetch_cache (), "--fetch-cache option");
-
-      if (co.offline ())
-        mode_->offline = true;
+    // One can argue that the environment variable should be, priority-wise,
+    // between the default options file and the command line. But that would
+    // be quite messy to implement, so let's keep it simple for now.
+    //
+    if (optional<string> v = getenv ("BPKG_FETCH_CACHE"))
+    {
+      if (*v != "0" && *v != "false")
+        parse (*v, "BPKG_FETCH_CACHE environment variable");
     }
 
-    return *mode_;
+    if (co.fetch_cache_specified ())
+      parse (co.fetch_cache (), "--fetch-cache option");
+
+    if (co.offline ())
+      r.offline = true;
+
+    return r;
+  }
+
+  optional<bool> fetch_cache::
+  enabled (const common_options& co)
+  {
+    if (co.no_fetch_cache ())
+      return false;
+    else if (optional<string> v = getenv ("BPKG_FETCH_CACHE"))
+    {
+      if (*v == "0" || *v == "false")
+        return false;
+    }
+
+    return nullopt;
   }
 
   fetch_cache::
-  fetch_cache (const common_options& co)
+  fetch_cache (const common_options& co, const database* db)
   {
-    if (!enabled_)
-    {
-      if (co.no_fetch_cache ())
-        enabled_ = false;
-      else if (optional<string> v = getenv ("BPKG_FETCH_CACHE"))
-      {
-        if (*v == "0" || *v == "false")
-          enabled_ = false;
-      }
+    if (!ops_enabled_)
+      ops_enabled_ = enabled (co);
 
-      if (!enabled_)
-        enabled_ = true;
+    enabled_ =
+      *ops_enabled_                         ? **ops_enabled_ :
+      db != nullptr && db->fetch_cache_mode ? *db->fetch_cache_mode != "false" :
+      true; // Enabled by default.
+
+    // Initialize options mode. We have to do it regardless of whether the
+    // cache is enabled due to offline().
+    //
+    if (!ops_mode_)
+      ops_mode_ = mode (co);
+
+    if (!enabled_)
+      return;
+
+    // Calculate effective mode for this configuration.
+    //
+    cache_mode m (*ops_mode_);
+
+    if ((!m.src || !m.trust) && db != nullptr && db->fetch_cache_mode)
+    {
+      // This is effective mode, meaning it should only contain final values
+      // without any overrides. Should be fast to parse every time without
+      // caching (typically it will be just `src`).
+      //
+      const string& s (*db->fetch_cache_mode);
+
+      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
+      {
+        if      (s.compare (b, n, "src") == 0      && !m.src)   m.src = true;
+        else if (s.compare (b, n, "no-src") == 0   && !m.src)   m.src = false;
+        else if (s.compare (b, n, "trust") == 0    && !m.trust) m.trust = true;
+        else if (s.compare (b, n, "no-trust") == 0 && !m.trust) m.trust = false;
+      }
     }
 
-    // Initialize mode for non-static accessors below. We have to do it
-    // regardless of whether the cache is enabled due to offline().
+    // Defaults.
     //
-    mode (co);
+    if (!m.src) m.src = false;
+    if (!m.trust) m.trust = true;
+
+    src_ = *m.src;
+    trust_ = *m.trust;
 
     // Get specified or calculate default cache directory.
     //
-    if (*enabled_ && directory_.empty ())
+    if (directory_.empty ())
     {
       const char* w (nullptr);
       try
@@ -159,7 +201,7 @@ namespace bpkg
     // the online case for simplicity (plus someone could come up with a use-
     // case where they want force-validate the cache by fetching offline).
     //
-    if (*enabled_ && session_.empty ())
+    if (session_.empty ())
     {
       if (co.fetch_cache_session_specified ())
         session_ = co.fetch_cache_session ();
@@ -208,14 +250,14 @@ namespace bpkg
       unique_ptr<connection_factory> cf (new single_connection_factory);
 
       db_.reset (
-        new database (
+        new odb::sqlite::database (
           f.string (),
           SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
           true,                  // Enable FKs.
           "",                    // Default VFS.
           move (cf)));
 
-      database& db (*db_);
+      auto& db (*db_);
 
       db.tracer (trace);
 
@@ -297,31 +339,34 @@ namespace bpkg
   bool fetch_cache::
   enabled () const
   {
-    return *enabled_;
+    return enabled_;
   }
 
   bool fetch_cache::
   offline () const
   {
-    return mode_->offline;
+    return ops_mode_->offline ? *ops_mode_->offline : false;
   }
 
   bool fetch_cache::
   offline (const common_options& co)
   {
-    return mode (co).offline;
+    if (!ops_mode_)
+      ops_mode_ = mode (co);
+
+    return ops_mode_->offline ? *ops_mode_->offline : false;
   }
 
   bool fetch_cache::
   cache_src () const
   {
-    return *enabled_ && mode_->src;
+    return enabled_ && src_;
   }
 
   bool fetch_cache::
   cache_trust () const
   {
-    return *enabled_ && mode_->trust;
+    return enabled_ && trust_;
   }
 
   bool fetch_cache::
@@ -329,7 +374,9 @@ namespace bpkg
   {
     assert (is_open ()); // The open() function should have been called.
 
-    database& db (*db_);
+    // @@ FC try-catch database exception (and in below functions).
+
+    auto& db (*db_);
     transaction t (db);
 
     bool r (db.query_value<pkg_repository_auth_count> (
@@ -346,7 +393,7 @@ namespace bpkg
     //
     assert (is_open ());
 
-    database& db (*db_);
+    auto& db (*db_);
     transaction t (db);
 
     pkg_repository_auth a {move (id), move (fingerprint), move (name)};
@@ -386,7 +433,7 @@ namespace bpkg
 
     assert (is_open ()); // The open() function should have been called.
 
-    database& db (*db_);
+    auto& db (*db_);
     transaction t (db);
 
     pkg_repository_metadata m;
@@ -453,7 +500,7 @@ namespace bpkg
     path rf;
     path pf;
 
-    database& db (*db_);
+    auto& db (*db_);
     transaction t (db);
 
     pkg_repository_metadata m;
@@ -539,7 +586,7 @@ namespace bpkg
 
     assert (is_open ()); // The open() function should have been called.
 
-    database& db (*db_);
+    auto& db (*db_);
     transaction t (db);
 
     pkg_repository_package p;
@@ -586,7 +633,7 @@ namespace bpkg
     path an (id.name.string () + '-' + v.string () + ".tar.gz");
     path r (pkg_repository_package_directory_ / an);
 
-    database& db (*db_);
+    auto& db (*db_);
     transaction t (db);
 
     // If the archive file already exists, probably as a result of some

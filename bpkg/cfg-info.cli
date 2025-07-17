@@ -19,12 +19,13 @@ namespace bpkg
      \h|DESCRIPTION|
 
      The \cb{cfg-info} command prints the current configuration's absolute
-     path, id, type, and name. If the \cb{--link} and/or \cb{--backlink}
-     options are specified, then this information is also printed for each
-     linked and/or implicitly backlinked configuration, if any. Note that the
-     dangling implicit backlinks are silently skipped, unless \cb{--dangling}
-     is specified, in which case this information is also printed for them.
-     Note that the information is written to \cb{stdout}, not \cb{stderr}.
+     path, id, type, name, and mode. The mode is only printed if specified.
+     If the \cb{--link} and/or \cb{--backlink} options are specified, then
+     this information is also printed for each linked and/or implicitly
+     backlinked configuration, if any. Note that the dangling implicit
+     backlinks are silently skipped, unless \cb{--dangling} is specified, in
+     which case this information is also printed for them.  Note that the
+     information is written to \cb{stdout}, not \cb{stderr}.
 
      If the \cb{--recursive} option is specified together with \cb{--link}
      and/or \cb{--backlink}, then this information is printed for linked
@@ -41,6 +42,7 @@ namespace bpkg
      uuid: 8d439f03-7342-4502-8b1c-74b173869478
      type: target
      name: foo
+     mode: fetch-cache=false
 
      path: /path/to/host-cfg/
      uuid: 7ee4dab3-07d9-4163-81c0-3779166a7213

@@ -80,6 +80,16 @@ namespace bpkg
     //
     bool               expl;
 
+    // Default fetch cache mode for this configuration. May only be present
+    // in the self-link instance.
+    //
+    // The format is the same as in the BPKG_FETCH_CACHE environment variable
+    // value: `false` if the fetch cache is disabled, otherwise a comma-
+    // separated list of modes (except for `offline`). If absent, then the
+    // mode was not specified during the configuration creation.
+    //
+    optional<string> fetch_cache_mode;
+
     // Database mapping.
     //
     #pragma db member(id)   id auto
@@ -88,11 +98,14 @@ namespace bpkg
     #pragma db member(path) unique
     #pragma db member(expl) column("explicit")
 
+    #pragma db member(fetch_cache_mode) transient // @@ TMP
+
   public:
     // Create the self-link. Generate the UUID, unless specified.
     //
-    configuration (optional<string> n,
-                   string t,
+    configuration (optional<string> name,
+                   string type,
+                   optional<string> fetch_cache_mode,
                    optional<uuid_type> uid = nullopt);
 
     // Create a linked configuration.

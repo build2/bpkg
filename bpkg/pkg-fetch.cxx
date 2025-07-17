@@ -585,8 +585,6 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    fetch_cache cache (o);
-
     database db (c, trace, true /* pre_attach */, false /* sys_rep */);
     transaction t (db);
     session s;
@@ -622,6 +620,8 @@ namespace bpkg
       if (v.empty ())
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
+
+      fetch_cache cache (o, &db); // @@ FC: correct db?
 
       p = pkg_fetch (o,
                      cache,

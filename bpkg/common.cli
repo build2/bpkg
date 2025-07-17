@@ -243,30 +243,42 @@ namespace bpkg
        metadata, etc). By default these are cached in a persistent local
        cache. For the location of the cache, see the \cb{--fetch-cache-path}
        option. The local cache can also be disabled by setting the
-       \cb{BPKG_FETCH_CACHE} environment variable to \cb{0} or \cb{false}."
+       \cb{BPKG_FETCH_CACHE} environment variable to \cb{0} or \cb{false}.
+
+       Note that if this option or environment variable is specified during
+       the configuration creation (\l{cfg-create(1)}), its value is saved in
+       the configuration and used as the default in the subsequent \cb{bpkg}
+       commands involving this configuration."
     }
 
     string --fetch-cache
     {
       "<mode>",
       "Comma-separated list of local fetch cache modes. The currently
-       recognized modes are \cb{no-src}, \cb{no-trust}, and \cb{offline}, with
-       their semantics described below. The local cache mode can also be
-       specified with the \cb{BPKG_FETCH_CACHE} environment variable. Its
-       value has the same format as this option.
+       recognized modes are \cb{src}/\cb{no-src}, \cb{trust}/\cb{no-trust},
+       and \cb{offline}, with their semantics described below. The local cache
+       mode can also be specified with the \cb{BPKG_FETCH_CACHE} environment
+       variable. Its value has the same format as this option.
 
-       The \cb{no-src} mode disables sharing of source directories for
-       dependencies from the local fetch cache, instead causing private copies
-       to be made in the build configuration directories. Note that this
-       behavior is the default if the fetch cache is disabled
-       (\cb{--no-fetch-cache}).
+       The \cb{src}/\cb{no-src} mode enables/disables sharing of cached source
+       directories for dependencies. If disabled, then private copies are
+       made in the build configuration directories. The default for \cb{bpkg}
+       is to disable sharing, which is also the behavior if the fetch cache is
+       disabled (\cb{--no-fetch-cache}).
 
-       The \cb{no-trust} mode disables caching of the repository
-       authentication answers given by the user in the local fetch cache. See
-       \l{bpkg-repository-signing(1)} for background.
+       The \cb{trust}/\cb{no-trust} mode enabled/disables caching of the
+       repository authentication answers given by the user. The default is
+       to enable caching. See \l{bpkg-repository-signing(1)} for background
+       on repository authentication.
 
        The \cb{offline} mode is equivalent to specifying the \cb{--offline}
-       option."
+       option.
+
+       Note that if this option and/or environment variable is specified
+       during the configuration creation (\l{cfg-create(1)}), the effective
+       \cb{src} and \cb{trust} modes are saved in the configuration and used
+       as the defaults in the subsequent \cb{bpkg} commands involving this
+       configuration."
     }
 
     dir_path --fetch-cache-path

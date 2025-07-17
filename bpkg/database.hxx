@@ -409,6 +409,7 @@ namespace bpkg
     uuid_type             uuid;
     optional<std::string> name;
     std::string           type;
+    optional<std::string> fetch_cache_mode;
 
     // Absolute and normalized configuration directory path. In particular, it
     // is used as the configuration database identity.
@@ -477,7 +478,8 @@ namespace bpkg
     void
     cache_config (const uuid_type&,
                   optional<std::string> name,
-                  std::string type);
+                  std::string type,
+                  optional<std::string> fetch_cache_mode);
 
     // Note: must be called inside the transaction.
     //

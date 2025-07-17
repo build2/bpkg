@@ -28,6 +28,7 @@ namespace bpkg
               const dir_path&,
               optional<string> name,
               string type,
+              optional<string> fetch_cache_mode,
               const strings& mods,
               const strings& vars,
               bool existing,

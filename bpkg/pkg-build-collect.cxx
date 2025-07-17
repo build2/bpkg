@@ -3155,10 +3155,14 @@ namespace bpkg
                 // it would be a bad idea since it can be half-prepared, with
                 // an outdated database schema version, etc.
                 //
+                // Copying the main configuration's default fetch cache mode
+                // seems sensible.
+                //
                 cfg_create (options,
                             sdb.config_orig / cd,
                             optional<string> (type) /* name */,
                             type                    /* type */,
+                            sdb.fetch_cache_mode,
                             mods,
                             vars,
                             false                   /* existing */,

@@ -8,6 +8,8 @@
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
 
+#include <bpkg/fetch-cache.hxx>
+
 #include <bpkg/cfg-link.hxx>
 
 using namespace std;
@@ -20,6 +22,7 @@ namespace bpkg
               const dir_path& c,
               optional<string> name,
               string type,
+              optional<string> fc_mode,
               const strings& mods,
               const strings& vars,
               bool existing,
@@ -176,9 +179,9 @@ namespace bpkg
 
     // Create the database.
     //
-    shared_ptr<configuration> r (make_shared<configuration> (move (name),
-                                                             move (type),
-                                                             uid));
+    shared_ptr<configuration> r (
+      make_shared<configuration> (
+        move (name), move (type), move (fc_mode), uid));
 
     dir_paths pre_link;
 
@@ -273,6 +276,30 @@ namespace bpkg
         fail << "empty string as argument";
     }
 
+    // Determine the default fetch cache mode.
+    //
+    optional<string> fc_mode;
+    {
+      optional<bool> e (fetch_cache::enabled (o));
+
+      if (!e || *e)
+      {
+        auto append = [&fc_mode] (const char* m)
+        {
+          if (fc_mode) *fc_mode += ',';
+          else fc_mode = string ();
+          *fc_mode += m;
+        };
+
+        fetch_cache::cache_mode m (fetch_cache::mode (o));
+
+        if (m.src)   append (*m.src   ? "src"   : "no-src");
+        if (m.trust) append (*m.trust ? "trust" : "no-trust");
+      }
+      else
+        fc_mode = string ("false"); // Disabled.
+    }
+
     // Auto-generate the configuration UUID, unless it is specified
     // explicitly.
     //
@@ -282,6 +309,7 @@ namespace bpkg
         c,
         o.name_specified () ? o.name () : optional<string> (),
         o.type (),
+        move (fc_mode),
         mods,
         vars,
         o.existing (),
@@ -310,6 +338,9 @@ namespace bpkg
 
       if (cf->name)
         dr << "\n  name: " << *cf->name;
+
+      if (cf->fetch_cache_mode)
+        dr << "\n  mode: " << "fetch-cache=" << *cf->fetch_cache_mode;
     }
 
     return 0;

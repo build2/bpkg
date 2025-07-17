@@ -9,6 +9,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // database
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
@@ -60,10 +61,16 @@ namespace bpkg
     // Construction and open/close.
     //
   public:
-    // Create an unopened object.
+    // Create an unopened object. The passed database should correspond to the
+    // configuration on which the operation requiring the cache is being
+    // performed. Make sure you don't reuse cache instanced across different
+    // configurations. If there is no configuration (e.g., rep-info), then
+    // pass NULL.
     //
-    explicit
-    fetch_cache (const common_options&);
+    // Note that the object should only be opened if enabled() below returns
+    // true.
+    //
+    fetch_cache (const common_options&, const database*);
 
     // Lock and open the fetch cache database.
     //
@@ -201,9 +208,23 @@ namespace bpkg
     path
     save_pkg_repository_package (package_id, version, string checksum);
 
-  private:
-    using database = odb::sqlite::database;
+    // Implementation details (also used by cfg_create()).
+    //
+  public:
+    static optional<bool>
+    enabled (const common_options&);
 
+    struct cache_mode
+    {
+      optional<bool> src;
+      optional<bool> trust;
+      optional<bool> offline;
+    };
+
+    static cache_mode
+    mode (const common_options&);
+
+  private:
     // Transaction wrapper that allows starting a transaction and making it
     // current, for the duration of it's lifetime, in the presence of another
     // current transaction.
@@ -235,7 +256,8 @@ namespace bpkg
       }
 
       explicit
-      transaction (database& db): transaction (db.begin_exclusive ()) {}
+      transaction (odb::sqlite::database& db)
+          : transaction (db.begin_exclusive ()) {}
 
       void
       commit ()
@@ -263,7 +285,13 @@ namespace bpkg
       odb::sqlite::transaction* ct_;
     };
 
-    unique_ptr<database> db_;
+    // Effective mode for this configuration.
+    //
+    bool enabled_;
+    bool src_;
+    bool trust_;
+
+    unique_ptr<odb::sqlite::database> db_;
   };
 }
 

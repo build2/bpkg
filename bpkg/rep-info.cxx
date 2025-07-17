@@ -39,8 +39,6 @@ namespace bpkg
            << " specified without --manifest" <<
         info << "run 'bpkg help rep-info' for more information";
 
-    bpkg::fetch_cache fetch_cache (o);
-
     repository_location rl (
       parse_location (args.next (),
                       o.type_specified ()
@@ -68,6 +66,10 @@ namespace bpkg
 
     init_tmp (conf != nullptr ? *conf : empty_dir_path);
 
+    // @@ FC: open database if conf != nullptr to get fetch cache mode.
+    //
+    fetch_cache cache (o, nullptr);
+
     bool ignore_unknown (!o.manifest () || o.ignore_unknown ());
 
     // If this is a remote archive-based repository, then print its name to
@@ -78,7 +80,7 @@ namespace bpkg
 
     rep_fetch_data rfd (
       rep_fetch (o,
-                 fetch_cache,
+                 cache,
                  conf,
                  rl,
                  ignore_unknown,

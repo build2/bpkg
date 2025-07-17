@@ -3173,8 +3173,6 @@ namespace bpkg
       fail << "package name argument expected" <<
         info << "run 'bpkg help pkg-build' for more information";
 
-    bpkg::fetch_cache fetch_cache (o);
-
     // If multiple current configurations are specified, then open the first
     // one, attach the remaining, verify that their schemas match (which may
     // not be the case if they don't belong to the same linked database
@@ -3193,6 +3191,11 @@ namespace bpkg
                   (config_dirs.size () == 1
                    ? empty_string
                    : '[' + config_dirs[0].representation () + ']'));
+
+    // @@ FC: definitely incorrect db. Feels like cannot have this "global"
+    //    fetch cache object.
+    //
+    bpkg::fetch_cache fetch_cache (o, &mdb);
 
     // Command line as a dependent.
     //
