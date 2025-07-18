@@ -24,13 +24,15 @@ namespace bpkg
   using butl::system_clock;
 
   // Note that directory and session are only initialized if the cache is
-  // enabled.
+  // enabled. The semi-precious directory is left empty if it's the same as
+  // non-precious.
   //
   using cache_mode = fetch_cache::cache_mode;
 
   static optional<optional<bool>> ops_enabled_;
   static optional<cache_mode> ops_mode_;
-  static dir_path directory_;
+  static dir_path np_directory_; // Non-precious  (~/.cache/build2/).
+  static dir_path sp_directory_; // Semi-precious (~/.build2/cache/).
   static string session_;
 
   cache_mode fetch_cache::
@@ -141,9 +143,12 @@ namespace bpkg
     src_ = *m.src;
     trust_ = *m.trust;
 
-    // Get specified or calculate default cache directory.
+    // Get specified or calculate default cache directories.
     //
-    if (directory_.empty ())
+    // Note that we need to calculate sp_directory even if shared src is
+    // disabled since the database file may be there (see open() for details).
+    //
+    if (np_directory_.empty ())
     {
       const char* w (nullptr);
       try
@@ -152,24 +157,22 @@ namespace bpkg
         {
           w = "--fetch-cache-path option";
 
-          directory_ = co.fetch_cache_path ();
+          np_directory_ = co.fetch_cache_path ();
         }
         else if (optional<string> v = getenv ("BPKG_FETCH_CACHE_PATH"))
         {
           w = "BPKG_FETCH_CACHE_PATH environment variable";
 
-          directory_ = dir_path (move (*v));
+          np_directory_ = dir_path (move (*v));
         }
 
-        if (directory_.empty ())
+        if (np_directory_.empty ())
         {
+          dir_path h;
           try
           {
             w = "user's home directory";
-
-            directory_ = path::home_directory ();
-            directory_ /= ".build2";
-            directory_ /= "cache";
+            h = path::home_directory ();
           }
           catch (const system_error&)
           {
@@ -179,6 +182,43 @@ namespace bpkg
                    << "environment variable to specify explicitly" <<
               info << "use --no-fetch-cache to disable caching";
           }
+
+#ifndef _WIN32
+          if (optional<string> v = getenv ("XDG_CACHE_HOME"))
+          {
+            w = "XDG_CACHE_HOME environment variable";
+            np_directory_ = dir_path (move (*v));
+          }
+          else
+          {
+            w = "user's home directory";
+            np_directory_ = h;
+            np_directory_ /= ".cache";
+          }
+
+          np_directory_ /= "build2";
+#else
+          if (optional<string> v = getenv ("LOCALAPPDATA"))
+          {
+            w = "LOCALAPPDATA environment variable";
+            np_directory_ = dir_path (move (*v));
+          }
+          else
+          {
+            w = "user's home directory";
+            np_directory_ = h;
+            np_directory_ /= "AppData";
+            np_directory_ /= "Local";
+          }
+
+          np_directory_ /= "build2";
+          np_directory_ /= "cache";
+#endif
+
+          w = "user's home directory";
+          sp_directory_ = move (h);
+          sp_directory_ /= ".build2";
+          sp_directory_ /= "cache";
         }
       }
       catch (const invalid_path& e)
@@ -213,7 +253,9 @@ namespace bpkg
     }
   }
 
-  static const string schema_name ("fetch-cache"); // Database schema name.
+  static const path   db_file_name   ("fetch-cache.sqlite3");
+  static const path   db_lock_name   ("fetch-cache.lock");
+  static const string db_schema_name ("fetch-cache");
 
   // Register the data migration functions.
   //
@@ -225,8 +267,43 @@ namespace bpkg
   migrate_v2 ([] (odb::database& db)
   {
   },
-  schema_name);
+  db_schema_name);
 #endif
+
+  // Throw odb::timeout if the lock is busy.
+  //
+  void fetch_cache::
+  lock ()
+  {
+    if (!exists (np_directory_))
+      mk_p (np_directory_);
+
+    path f (np_directory_ / db_lock_name);
+
+    try
+    {
+      // Essentially the same code as in open() below.
+      //
+      unique_ptr<connection_factory> cf (new single_connection_factory);
+
+      lock_.reset (
+        new odb::sqlite::database (
+          f.string (),
+          SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+          true,                  // Enable FKs.
+          "",                    // Default VFS.
+          move (cf)));
+
+      connection_ptr c (lock_->connection ());
+      c->execute ("PRAGMA locking_mode = EXCLUSIVE");
+      transaction t (c->begin_exclusive ());
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << f << ": " << e.message ();
+    }
+  }
 
   void fetch_cache::
   open (tracer& tr)
@@ -235,105 +312,220 @@ namespace bpkg
 
     tracer trace ("fetch_cache::open");
 
-    const dir_path& d (directory_);
-    path f (d / "fetch-cache.sqlite3");
-
-    bool create (!exists (f));
-
-    if (create)
-      mk_p (d);
-
-    try
+    for (;;) // Lock wait loop.
     {
-      // We don't need the thread pool.
-      //
-      unique_ptr<connection_factory> cf (new single_connection_factory);
-
-      db_.reset (
-        new odb::sqlite::database (
-          f.string (),
-          SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
-          true,                  // Enable FKs.
-          "",                    // Default VFS.
-          move (cf)));
-
-      auto& db (*db_);
-
-      db.tracer (trace);
-
-      // Lock the database for as long as the connection is active. First we
-      // set locking_mode to EXCLUSIVE which instructs SQLite not to release
-      // any locks until the connection is closed. Then we force SQLite to
-      // acquire the write lock by starting exclusive transaction. See the
-      // locking_mode pragma documentation for details. This will also fail if
-      // the database is inaccessible (e.g., file does not exist, already used
-      // by another process, etc).
-      //
+      path f; // Cache database path.
       try
       {
-        connection_ptr c (db.connection ());
-        c->execute ("PRAGMA locking_mode = EXCLUSIVE");
-        transaction t (c->begin_exclusive ());
-
-        const string& sn (schema_name);
-
-        if (create)
+        // Find the cache database file, which can be in one of two
+        // directories (sp or np; see above). See the file_cache class
+        // documentation for details on this file's movements.
+        //
+        bool create (false);
         {
-          // Create the new schema.
+          // There are various race conditions if several instances of bpkg
+          // try to do this at the same time. So we will use another SQLite
+          // database as a file lock that is always stored in np_directory_.
+          // Note that we can omit this lock if we found the cache database in
+          // sp_directory_ since this is its final destination. Note also that
+          // if we do grab the lock, then we must hold it until close() since
+          // another instance could try to move the cache database from
+          // underneath us.
           //
-          if (db.schema_version (sn) != 0)
-            fail << f << ": already has database schema";
-
-          schema_catalog::create_schema (db, sn);
-
-          // @@ TODO: also recreate all the directories where we store the
-          // data.
-        }
-        else
-        {
-          // Migrate the database if necessary.
+          // Naturally, we also don't need the lock if sp and np are the same
+          // directory.
           //
-          odb::schema_version sv  (db.schema_version (sn));
-          odb::schema_version scv (schema_catalog::current_version (db, sn));
+          path sf;
 
-          if (sv != scv)
+          if (!sp_directory_.empty ())
           {
-            if (sv < schema_catalog::base_version (db, sn))
-              fail << "local fetch cache " << f << " is too old";
+            f = sp_directory_ / db_file_name;
+            if (!exists (f))
+            {
+              // Grab the file lock and retest.
+              //
+              lock ();
 
-            if (sv > scv)
-              fail << "local fetch cache " << f << " is too new";
+              if (!exists (f))
+              {
+                sf = move (f);
+                f.clear ();
+              }
+            }
+          }
 
-            schema_catalog::migrate (db, scv, sn);
+          if (f.empty ())
+          {
+            auto cleanup = [] (const dir_path& d)
+            {
+              if (exists (d))
+                rm_r (d);
+            };
+
+            f = np_directory_ / db_file_name;
+
+            // True if the cache database should be in the sp directory.
+            //
+            bool sp (cache_src () && !sp_directory_.empty ());
+
+            if (exists (f))
+            {
+              // Move it if it should be in sp.
+              //
+              if (sp)
+              {
+                // Clean up the sp_directory_ data subdirectories.
+                //
+                cleanup (dir_path (sp_directory_) /= "src");
+
+                mk_p (sp_directory_);
+
+                // We also have to move the rollback journal, if any. For
+                // background, see: https://www.sqlite.org/tempfiles.html
+                //
+                // Note that we move it first to prevent the above check from
+                // seeing the database without its journal.
+                //
+                path rf (f + "-journal");
+                if (exists (rf))
+                  mv (rf, sf + "-journal");
+
+                mv (f, sf);
+
+                f = move (sf);
+              }
+            }
+            else
+            {
+              // Create.
+              //
+              if (sp)
+              {
+                f = move (sf);
+
+                // Clean up the sp_directory_ data subdirectories.
+                //
+                cleanup (dir_path (sp_directory_) /= "src");
+              }
+
+              // Clean up the np_directory_ data subdirectories.
+              //
+              cleanup (dir_path (np_directory_) /= "pkg");
+              cleanup (dir_path (np_directory_) /= "git");
+
+              mk_p (sp ? sp_directory_ : np_directory_);
+
+              create = true;
+            }
           }
         }
 
-        t.commit ();
+        // Open/create the database. We don't need the thread pool.
+        //
+        unique_ptr<connection_factory> cf (new single_connection_factory);
+
+        db_.reset (
+          new odb::sqlite::database (
+            f.string (),
+            SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
+            true,                  // Enable FKs.
+            "",                    // Default VFS.
+            move (cf)));
+
+        auto& db (*db_);
+
+        db.tracer (trace);
+
+        // Lock the database for as long as the connection is active. First we
+        // set locking_mode to EXCLUSIVE which instructs SQLite not to release
+        // any locks until the connection is closed. Then we force SQLite to
+        // acquire the write lock by starting exclusive transaction. See the
+        // locking_mode pragma documentation for details. This will also fail
+        // if the database is inaccessible (e.g., file does not exist, already
+        // used by another process, etc).
+        //
+        {
+          connection_ptr c (db.connection ());
+          c->execute ("PRAGMA locking_mode = EXCLUSIVE");
+          transaction t (c->begin_exclusive ());
+
+          const string& sn (db_schema_name);
+
+          if (create)
+          {
+            // Create the new schema.
+            //
+            if (db.schema_version (sn) != 0)
+              fail << f << ": already has database schema";
+
+            schema_catalog::create_schema (db, sn);
+          }
+          else
+          {
+            // Migrate the database if necessary.
+            //
+            odb::schema_version sv  (db.schema_version (sn));
+            odb::schema_version scv (schema_catalog::current_version (db, sn));
+
+            if (sv != scv)
+            {
+              if (sv < schema_catalog::base_version (db, sn))
+                fail << "local fetch cache " << f << " is too old";
+
+              if (sv > scv)
+                fail << "local fetch cache " << f << " is too new";
+
+              schema_catalog::migrate (db, scv, sn);
+            }
+          }
+
+          t.commit ();
+        }
+
+        db.tracer (tr); // Switch to the caller's tracer.
+        break;
       }
       catch (odb::timeout&)
       {
-        // @@ TODO: sleep and retry, also issue progress diagnostics.
+        // Note that this handles both waiting on the lock database and the
+        // actual cache database (see above for details). This is the reason
+        // why we use np_directory_ in diagnostics: when trying to grab the
+        // lock database, we don't yet know where the cache database should
+        // be.
+        //
+        db_.reset ();
+        lock_.reset ();
+
+        // @@ FC: sleep and retry, also issue progress diagnostics.
         //
         // Maybe we should first wait up to 200ms before issuing progress?
 
-        fail << "fetch cache " << f << " is already used by another process";
+        info << "fetch cache in " << np_directory_
+             << " is already used by another process";
       }
-
-      db.tracer (tr); // Switch to the caller's tracer.
-    }
-    catch (const database_exception& e)
-    {
-      fail << f << ": " << e.message () << endf;
+      catch (const database_exception& e)
+      {
+        // Note: this error can only be about the cache database.
+        //
+        fail << f << ": " << e.message () << endf;
+      }
     }
   }
 
   void fetch_cache::
   close ()
   {
-    if (is_open ())
-    {
-      db_.reset ();
-    }
+    // The tracer could already be destroyed (e.g., if called from the
+    // destructor due to an exception-caused stack unwinding), so switch to
+    // ours.
+    //
+    tracer trace ("fetch_cache::close");
+
+    if (db_ != nullptr)
+      db_->tracer (&trace);
+
+    db_.reset ();
+    lock_.reset ();
   }
 
   bool fetch_cache::
@@ -428,7 +620,7 @@ namespace bpkg
     if (pkg_repository_metadata_directory_.empty ())
     {
       pkg_repository_metadata_directory_ =
-        ((dir_path (directory_) /= "pkg") /= "metadata");
+        ((dir_path (np_directory_) /= "pkg") /= "metadata");
     }
 
     assert (is_open ()); // The open() function should have been called.
@@ -581,7 +773,7 @@ namespace bpkg
     if (pkg_repository_package_directory_.empty ())
     {
       pkg_repository_package_directory_ =
-        ((dir_path (directory_) /= "pkg") /= "packages");
+        ((dir_path (np_directory_) /= "pkg") /= "packages");
     }
 
     assert (is_open ()); // The open() function should have been called.

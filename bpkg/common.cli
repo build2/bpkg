@@ -292,15 +292,22 @@ namespace bpkg
        track usage. The location of the cache can also be specified with the
        \cb{BPKG_FETCH_CACHE_PATH} environment variable.
 
-       If not specified, then local cache is placed into the
-       \cb{.build2/cache/} subdirectory of the user's home directory. Note
-       that the cache is not placed into \cb{$HOME/.cache/} or equivalent
-       because, unless \cb{--no-shared-src} is specified, it is semi-precious:
-       while you won't loose any information if the cache is removed, you may
-       end up with broken builds that will require manual repair.
+       If not explicitly specified, then the cache location is split across
+       two directories: The non-precious data (packages and repository
+       metadata) is placed into \cb{$XDG_CACHE_HOME/build2/} or
+       \cb{$HOME/.cache/build2/} on UNIX and into
+       \cb{%LOCALAPPDATA%\\build2\\cache\\} on Windows. The semi-precious data
+       (shared source directories) is placed into the \cb{.build2/cache/}
+       subdirectory of the user's home directory on all platforms. You can
+       safely remove the non-precious data and while you won't loose any
+       information if the semi-precious data is removed, you may end up with
+       broken builds that will require manual repair.
 
-       Note also that while there is currently no way to impose a size limit
-       on the cache, outdated cache entries are periodically removed."
+       Note that if the cache location is explicitly specified with this
+       option or the environment variable, then both types of data are placed
+       into the specified directory. Note also that while there is currently
+       no way to impose a size limit on the cache, outdated cache entries are
+       periodically removed."
     }
 
     string --fetch-cache-session

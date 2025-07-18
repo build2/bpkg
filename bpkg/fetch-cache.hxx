@@ -23,14 +23,34 @@ namespace bpkg
   // static variables (not exposed). The class itself serves as a RAII lock --
   // while an instance is alive, we have the cache database locked and open.
   //
-  // The cache by default resides in ~/.build2/cache/. The cache database
-  // file is called fetch-cache.sqlite3. The cache data is stored in the
-  // following subdirectories next to it:
+  // The cache by default is split across two directories: ~/.cache/build2/
+  // (or equivalent) for non-precious data (pkg/ and git/ subdirectories
+  // below) and ~/.build2/cache/ for semi-precious data (src/ subdirectory
+  // below). However, if the cache location is specified explicitly by the
+  // user (--fetch-cache-path or BPKG_FETCH_CACHE_PATH), then both types of
+  // data are placed into the specified directory.
+  //
+  // The cache database file is called fetch-cache.sqlite3 and can reside in
+  // either location. Specifically, if we start operating with shared src
+  // disabled (for example bpkg is used directly), then we place the database
+  // file into ~/.cache/build2/. But as soon as we open the cache with shared
+  // src enabled, we move the database to ~/.build2/cache/. The motivation for
+  // this semantics is the fact that until we have shared source directories,
+  // fetch-cache.sqlite3 is not precious. Plus, we don't want to create
+  // ~/.build2/ until necessary (think the user only does package consumption
+  // via bpkg). Note that there is also fetch-cache.lock that is always
+  // created in ~/.cache/build2/ and which is used to protect agains races in
+  // this logic (see the fetch_cache::open() implementation for details).
+  //
+  // The cache data is stored in the following subdirectories:
+  //
+  // ~/.cache/build2/
+  // |
+  // |-- pkg/  -- archive repositories metadata and package archives
+  // `-- git/  -- git repositories in the fetched state
   //
   // ~/.build2/cache/
   // |
-  // |-- pkg/  -- archive repositories metadata and package archives
-  // |-- git/  -- git repositories in the fetched state
   // `-- src/  -- package source directories unpacked from archives or checked
   //              out (and distributed) from git repositories
   //
@@ -291,6 +311,10 @@ namespace bpkg
     bool src_;
     bool trust_;
 
+    void
+    lock ();
+
+    unique_ptr<odb::sqlite::database> lock_;
     unique_ptr<odb::sqlite::database> db_;
   };
 }
