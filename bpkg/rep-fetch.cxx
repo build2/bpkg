@@ -53,7 +53,6 @@ namespace bpkg
 
   static rep_fetch_data
   rep_fetch_pkg (const common_options& co,
-                 fetch_cache& cache,
                  const dir_path* conf,
                  database* db,
                  const repository_location& rl,
@@ -77,6 +76,23 @@ namespace bpkg
     // it simple for now by opening the cache before the first manifest fetch
     // and keeping it open until the metadata is potentially updated.
     //
+
+    // If we fetch in the configuration but the database is not open yet
+    // (rep-info case), then open it to get the fetch cache mode and stash it
+    // to potentially reuse for authenticating the certificate.
+    //
+    unique_ptr<database> pdb;
+    if (conf != nullptr && db == nullptr)
+    {
+      pdb.reset (new database (*conf,
+                               trace,
+                               false /* pre_attach */,
+                               false /* sys_rep */));
+
+      db = pdb.get ();
+    }
+
+    fetch_cache cache (co, db);
     optional<fetch_cache::loaded_pkg_repository_metadata> crm;
 
     if (cache.enabled ())
@@ -208,7 +224,7 @@ namespace bpkg
       if (cached_repositories_path.empty ())
       {
         cert = authenticate_certificate (
-          co, cache, conf, db, cert_pem, rl, dependent_trust);
+          co, &cache, conf, db, cert_pem, rl, dependent_trust);
       }
       else
       {
@@ -1071,7 +1087,6 @@ namespace bpkg
 
   static rep_fetch_data
   rep_fetch (const common_options& co,
-             fetch_cache& cache,
              const dir_path* conf,
              database* db,
              const repository_location& rl,
@@ -1085,7 +1100,7 @@ namespace bpkg
     {
     case repository_type::pkg:
       {
-        return rep_fetch_pkg (co, cache, conf, db, rl, dt, iu, it);
+        return rep_fetch_pkg (co, conf, db, rl, dt, iu, it);
       }
     case repository_type::dir:
       {
@@ -1103,7 +1118,6 @@ namespace bpkg
 
   rep_fetch_data
   rep_fetch (const common_options& co,
-             fetch_cache& cache,
              const dir_path* conf,
              const repository_location& rl,
              bool iu,
@@ -1112,7 +1126,6 @@ namespace bpkg
              bool lb)
   {
     return rep_fetch (co,
-                      cache,
                       conf,
                       nullptr /* database */,
                       rl,
@@ -1501,7 +1514,6 @@ namespace bpkg
   //
   static void
   rep_fetch (const common_options& co,
-             fetch_cache& cache,
              database& db,
              transaction& t,
              const shared_ptr<repository>& r,
@@ -1536,7 +1548,7 @@ namespace bpkg
       if (need_auth (co, r->location))
       {
         authenticate_certificate (co,
-                                  cache,
+                                  nullptr /* fetch_cache */,
                                   &db.config_orig,
                                   &db,
                                   r->certificate,
@@ -1614,7 +1626,6 @@ namespace bpkg
     //
     rep_fetch_data rfd (
       rep_fetch (co,
-                 cache,
                  &db.config_orig,
                  &db,
                  rl,
@@ -1715,7 +1726,6 @@ namespace bpkg
         rm (pr);
 
       auto fetch = [&co,
-                    &cache,
                     &db,
                     &t,
                     &fetched_repositories,
@@ -1731,7 +1741,6 @@ namespace bpkg
         assert (i != repo_trust.end ());
 
         rep_fetch (co,
-                   cache,
                    db,
                    t,
                    r,
@@ -1767,7 +1776,6 @@ namespace bpkg
 
   static void
   rep_fetch (const common_options& o,
-             fetch_cache& cache,
              database& db,
              transaction& t,
              const vector<lazy_shared_ptr<repository>>& repos,
@@ -1804,7 +1812,6 @@ namespace bpkg
       //
       for (const lazy_shared_ptr<repository>& r: repos)
         rep_fetch (o,
-                   cache,
                    db,
                    t,
                    r.load (),
@@ -2127,7 +2134,6 @@ namespace bpkg
 
   void
   rep_fetch (const common_options& o,
-             fetch_cache& cache,
              database& db,
              const vector<repository_location>& rls,
              bool shallow,
@@ -2163,7 +2169,7 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, cache, db, t, repos, shallow, false /* full_fetch */, reason);
+    rep_fetch (o, db, t, repos, shallow, false /* full_fetch */, reason);
 
     t.commit ();
   }
@@ -2184,8 +2190,6 @@ namespace bpkg
     // package_iteration().
     //
     database db (c, trace, true /* pre_attach */, false /* sys_rep */);
-
-    fetch_cache cache (o, &db); // @@ FC: should we move it inside rep_fetch()?
 
     transaction t (db);
     session s; // Repository dependencies can have cycles.
@@ -2283,7 +2287,7 @@ namespace bpkg
       }
     }
 
-    rep_fetch (o, cache, db, t, repos, o.shallow (), full_fetch, reason);
+    rep_fetch (o, db, t, repos, o.shallow (), full_fetch, reason);
 
     size_t rcount (0), pcount (0);
     if (verb)

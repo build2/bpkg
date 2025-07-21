@@ -213,7 +213,6 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_fetch (const common_options& co,
-             fetch_cache& cache,
              database& pdb,
              database& rdb,
              transaction& t,
@@ -400,6 +399,7 @@ namespace bpkg
       // to do so (cache is disabled or there is no cached entry for the
       // package version).
       //
+      fetch_cache cache (co, &pdb);
       optional<fetch_cache::loaded_pkg_repository_package> crp;
 
       if (cache.enabled ())
@@ -426,7 +426,7 @@ namespace bpkg
       // the time we download the archive. After the download re-open the
       // cache, re-query the entry, and stick to the plan if it still doesn't
       // exist or drop the fetched archive and behave as if the entry existed
-      // from the very beginning.
+      // from the very beginning otherwise.
       //
       string fcs; // Fetched archive checksum.
 
@@ -624,10 +624,7 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      fetch_cache cache (o, &db); // @@ FC: should we move it inside pkg_fetch()?
-
       p = pkg_fetch (o,
-                     cache,
                      db /* pdb */,
                      db /* rdb */,
                      t,

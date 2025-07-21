@@ -7,7 +7,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // fetch_cache
+#include <bpkg/forward.hxx> // database
 #include <bpkg/utility.hxx>
 
 #include <bpkg/rep-fetch-options.hxx>
@@ -62,11 +62,8 @@ namespace bpkg
   // that for pkg repositories such values are expanded/loaded at the
   // repository creation time.
   //
-  // Note: fetch cache should not be open.
-  //
   rep_fetch_data
   rep_fetch (const common_options&,
-             fetch_cache&,
              const dir_path* configuration,
              const repository_location&,
              bool ignore_unknown,
@@ -82,11 +79,8 @@ namespace bpkg
   //
   // If reason is absent, then don't print the "fetching ..." progress line.
   //
-  // Note: fetch cache should not be open.
-  //
   void
   rep_fetch (const common_options&,
-             fetch_cache&,
              database&,
              const vector<repository_location>&,
              bool shallow,

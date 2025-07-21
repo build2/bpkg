@@ -12,7 +12,6 @@
 #include <bpkg/auth.hxx>
 #include <bpkg/package.hxx>
 #include <bpkg/diagnostics.hxx>
-#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/rep-fetch.hxx>
@@ -66,11 +65,6 @@ namespace bpkg
 
     init_tmp (conf != nullptr ? *conf : empty_dir_path);
 
-    // @@ FC: open database if conf != nullptr to get fetch cache mode.
-    //        also, maybe move inside rep_fetch()?
-    //
-    fetch_cache cache (o, nullptr);
-
     bool ignore_unknown (!o.manifest () || o.ignore_unknown ());
 
     // If this is a remote archive-based repository, then print its name to
@@ -81,7 +75,6 @@ namespace bpkg
 
     rep_fetch_data rfd (
       rep_fetch (o,
-                 cache,
                  conf,
                  rl,
                  ignore_unknown,

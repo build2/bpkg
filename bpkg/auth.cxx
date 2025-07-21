@@ -161,7 +161,8 @@ namespace bpkg
   //
   static shared_ptr<certificate>
   auth_dummy (const common_options& co,
-              fetch_cache& cache,
+              fetch_cache* fc,
+              database* db,
               const string& fp,
               const repository_location& rl)
   {
@@ -169,6 +170,11 @@ namespace bpkg
 
     shared_ptr<certificate> cert (
       make_shared<certificate> (fp, name_prefix (rl)));
+
+    unique_ptr<fetch_cache> pfc (
+      fc == nullptr ? new fetch_cache (co, db) : nullptr);
+
+    fetch_cache& cache (fc != nullptr ? *fc : *pfc);
 
     // Should we close (release) the fetch cache before prompting the user and
     // re-lock and re-query the entry afterwards? Probably not, since this way
@@ -631,7 +637,8 @@ namespace bpkg
 
   static cert_auth
   auth_real (const common_options& co,
-             fetch_cache& cache,
+             fetch_cache* fc,
+             database* db,
              const fingerprint& fp,
              const string& pem,
              const repository_location& rl,
@@ -643,6 +650,11 @@ namespace bpkg
       parse_cert (co, fp, pem, rl.canonical_name ()));
 
     verify_certificate (*cert, rl);
+
+    unique_ptr<fetch_cache> pfc (
+      fc == nullptr ? new fetch_cache (co, db) : nullptr);
+
+    fetch_cache& cache (fc != nullptr ? *fc : *pfc);
 
     // If the certificate is in the cache then it is authenticated by the
     // user. In this case the dependent trust doesn't really matter as the
@@ -740,7 +752,7 @@ namespace bpkg
   //
   static shared_ptr<certificate>
   auth_cert (const common_options& co,
-             fetch_cache& cache,
+             fetch_cache* cache,
              database& db,
              const optional<string>& pem,
              const repository_location& rl,
@@ -768,8 +780,8 @@ namespace bpkg
     //
     cert_auth ca (
       pem
-      ? auth_real (co, cache, fp, *pem, rl, dependent_trust)
-      : cert_auth {auth_dummy (co, cache, fp.abbreviated, rl), true /* user */});
+      ? auth_real (co, cache, &db, fp, *pem, rl, dependent_trust)
+      : cert_auth {auth_dummy (co, cache, &db, fp.abbreviated, rl), true /* user */});
 
     cert = move (ca.cert);
 
@@ -811,7 +823,7 @@ namespace bpkg
 
   shared_ptr<const certificate>
   authenticate_certificate (const common_options& co,
-                            fetch_cache& cache,
+                            fetch_cache* cache,
                             const dir_path* conf,
                             database* db,
                             const optional<string>& pem,
@@ -834,19 +846,21 @@ namespace bpkg
       //
       fingerprint fp (cert_fingerprint (co, pem, rl));
       r = pem
-        ? auth_real  (co, cache, fp, *pem, rl, dependent_trust).cert
-        : auth_dummy (co, cache, fp.abbreviated, rl);
+        ? auth_real  (co, cache, nullptr, fp, *pem, rl, dependent_trust).cert
+        : auth_dummy (co, cache, nullptr, fp.abbreviated, rl);
     }
     else if (db != nullptr)
     {
-      assert (transaction::has_current ());
-
-      r = auth_cert (co,
-                     cache,
-                     *db,
-                     pem,
-                     rl,
-                     dependent_trust);
+      if (transaction::has_current ())
+      {
+        r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
+      }
+      else
+      {
+        transaction t (*db);
+        r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
+        t.commit ();
+      }
     }
     else
     {

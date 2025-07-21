@@ -8,7 +8,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction, selected_package, fetch_cache
+#include <bpkg/forward.hxx> // transaction, selected_package
 #include <bpkg/utility.hxx>
 
 #include <bpkg/pkg-fetch-options.hxx>
@@ -39,11 +39,8 @@ namespace bpkg
   //
   // Also note that it should be called in session.
   //
-  // Note: fetch cache should not be open.
-  //
   shared_ptr<selected_package>
   pkg_fetch (const common_options&,
-             fetch_cache&,
              database& pdb,
              database& rdb,
              transaction&,

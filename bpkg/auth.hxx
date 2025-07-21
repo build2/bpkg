@@ -25,22 +25,22 @@ namespace bpkg
   // persisted into the database.
   //
   // If the configuration is used and also the configuration database is
-  // specified, then assume the database is already opened with the
-  // transaction started and use that. Otherwise, open the database and start
-  // a new transaction.
+  // specified, then start the transaction, if not started yet, and use that.
+  // Otherwise, open the database and start a new transaction.
   //
   // Note that one drawback of doing this as part of an existing transaction
   // is that if things go south and the transaction gets aborted, then all the
   // user's confirmations will be lost. For example, rep-fetch could fail
-  // because it was unable to fetch some prerequisite repositories.
+  // because it was unable to fetch some prerequisite repositories. The
+  // answers may still end up in the fetch cache, though.
   //
-  // Note: if the fetch cache is not open, it may potentially be opened
-  //       internally, in which case it will be closed before the function
-  //       returns.
+  // If the fetch cache is enabled, then use it to query the repository
+  // authentication answers given by the user and to cache them back. If the
+  // fetch cache is not specified, then create/open it, if required.
   //
   shared_ptr<const certificate>
   authenticate_certificate (const common_options&,
-                            fetch_cache&,
+                            fetch_cache*,
                             const dir_path* configuration,
                             database*,
                             const optional<string>& cert_pem,

@@ -15,7 +15,6 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
-#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -2976,7 +2975,6 @@ namespace bpkg
   //
   static bool
   execute_plan (const pkg_build_options&,
-                fetch_cache&,
                 build_package_list&,
                 unsatisfied_dependents* simulate,
                 const function<find_database_function>&);
@@ -3191,11 +3189,6 @@ namespace bpkg
                   (config_dirs.size () == 1
                    ? empty_string
                    : '[' + config_dirs[0].representation () + ']'));
-
-    // @@ FC: definitely incorrect db. Feels like cannot have this "global"
-    //    fetch cache object.
-    //
-    bpkg::fetch_cache fetch_cache (o, &mdb);
 
     // Command line as a dependent.
     //
@@ -3625,7 +3618,6 @@ namespace bpkg
       //
       for (const auto& l: locations)
         rep_fetch (o,
-                   fetch_cache,
                    l.first,
                    l.second,
                    o.fetch_shallow (),
@@ -6353,7 +6345,6 @@ namespace bpkg
           build_package_list bl (tmp.begin (), tmp.end ());
 
           changed = execute_plan (o,
-                                  fetch_cache,
                                   bl,
                                   &unsatisfied_depts,
                                   find_prereq_database);
@@ -7694,7 +7685,6 @@ namespace bpkg
     // addition update (that update_dependents flag above).
     //
     bool noop (!execute_plan (o,
-                              fetch_cache,
                               pkgs,
                               nullptr /* simulate */,
                               find_prereq_database));
@@ -7775,7 +7765,6 @@ namespace bpkg
 
   static bool
   execute_plan (const pkg_build_options& o,
-                fetch_cache& cache,
                 build_package_list& build_pkgs,
                 unsatisfied_dependents* simulate,
                 const function<find_database_function>& fdb)
@@ -8147,7 +8136,6 @@ namespace bpkg
             case repository_basis::archive:
               {
                 sp = pkg_fetch (o,
-                                cache,
                                 pdb,
                                 af.database (),
                                 t,
