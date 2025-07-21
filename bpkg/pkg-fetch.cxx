@@ -624,7 +624,7 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      fetch_cache cache (o, &db);
+      fetch_cache cache (o, &db); // @@ FC: should we move it inside pkg_fetch()?
 
       p = pkg_fetch (o,
                      cache,

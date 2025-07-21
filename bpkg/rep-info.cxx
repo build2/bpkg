@@ -67,6 +67,7 @@ namespace bpkg
     init_tmp (conf != nullptr ? *conf : empty_dir_path);
 
     // @@ FC: open database if conf != nullptr to get fetch cache mode.
+    //        also, maybe move inside rep_fetch()?
     //
     fetch_cache cache (o, nullptr);
 
