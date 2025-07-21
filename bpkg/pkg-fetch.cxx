@@ -363,7 +363,7 @@ namespace bpkg
         {
           mkhardlink (target, link);
         }
-        catch (system_error& e)
+        catch (const system_error& e)
         {
           if (e.code ().category () == generic_category ())
           {
@@ -379,7 +379,7 @@ namespace bpkg
               {
                 cpfile (target, p);
               }
-              catch (system_error& e)
+              catch (const system_error& e)
               {
                 fail << "unable to copy file " << target << " to " << p
                      << ": " << e;
@@ -439,10 +439,10 @@ namespace bpkg
         if (cache.is_open ())
           cache.close ();
 
-        arm = auto_rmfile (a);
-
         pkg_fetch_archive (
           co, pl->repository_fragment->location, pl->location, a);
+
+        arm = auto_rmfile (a);
 
         if (cache.enabled ())
         {
@@ -465,7 +465,10 @@ namespace bpkg
           }
         }
         else
+        {
           rm (a);
+          arm.cancel ();
+        }
       }
 
       if (crp)
@@ -621,7 +624,7 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      fetch_cache cache (o, &db); // @@ FC: correct db?
+      fetch_cache cache (o, &db);
 
       p = pkg_fetch (o,
                      cache,

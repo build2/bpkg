@@ -30,6 +30,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -49,6 +50,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -74,6 +76,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -101,6 +104,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -122,6 +126,7 @@ EOE
       %initialized existing configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -148,6 +153,7 @@ EOE
       %  uuid: .{36}%
         type: target
         name: foo
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -181,6 +187,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: host
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -217,6 +224,7 @@ EOE
         uuid: $uuid
         type: target
         name: foo
+        mode: fetch-cache=false
       EOE
 
     $cfg_info >>/~"%EOO%"
@@ -253,6 +261,7 @@ EOE
       %created new configuration in .+/cfg/%
       %  uuid: .{36}%
         type: target
+        mode: fetch-cache=false
       EOE
 
     $cfg_info --link >>/~"%EOO%"

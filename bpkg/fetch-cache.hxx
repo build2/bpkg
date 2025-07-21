@@ -131,6 +131,8 @@ namespace bpkg
     bool
     offline () const;
 
+    // @@ Should we drop it since unused?
+    //
     static bool
     offline (const common_options&);
 

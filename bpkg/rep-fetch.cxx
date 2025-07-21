@@ -72,11 +72,10 @@ namespace bpkg
     // (locking) the cache if not in the offline mode, to keep it unlocked for
     // the duration of the potential download. However, we need to query the
     // cache entry first, since this fetch may not be necessary due to the
-    // session. On the other hand, if the query we made was the first one in
-    // the session, we need to make sure that all the concurrent queries in
-    // this session for the same repository are blocked until we fetch all the
-    // required manifests and potentially update the metadata in the cache.
-    // This feels quite hairy at the moment, so let's keep it simple for now.
+    // session. Also, closing the cache for the time we download the manifest
+    // files feels not easy to implement due to the session. Thus, let's keep
+    // it simple for now by opening the cache before the first manifest fetch
+    // and keeping it open until the metadata is potentially updated.
     //
     optional<fetch_cache::loaded_pkg_repository_metadata> crm;
 
@@ -2186,7 +2185,7 @@ namespace bpkg
     //
     database db (c, trace, true /* pre_attach */, false /* sys_rep */);
 
-    fetch_cache cache (o, &db); // @@ FC: correct db?
+    fetch_cache cache (o, &db);
 
     transaction t (db);
     session s; // Repository dependencies can have cycles.
