@@ -121,12 +121,13 @@ namespace bpkg
     //
     timestamp access_time;
 
-    // The package archive file path inside the packages/ directory and its
+    // The package archive file path inside the packages/ directory, its
     // SHA256 checksum as recorded in the packages.manifest file (which should
-    // match the actual contents checksum).
+    // match the actual contents checksum), and its origin repository.
     //
     path archive;
     string checksum;
+    repository_url repository;
 
     // Database mapping.
     //

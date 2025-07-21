@@ -74,7 +74,8 @@ namespace bpkg
     // session. Also, closing the cache for the time we download the manifest
     // files feels not easy to implement due to the session. Thus, let's keep
     // it simple for now by opening the cache before the first manifest fetch
-    // and keeping it open until the metadata is potentially updated.
+    // and keeping it open until the metadata is potentially updated. Plus,
+    // we do cache garbage collection while downloading.
     //
 
     // If we fetch in the configuration but the database is not open yet
@@ -102,6 +103,9 @@ namespace bpkg
       // Note that the fragment for pkg repository URLs is always nullopt, so
       // can use the repository URL as is.
       //
+      // Note also that we cache both local and remote URLs since a local URL
+      // could be on a network filesystem or some such.
+      //
       crm = cache.load_pkg_repository_metadata (rl.url ());
 
       if (cache.offline () && !crm)
@@ -125,8 +129,7 @@ namespace bpkg
     //
     // - Otherwise (both checksums are specified), we fetch the signature
     //   manifest and check if the packages manifest checksum still matches
-    //   the cached checksum, and use the both cached manifest files if it
-    //   does.
+    //   the cached checksum, and use the cached manifest files if it does.
     //
     // - Otherwise (the packages manifest checksum doesn't match), we fetch
     //   the packages manifest and check if the repositories manifest checksum
@@ -171,7 +174,10 @@ namespace bpkg
           {
             error << "packages manifest file checksum mismatch for "
                   << rl.canonical_name () <<
-              info << "try again";
+              info << "consider retrying this operation if this is a "
+                  << "transient error" <<
+              info << "consider reporting this to repository maintainers "
+                  << "if this is a persistent error"
 
             throw recoverable ();
           }
@@ -209,7 +215,7 @@ namespace bpkg
     // Note that if we use the cached packages manifest file, then we don't
     // authenticate the repository (nor certificate). Otherwise, if we use the
     // cached repositories manifest file, then we authenticate the repository
-    // but not the certificate (since it is already cached as a part of the
+    // but not the certificate (since it is already cached as part of the
     // repositories manifest file). But we still need to verify the
     // certificate (validity period and such) in the latter case.
     //
@@ -296,7 +302,7 @@ namespace bpkg
       if (!sm->signature)
         fail << "no signature specified in signature manifest for signed "
              << rl.canonical_name () <<
-          info << "consider reporting this to the repository maintainers";
+          info << "consider reporting this to repository maintainers";
 
       assert (cert != nullptr); // Wouldn't be here otherwise.
 
@@ -1485,8 +1491,7 @@ namespace bpkg
             // advice will be given anyway (see rep_fetch() for details).
             //
             if (full_fetch)
-              dr << info << "consider reporting this to the repository "
-                         << "maintainers";
+              dr << info << "consider reporting this to repository maintainers";
             else if (!filesystem_state_changed)
               dr << info << "run 'bpkg rep-fetch' to update";
           }

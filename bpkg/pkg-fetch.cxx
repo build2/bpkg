@@ -386,6 +386,7 @@ namespace bpkg
 
               mv (p, link);
               arm.cancel ();
+              return;
             }
           }
 
@@ -411,14 +412,12 @@ namespace bpkg
         if (cache.offline () && !crp)
           fail << "no archive in fetch cache for package " << n << ' ' << v
                << " in offline mode" <<
-            info << "consider turning off offline mode";
+            info << "consider turning offline mode off";
       }
-      else
-      {
-        if (cache.offline ())
-          fail << "fetch cache is disabled in offline mode" <<
-            info << "consider enabling fetch cache";
-      }
+      else if (cache.offline ())
+        fail << "no way to obtain package " << n << ' ' << v
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
 
       // Add the package archive file to the configuration, by either using
       // its cached version in place or fetching it from the repository. In
@@ -427,6 +426,8 @@ namespace bpkg
       // cache, re-query the entry, and stick to the plan if it still doesn't
       // exist or drop the fetched archive and behave as if the entry existed
       // from the very beginning otherwise.
+      //
+      // @@ Let's redo holding the cache.
       //
       string fcs; // Fetched archive checksum.
 

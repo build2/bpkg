@@ -217,18 +217,23 @@ namespace bpkg
     {
       path archive;
       string checksum;
+      repository_url repository;
     };
 
     optional<loaded_pkg_repository_package>
     load_pkg_repository_package (const package_id&);
 
-    // Save (insert) package archive for the specified package name and
-    // version. The archive should be placed (copied, moved, hard-linked) to
-    // the returned path. Note that the caller is expected to use the "place
-    // to temporary and atomically move into place" technique.
+    // Save (insert) package archive with the specified file name for the
+    // specified package name and version. The archive should be placed
+    // (copied, moved, hard-linked) to the returned path. Note that the caller
+    // is expected to use the "place to temporary and atomically move into
+    // place" technique.
     //
     path
-    save_pkg_repository_package (package_id, version, string checksum);
+    save_pkg_repository_package (package_id,
+                                 version,
+                                 path file,
+                                 string checksum);
 
     // Implementation details (also used by cfg_create()).
     //
