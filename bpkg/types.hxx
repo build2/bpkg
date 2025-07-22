@@ -14,6 +14,14 @@
 #include <ostream>
 #include <functional>    // function, reference_wrapper
 
+#include <atomic>
+
+#ifndef LIBBUTL_MINGW_STDTHREAD
+#  include <thread>
+#else
+#  include <libbutl/mingw-mutex.hxx>
+#endif
+
 #include <ios>           // ios_base::failure
 #include <exception>     // exception
 #include <stdexcept>     // logic_error, invalid_argument, runtime_error
@@ -62,6 +70,22 @@ namespace bpkg
 
   using strings = vector<string>;
   using cstrings = vector<const char*>;
+
+  // Concurrency.
+  //
+  using std::atomic;
+  using std::memory_order_relaxed;
+  using std::memory_order_consume;
+  using std::memory_order_acquire;
+  using std::memory_order_release;
+
+#ifndef LIBBUTL_MINGW_STDTHREAD
+  using std::thread;
+  namespace this_thread = std::this_thread;
+#else // LIBBUTL_MINGW_STDTHREAD
+  using mingw_stdthread::thread;
+  namespace this_thread = mingw_stdthread::this_thread;
+#endif
 
   using std::istream;
   using std::ostream;

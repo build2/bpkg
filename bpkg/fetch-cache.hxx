@@ -114,6 +114,12 @@ namespace bpkg
       close ();
     }
 
+    fetch_cache (fetch_cache&&) = delete;
+    fetch_cache (const fetch_cache&) = delete;
+
+    fetch_cache& operator= (fetch_cache&&) = delete;
+    fetch_cache& operator= (const fetch_cache&) = delete;
+
     // Cache settings.
     //
   public:
@@ -147,6 +153,30 @@ namespace bpkg
     //
     bool
     cache_trust () const;
+
+    // Garbage collection.
+    //
+  public:
+    // Start/stop removal of outdated cache entries. The cache is expected to
+    // remain open between the calls to these functions. Note that no
+    // load/save_*() functions (see below) can be called while the garbage
+    // collection is in progress. Note also that close() will stop garbage
+    // collection, if necessary, ignoring any errors.
+    //
+    // Normally, you would call start_gc() immediately before performing an
+    // operation that takes long to complete (compared to removing a
+    // filesystem entry), such as a network transfer, and then would call
+    // stop_gc() immediately after. Typically, the start_gc()/stop_gc() calls
+    // are nested between load/save_*() calls.
+    //
+    void
+    start_gc ();
+
+    // Unless ignore_errors is true, issue diagnostics and throw failed if
+    // there was an error during garbage collection.
+    //
+    void
+    stop_gc (bool ignore_errors = false);
 
     // Trusted (authenticated) pkg repository certificates cache API.
     //
@@ -319,11 +349,22 @@ namespace bpkg
     bool src_;
     bool trust_;
 
+    // Database and its lock.
+    //
     void
     lock ();
 
     unique_ptr<odb::sqlite::database> lock_;
     unique_ptr<odb::sqlite::database> db_;
+
+    // Garbage collection.
+    //
+    void
+    garbage_collector ();
+
+    thread       gc_thread_;
+    atomic<bool> gc_stop_;
+    diag_record  gc_error_;
   };
 }
 

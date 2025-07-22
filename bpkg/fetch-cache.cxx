@@ -23,6 +23,8 @@ namespace bpkg
 
   using butl::system_clock;
 
+  namespace chrono = std::chrono;
+
   // Note that directory and session are only initialized if the cache is
   // enabled. The semi-precious directory is left empty if it's the same as
   // non-precious.
@@ -515,6 +517,9 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
+    if (gc_thread_.joinable ())
+      stop_gc (true /* ignore_errors */);
+
     // The tracer could already be destroyed (e.g., if called from the
     // destructor due to an exception-caused stack unwinding), so switch to
     // ours.
@@ -561,10 +566,88 @@ namespace bpkg
     return enabled_ && trust_;
   }
 
+  void fetch_cache::
+  garbage_collector ()
+  {
+    auto& db (*db_);
+
+    // Switch to our own tracer.
+    //
+    tracer trace ("fetch_cache::garbage_collector");
+    auto tg = make_guard ([o = db.tracer (), &db] () {db.tracer (o);});
+    db.tracer (trace);
+
+    timestamp three_months_ago (system_clock::now () - chrono::months (3));
+
+    try
+    {
+      transaction t (db);
+
+      auto stop = [this, &t] ()
+      {
+        if (gc_stop_.load (memory_order_consume))
+        {
+          t.commit ();
+          return true;
+        }
+        else
+          return false;
+      };
+
+      // @@ TODO: trust (1 year?)
+
+      for (pkg_repository_metadata& o:
+             db.query<pkg_repository_metadata> (
+               /*query<pkg_repository_metadata>::access_time < three_months_ago*/))
+      {
+        if (stop ())
+          return;
+
+        // @@ TODO: delete filesystem entries, delete object.
+        db.erase (o);
+
+        if (stop ())
+          return;
+      }
+
+      // @@ TODO: pkg archives (3 months).
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      gc_error_ << error << db.name () << ": " << e.message ();
+    }
+  }
+
+  void fetch_cache::
+  start_gc ()
+  {
+    assert (is_open () && !gc_thread_.joinable () && gc_error_.empty ());
+
+    gc_stop_.store (false, memory_order_relaxed);
+    gc_thread_ = thread (&fetch_cache::garbage_collector, this);
+  }
+
+  void fetch_cache::
+  stop_gc (bool ie)
+  {
+    assert (is_open () && gc_thread_.joinable ());
+
+    gc_stop_.store (true, memory_order_release);
+    gc_thread_.join ();
+
+    if (!ie && gc_error_.full ())
+    {
+      gc_error_.flush ();
+      throw failed ();
+    }
+  }
+
   bool fetch_cache::
   load_pkg_repository_auth (const string& id)
   {
-    assert (is_open ()); // The open() function should have been called.
+    assert (is_open () && !gc_thread_.joinable ());
 
     auto& db (*db_);
 
@@ -588,9 +671,7 @@ namespace bpkg
   void fetch_cache::
   save_pkg_repository_auth (string id, string fingerprint, string name)
   {
-    // The load_pkg_repository_auth() function should have been called.
-    //
-    assert (is_open ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     auto& db (*db_);
 
@@ -614,6 +695,8 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
   load_pkg_repository_metadata (const repository_url& u)
   {
+    assert (is_open () && !gc_thread_.joinable ());
+
     // The overall plan is as follows:
     //
     // 1. See if there is an entry for this URL in the database. If not,
@@ -637,8 +720,6 @@ namespace bpkg
       pkg_repository_metadata_directory_ =
         ((dir_path (np_directory_) /= "pkg") /= "metadata");
     }
-
-    assert (is_open ()); // The open() function should have been called.
 
     auto& db (*db_);
 
@@ -694,6 +775,9 @@ namespace bpkg
                                 string repositories_checksum,
                                 string packages_checksum)
   {
+    assert (is_open () && !gc_thread_.joinable () &&
+            !pkg_repository_metadata_directory_.empty ());
+
     // The overall plan is as follows:
     //
     // 1. Try to load the current entry from the database:
@@ -705,10 +789,6 @@ namespace bpkg
     //       entry with current session and access time.
     //
     // 2. Return the paths the metadata should be written to.
-
-    // The load_pkg_repository_metadata() function should have been called.
-    //
-    assert (!pkg_repository_metadata_directory_.empty ());
 
     // Metadata file paths.
     //
@@ -787,6 +867,8 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_package> fetch_cache::
   load_pkg_repository_package (const package_id& id)
   {
+    assert (is_open () && !gc_thread_.joinable ());
+
     // The overall plan is as follows:
     //
     // 1. See if there is an entry for this package id in the database. If
@@ -806,8 +888,6 @@ namespace bpkg
       pkg_repository_package_directory_ =
         ((dir_path (np_directory_) /= "pkg") /= "packages");
     }
-
-    assert (is_open ()); // The open() function should have been called.
 
     auto& db (*db_);
 
@@ -852,16 +932,15 @@ namespace bpkg
                                string checksum,
                                repository_url repository)
   {
+    assert (is_open () && !gc_thread_.joinable () &&
+            !pkg_repository_package_directory_.empty ());
+
     // The overall plan is as follows:
     //
     // 1. Create new database entry with current access time. Remove the
     //    archive file, if exists.
     //
     // 2. Return the path the archive file should be moved to.
-
-    // The load_pkg_repository_package() function should have been called.
-    //
-    assert (!pkg_repository_package_directory_.empty ());
 
     if (!exists (pkg_repository_package_directory_))
       mk_p (pkg_repository_package_directory_);
