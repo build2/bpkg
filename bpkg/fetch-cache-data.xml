@@ -36,6 +36,7 @@
       <column name="access_time" type="INTEGER" null="true"/>
       <column name="archive" type="TEXT" null="true"/>
       <column name="checksum" type="TEXT" null="true"/>
+      <column name="repository" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
         <column name="version_epoch"/>
