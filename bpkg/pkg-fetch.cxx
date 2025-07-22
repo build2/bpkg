@@ -450,7 +450,7 @@ namespace bpkg
             info << "fetched archive has " << fcs <<
             info << "consider re-fetching package list and trying again" <<
             info << "if problem persists, consider reporting this to "
-                 << "the repository maintainer";
+                 << "repository maintainer";
         }
       }
       else
@@ -474,7 +474,7 @@ namespace bpkg
         //
         if (crp->checksum != *ap->sha256sum)
         {
-          fail << "cached archive checksum " << crp->checksum << " doesn't "
+          warn << "cached archive checksum " << crp->checksum << " doesn't "
                << "match fetched archive checksum " << *ap->sha256sum <<
             info << "fetched archive repository: " << rl.url () <<
             info << "cached archive repository: " << crp->repository;
@@ -487,6 +487,12 @@ namespace bpkg
         //
         if (cache.cache_src ())
         {
+          // Note that while it may seem that this makes the archive semi-
+          // precious because we store its path in the configuration's
+          // database, in the shared src mode it is purely informational. We
+          // do, however, expect the archive not to disappear between the
+          // calls to fetch and unpack.
+          //
           a = move (ca);
           purge = false;
         }
@@ -520,8 +526,8 @@ namespace bpkg
           // If sharing of the cached source directories is enabled, then move
           // the package archive to the fetch cache, use it in place (from the
           // cache) in the configuration, and don't remove it when the package
-          // is purged. Otherwise, hardlink/copy the archive from the
-          // configuration directory into the cache.
+          // is purged (see above for details). Otherwise, hardlink/copy the
+          // archive from the configuration directory into the cache.
           //
           if (cache.cache_src ())
           {
@@ -542,9 +548,7 @@ namespace bpkg
             purge = false;
           }
           else
-          {
             hardlink (a, ca);
-          }
         }
 
         cache.close ();
