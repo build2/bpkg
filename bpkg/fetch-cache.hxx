@@ -4,7 +4,7 @@
 #ifndef BPKG_FETCH_CACHE_HXX
 #define BPKG_FETCH_CACHE_HXX
 
-#include <odb/sqlite/database.hxx>
+#include <odb/sqlite/forward.hxx> // odb::sqlite::database
 
 #include <libbpkg/manifest.hxx>
 
@@ -283,65 +283,7 @@ namespace bpkg
     mode (const common_options&);
 
   private:
-    // Transaction wrapper that allows starting a transaction and making it
-    // current, for the duration of it's lifetime, in the presence of another
-    // current transaction.
-    //
-    // Note that normally the cache functions will start the cache database
-    // transactions when the caller has already started a configuration
-    // database transaction.
-    //
-    class transaction
-    {
-    public:
-      explicit
-      transaction (odb::sqlite::transaction_impl* t)
-          : t_ (), // Finalized.
-            ct_ (nullptr)
-      {
-        using odb::sqlite::transaction;
-
-        transaction* ct (transaction::has_current ()
-                         ? &transaction::current ()
-                         : nullptr);
-
-        t_.reset (t, ct == nullptr);
-
-        if (ct != nullptr)
-          transaction::current (t_);
-
-        ct_ = ct;
-      }
-
-      explicit
-      transaction (odb::sqlite::database& db)
-          : transaction (db.begin_exclusive ()) {}
-
-      void
-      commit ()
-      {
-        t_.commit ();
-      }
-
-      void
-      rollback ()
-      {
-        t_.rollback ();
-      }
-
-      ~transaction ()
-      {
-        if (!t_.finalized ())
-          t_.rollback ();
-
-        if (ct_ != nullptr)
-          odb::sqlite::transaction::current (*ct_);
-      }
-
-    private:
-      odb::sqlite::transaction t_;
-      odb::sqlite::transaction* ct_;
-    };
+    class transaction;
 
     // Effective mode for this configuration.
     //

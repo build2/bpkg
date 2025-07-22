@@ -7,6 +7,7 @@
 #include <odb/result.hxx>
 #include <odb/schema-catalog.hxx>
 
+#include <odb/sqlite/database.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
 #include <bpkg/database.hxx>         // database::fetch_cache_mode
@@ -24,6 +25,66 @@ namespace bpkg
   using butl::system_clock;
 
   namespace chrono = std::chrono;
+
+  // Transaction wrapper that allows starting a transaction and making it
+  // current, for the duration of it's lifetime, in the presence of another
+  // current transaction.
+  //
+  // Note that normally the cache functions will start the cache database
+  // transactions when the caller has already started a configuration database
+  // transaction.
+  //
+  class fetch_cache::transaction
+  {
+  public:
+    explicit
+    transaction (odb::sqlite::transaction_impl* t)
+        : t_ (), // Finalized.
+          ct_ (nullptr)
+    {
+      using odb::sqlite::transaction;
+
+      transaction* ct (transaction::has_current ()
+                       ? &transaction::current ()
+                       : nullptr);
+
+      t_.reset (t, ct == nullptr);
+
+      if (ct != nullptr)
+        transaction::current (t_);
+
+      ct_ = ct;
+    }
+
+    explicit
+    transaction (odb::sqlite::database& db)
+        : transaction (db.begin_exclusive ()) {}
+
+    void
+    commit ()
+    {
+      t_.commit ();
+    }
+
+    void
+    rollback ()
+    {
+      t_.rollback ();
+    }
+
+    ~transaction ()
+    {
+      if (!t_.finalized ())
+        t_.rollback ();
+
+      if (ct_ != nullptr)
+        odb::sqlite::transaction::current (*ct_);
+    }
+
+  private:
+    odb::sqlite::transaction t_;
+    odb::sqlite::transaction* ct_;
+  };
 
   // Note that directory and session are only initialized if the cache is
   // enabled. The semi-precious directory is left empty if it's the same as
