@@ -426,8 +426,8 @@ namespace bpkg
       //
       // Should we close (unlock) the cache for the time we download the
       // archive? Let's keep it locked not to download same archive multiple
-      // times (note: probability is higher the larger an archive size).
-      // Plus, we do cache garbage collection while downloading.
+      // times (note: the probability of that is higher the larger the archive
+      // size). Plus, we do cache garbage collection while downloading.
       //
       string fcs; // Fetched archive checksum.
 
@@ -505,6 +505,12 @@ namespace bpkg
       {
         if (!crp)
         {
+          // Note that the fragment for pkg repository URLs is always nullopt,
+          // so can use the repository URL as is.
+          //
+          // Note also that we cache both local and remote URLs since a local
+          // URL could be on a network filesystem or some such.
+          //
           path ca (cache.save_pkg_repository_package (move (pid),
                                                       v,
                                                       move (an),

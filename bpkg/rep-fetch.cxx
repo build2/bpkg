@@ -109,17 +109,14 @@ namespace bpkg
       crm = cache.load_pkg_repository_metadata (rl.url ());
 
       if (cache.offline () && !crm)
-          fail << "no metadata in fetch cache for repository " << rl.url ()
-               << " in offline mode" <<
-            info << "consider turning offline mode off";
+        fail << "no metadata in fetch cache for repository " << rl.url ()
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
     }
-    else
-    {
-      if (cache.offline ())
-        fail << "no way to obtain metadata for repository " << rl.url ()
-             << " in offline mode with fetch cache disabled" <<
-          info << "consider enabling fetch cache or turning offline mode off";
-    }
+    else if (cache.offline ())
+      fail << "no way to obtain metadata for repository " << rl.url ()
+           << " in offline mode with fetch cache disabled" <<
+        info << "consider enabling fetch cache or turning offline mode off";
 
     // If the cached metadata is retrieved, determine which of the cached
     // metadata files we can use. Specifically:
