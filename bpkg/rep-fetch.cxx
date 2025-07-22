@@ -109,15 +109,16 @@ namespace bpkg
       crm = cache.load_pkg_repository_metadata (rl.url ());
 
       if (cache.offline () && !crm)
-        fail << "no repository metadata in fetch cache for "
-             << rl.canonical_name () << " in offline mode" <<
-          info << "consider turning off offline mode";
+          fail << "no metadata in fetch cache for repository " << rl.url ()
+               << " in offline mode" <<
+            info << "consider turning offline mode off";
     }
     else
     {
       if (cache.offline ())
-        fail << "fetch cache is disabled in offline mode" <<
-          info << "consider enabling fetch cache";
+        fail << "no way to obtain metadata for repository " << rl.url ()
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
     }
 
     // If the cached metadata is retrieved, determine which of the cached
@@ -175,9 +176,9 @@ namespace bpkg
             error << "packages manifest file checksum mismatch for "
                   << rl.canonical_name () <<
               info << "consider retrying this operation if this is a "
-                  << "transient error" <<
+                   << "transient error" <<
               info << "consider reporting this to repository maintainers "
-                  << "if this is a persistent error"
+                   << "if this is a persistent error";
 
             throw recoverable ();
           }
@@ -230,7 +231,7 @@ namespace bpkg
       if (cached_repositories_path.empty ())
       {
         cert = authenticate_certificate (
-          co, &cache, conf, db, cert_pem, rl, dependent_trust);
+          co, db, &cache, cert_pem, rl, dependent_trust);
       }
       else
       {
@@ -268,7 +269,10 @@ namespace bpkg
         {
           error << "repositories manifest file checksum mismatch for "
                 << rl.canonical_name () <<
-            info << "try again";
+            info << "consider retrying this operation if this is a "
+                 << "transient error" <<
+            info << "consider reporting this to repository maintainers "
+                 << "if this is a persistent error";
 
           throw recoverable ();
         }
@@ -294,7 +298,10 @@ namespace bpkg
       {
         error << "packages manifest file checksum mismatch for "
               << rl.canonical_name () <<
-          info << "try again";
+          info << "consider retrying this operation if this is a "
+               << "transient error" <<
+          info << "consider reporting this to repository maintainers "
+               << "if this is a persistent error";
 
         throw recoverable ();
       }
@@ -1553,9 +1560,8 @@ namespace bpkg
       if (need_auth (co, r->location))
       {
         authenticate_certificate (co,
-                                  nullptr /* fetch_cache */,
-                                  &db.config_orig,
                                   &db,
+                                  nullptr /* fetch_cache */,
                                   r->certificate,
                                   r->location,
                                   dependent_trust);

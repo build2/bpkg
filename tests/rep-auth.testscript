@@ -610,7 +610,8 @@ sc = " " # Space character to append to here-document line when required.
   $rep_info $rep/sha256sum-mismatch 2>>~%EOE% != 0
     %.*
     error: packages manifest file checksum mismatch for pkg:build2.org/rep-auth/sha256sum-mismatch
-      info: try again
+      info: consider retrying this operation if this is a transient error
+      info: consider reporting this to repository maintainers if this is a persistent error
     EOE
 
   : signature-mismatch

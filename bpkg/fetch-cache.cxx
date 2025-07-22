@@ -566,16 +566,23 @@ namespace bpkg
   {
     assert (is_open ()); // The open() function should have been called.
 
-    // @@ FC try-catch database exception (and in below functions).
-
     auto& db (*db_);
-    transaction t (db);
 
-    bool r (db.query_value<pkg_repository_auth_count> (
-              query<pkg_repository_auth_count>::id == id) != 0);
+    try
+    {
+      transaction t (db);
 
-    t.commit ();
-    return r;
+      bool r (db.query_value<pkg_repository_auth_count> (
+                query<pkg_repository_auth_count>::id == id) != 0);
+
+      t.commit ();
+
+      return r;
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message () << endf;
+    }
   }
 
   void fetch_cache::
@@ -586,12 +593,20 @@ namespace bpkg
     assert (is_open ());
 
     auto& db (*db_);
-    transaction t (db);
 
-    pkg_repository_auth a {move (id), move (fingerprint), move (name)};
-    db.persist (a);
+    try
+    {
+      transaction t (db);
 
-    t.commit ();
+      pkg_repository_auth a {move (id), move (fingerprint), move (name)};
+      db.persist (a);
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
   }
 
   static dir_path pkg_repository_metadata_directory_;
@@ -626,42 +641,50 @@ namespace bpkg
     assert (is_open ()); // The open() function should have been called.
 
     auto& db (*db_);
-    transaction t (db);
 
-    pkg_repository_metadata m;
-    if (db.find<pkg_repository_metadata> (u, m))
+    try
     {
-      dir_path d (pkg_repository_metadata_directory_ / m.directory);
+      transaction t (db);
 
-      path rf (d / m.repositories_path);
-      path pf (d / m.packages_path);
-
-      if (!exists (rf) || !exists (pf))
+      pkg_repository_metadata m;
+      if (db.find<pkg_repository_metadata> (u, m))
       {
-        // Remove the database entry last, to make sure we are still tracking
-        // the directory if its removal fails for any reason.
-        //
-        rm_r (d);
-        db.erase (m);
+        dir_path d (pkg_repository_metadata_directory_ / m.directory);
+
+        path rf (d / m.repositories_path);
+        path pf (d / m.packages_path);
+
+        if (!exists (rf) || !exists (pf))
+        {
+          // Remove the database entry last, to make sure we are still tracking
+          // the directory if its removal fails for any reason.
+          //
+          rm_r (d);
+          db.erase (m);
+        }
+        else
+        {
+          bool utd (!offline () && m.session != session_); // Up-to-date check.
+
+          m.session = session_;
+          m.access_time = system_clock::now ();
+
+          db.update (m);
+
+          r = loaded_pkg_repository_metadata {
+            move (rf),
+            utd ? move (m.repositories_checksum) : string (),
+            move (pf),
+            utd ? move (m.packages_checksum) : string ()};
+        }
       }
-      else
-      {
-        bool utd (!offline () && m.session != session_); // Up-to-date check.
 
-        m.session = session_;
-        m.access_time = system_clock::now ();
-
-        db.update (m);
-
-        r = loaded_pkg_repository_metadata {
-          move (rf),
-          utd ? move (m.repositories_checksum) : string (),
-          move (pf),
-          utd ? move (m.packages_checksum) : string ()};
-      }
+      t.commit ();
     }
-
-    t.commit ();
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
 
     return r;
   }
@@ -693,60 +716,68 @@ namespace bpkg
     path pf;
 
     auto& db (*db_);
-    transaction t (db);
 
-    pkg_repository_metadata m;
-    if (db.find<pkg_repository_metadata> (u, m))
+    try
     {
-      dir_path d (pkg_repository_metadata_directory_ / m.directory);
+      transaction t (db);
 
-      if (!repositories_checksum.empty ())
+      pkg_repository_metadata m;
+      if (db.find<pkg_repository_metadata> (u, m))
       {
-        m.repositories_checksum = move (repositories_checksum);
+        dir_path d (pkg_repository_metadata_directory_ / m.directory);
 
-        rf = d / m.repositories_path;
-        rm (rf);
+        if (!repositories_checksum.empty ())
+        {
+          m.repositories_checksum = move (repositories_checksum);
+
+          rf = d / m.repositories_path;
+          rm (rf);
+        }
+
+        m.packages_checksum = move (packages_checksum);
+
+        pf = d / m.packages_path;
+        rm (pf);
+
+        db.update (m);
+      }
+      else
+      {
+        assert (!repositories_checksum.empty ()); // Shouldn't be here otherwise.
+
+        dir_path dn (sha256 (u.string ()).abbreviated_string (16));
+        dir_path d (pkg_repository_metadata_directory_ / dn);
+
+        // If the metadata directory already exists, probably as a result of
+        // some previous failure, then re-create it.
+        //
+        if (exists (d))
+          rm_r (d);
+
+        mk_p (d);
+
+        rf = d / repositories_file;
+        pf = d / packages_file;
+
+        pkg_repository_metadata md {
+          u,
+          move (dn),
+          session_,
+          system_clock::now (),
+          repositories_file,
+          move (repositories_checksum),
+          packages_file,
+          move (packages_checksum)};
+
+        db.persist (md);
       }
 
-      m.packages_checksum = move (packages_checksum);
-
-      pf = d / m.packages_path;
-      rm (pf);
-
-      db.update (m);
+      t.commit ();
     }
-    else
+    catch (const database_exception& e)
     {
-      assert (!repositories_checksum.empty ()); // Shouldn't be here otherwise.
-
-      dir_path dn (sha256 (u.string ()).abbreviated_string (16));
-      dir_path d (pkg_repository_metadata_directory_ / dn);
-
-      // If the metadata directory already exists, probably as a result of
-      // some previous failure, then re-create it.
-      //
-      if (exists (d))
-        rm_r (d);
-
-      mk_p (d);
-
-      rf = d / repositories_file;
-      pf = d / packages_file;
-
-      pkg_repository_metadata md {
-        u,
-        move (dn),
-        session_,
-        system_clock::now (),
-        repositories_file,
-        move (repositories_checksum),
-        packages_file,
-        move (packages_checksum)};
-
-      db.persist (md);
+      fail << db.name () << ": " << e.message ();
     }
-
-    t.commit ();
 
     return saved_pkg_repository_metadata {move (rf), move (pf)};
   }
@@ -779,34 +810,47 @@ namespace bpkg
     assert (is_open ()); // The open() function should have been called.
 
     auto& db (*db_);
-    transaction t (db);
 
-    pkg_repository_package p;
-    if (db.find<pkg_repository_package> (id, p))
+    try
     {
-      path f (pkg_repository_package_directory_ / p.archive);
+      transaction t (db);
 
-      if (!exists (f))
+      pkg_repository_package p;
+      if (db.find<pkg_repository_package> (id, p))
       {
-        db.erase (p);
-      }
-      else
-      {
-        p.access_time = system_clock::now ();
+        path f (pkg_repository_package_directory_ / p.archive);
 
-        db.update (p);
+        if (!exists (f))
+        {
+          db.erase (p);
+        }
+        else
+        {
+          p.access_time = system_clock::now ();
 
-        r = loaded_pkg_repository_package {move (f), move (p.checksum)};
+          db.update (p);
+
+          r = loaded_pkg_repository_package {
+            move (f), move (p.checksum), move (p.repository)};
+        }
       }
+
+      t.commit ();
     }
-
-    t.commit ();
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
 
     return r;
   }
 
   path fetch_cache::
-  save_pkg_repository_package (package_id id, version v, string checksum)
+  save_pkg_repository_package (package_id id,
+                               version v,
+                               path file,
+                               string checksum,
+                               repository_url repository)
   {
     // The overall plan is as follows:
     //
@@ -822,28 +866,37 @@ namespace bpkg
     if (!exists (pkg_repository_package_directory_))
       mk_p (pkg_repository_package_directory_);
 
-    path an (id.name.string () + '-' + v.string () + ".tar.gz");
-    path r (pkg_repository_package_directory_ / an);
+    path r (pkg_repository_package_directory_ / file);
 
     auto& db (*db_);
-    transaction t (db);
 
-    // If the archive file already exists, probably as a result of some
-    // previous failure, then remove it.
-    //
-    if (exists (r))
-      rm (r);
+    try
+    {
+      transaction t (db);
 
-    pkg_repository_package p {
-      move (id),
-      move (v),
-      system_clock::now (),
-      move (an),
-      move (checksum)};
+      // If the archive file already exists, probably as a result of some
+      // previous failure, then remove it.
+      //
+      if (exists (r))
+        rm (r);
 
-    db.persist (p);
+      pkg_repository_package p {
+        move (id),
+        move (v),
+        system_clock::now (),
+        move (file),
+        move (checksum),
+        move (repository)};
 
-    t.commit ();
+      db.persist (p);
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
     return r;
   }
 }

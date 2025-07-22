@@ -331,6 +331,8 @@ namespace bpkg
           }
         }));
 
+    const repository_location& rl (pl->repository_fragment->location);
+
     bool purge (true);
 
     if (!simulate)
@@ -420,14 +422,12 @@ namespace bpkg
           info << "consider enabling fetch cache or turning offline mode off";
 
       // Add the package archive file to the configuration, by either using
-      // its cached version in place or fetching it from the repository. In
-      // the latter case, if the cache is open, let's close (release) it for
-      // the time we download the archive. After the download re-open the
-      // cache, re-query the entry, and stick to the plan if it still doesn't
-      // exist or drop the fetched archive and behave as if the entry existed
-      // from the very beginning otherwise.
+      // its cached version in place or fetching it from the repository.
       //
-      // @@ Let's redo holding the cache.
+      // Should we close (unlock) the cache for the time we download the
+      // archive? Let's keep it locked not to download same archive multiple
+      // times (note: probability is higher the larger an archive size).
+      // Plus, we do cache garbage collection while downloading.
       //
       string fcs; // Fetched archive checksum.
 
@@ -437,42 +437,23 @@ namespace bpkg
 
       if (!crp)
       {
-        if (cache.is_open ())
-          cache.close ();
-
-        pkg_fetch_archive (
-          co, pl->repository_fragment->location, pl->location, a);
+        pkg_fetch_archive (co, rl, pl->location, a);
 
         arm = auto_rmfile (a);
 
-        if (cache.enabled ())
-        {
-          cache.open (trace);
+        fcs = sha256sum (co, a);
 
-          crp = cache.load_pkg_repository_package (pid);
-        }
-
-        if (!crp)
+        if (fcs != *ap->sha256sum)
         {
-          fcs = sha256sum (co, a);
-          if (fcs != *ap->sha256sum)
-          {
-            fail << "checksum mismatch for " << n << " " << v <<
-              info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-              info << "fetched archive has " << fcs <<
-              info << "consider re-fetching package list and trying again" <<
-              info << "if problem persists, consider reporting this to "
+          fail << "checksum mismatch for " << n << " " << v <<
+            info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
+            info << "fetched archive has " << fcs <<
+            info << "consider re-fetching package list and trying again" <<
+            info << "if problem persists, consider reporting this to "
                  << "the repository maintainer";
-          }
-        }
-        else
-        {
-          rm (a);
-          arm.cancel ();
         }
       }
-
-      if (crp)
+      else
       {
         path& ca (crp->archive);
 
@@ -483,8 +464,9 @@ namespace bpkg
         if (an != ca.leaf ())
         {
           fail << "cached archive name " << ca.leaf () << " doesn't match "
-               << "original name " << an <<
-            info << "cached archive: " << ca;
+               << "fetched archive name " << an <<
+            info << "fetched archive repository: " << rl.url () <<
+            info << "cached archive repository: " << crp->repository;
         }
 
         // Issue a warning if the checksum of the cached archive differs from
@@ -492,9 +474,10 @@ namespace bpkg
         //
         if (crp->checksum != *ap->sha256sum)
         {
-          warn << "checksum mismatch for " << n << " " << v <<
-            info << pl->repository_fragment->name << " has " << *ap->sha256sum <<
-            info << "cached archive has " << crp->checksum;
+          fail << "cached archive checksum " << crp->checksum << " doesn't "
+               << "match fetched archive checksum " << *ap->sha256sum <<
+            info << "fetched archive repository: " << rl.url () <<
+            info << "cached archive repository: " << crp->repository;
         }
 
         // If sharing of the cached source directories is enabled, then use
@@ -524,7 +507,9 @@ namespace bpkg
         {
           path ca (cache.save_pkg_repository_package (move (pid),
                                                       v,
-                                                      move (fcs)));
+                                                      move (an),
+                                                      move (fcs),
+                                                      rl.url ()));
 
           // If sharing of the cached source directories is enabled, then move
           // the package archive to the fetch cache, use it in place (from the
@@ -572,7 +557,7 @@ namespace bpkg
                  move (n),
                  move (v),
                  move (a),
-                 pl->repository_fragment->location,
+                 rl,
                  ap->manifest (),
                  purge,
                  simulate));

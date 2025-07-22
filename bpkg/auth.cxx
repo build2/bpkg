@@ -823,9 +823,8 @@ namespace bpkg
 
   shared_ptr<const certificate>
   authenticate_certificate (const common_options& co,
-                            fetch_cache* cache,
-                            const dir_path* conf,
                             database* db,
+                            fetch_cache* cache,
                             const optional<string>& pem,
                             const repository_location& rl,
                             const optional<string>& dependent_trust)
@@ -837,10 +836,8 @@ namespace bpkg
 
     shared_ptr<certificate> r;
 
-    if (conf == nullptr)
+    if (db == nullptr)
     {
-      assert (db == nullptr);
-
       // If we have no configuration, go straight to authenticating a new
       // certificate.
       //
@@ -849,24 +846,14 @@ namespace bpkg
         ? auth_real  (co, cache, nullptr, fp, *pem, rl, dependent_trust).cert
         : auth_dummy (co, cache, nullptr, fp.abbreviated, rl);
     }
-    else if (db != nullptr)
+    else if (transaction::has_current ())
     {
-      if (transaction::has_current ())
-      {
-        r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
-      }
-      else
-      {
-        transaction t (*db);
-        r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
-        t.commit ();
-      }
+      r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
     }
     else
     {
-      database db (*conf, trace, false /* pre_attach */, false /* sys_rep */);
-      transaction t (db);
-      r = auth_cert (co, cache, db, pem, rl, dependent_trust);
+      transaction t (*db);
+      r = auth_cert (co, cache, *db, pem, rl, dependent_trust);
       t.commit ();
     }
 

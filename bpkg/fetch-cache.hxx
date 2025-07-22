@@ -233,7 +233,8 @@ namespace bpkg
     save_pkg_repository_package (package_id,
                                  version,
                                  path file,
-                                 string checksum);
+                                 string checksum,
+                                 repository_url);
 
     // Implementation details (also used by cfg_create()).
     //
