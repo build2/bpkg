@@ -145,6 +145,41 @@ namespace bpkg
 
     operator size_t () const {return result;}
   };
+
+  // Cache entry for state of git type repositories.
+  //
+  #pragma db object pointer(unique_ptr)
+  class git_repository_state
+  {
+  public:
+    // Repository URL.
+    //
+    // May not contain fragment. For local URLs may not be a relative path.
+    //
+    // Note that the following local URLs end up with the same /foo.git string
+    // representation:
+    //
+    // /foo.git
+    // file:///foo.git
+    // file://localhost/foo.git
+    //
+    // @@ FC: .git vs no .git: see rep-fetch.cxx for prior art.
+    //
+    repository_url url;
+
+    // Directory for this repository inside the git/ directory. Calculated as
+    // a 16-character abbreviated SHA256 checksum of the repository URL.
+    //
+    dir_path directory;
+
+    // Session during which we last performed git-ls-remote.
+    //
+    string session;
+
+    // Timestamp of the last time this cached entry was accessed.
+    //
+    timestamp access_time;
+  };
 }
 
 #endif // BPKG_FETCH_CACHE_DATA_HXX

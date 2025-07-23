@@ -47,7 +47,8 @@ namespace bpkg
   // ~/.cache/build2/
   // |
   // |-- pkg/  -- archive repositories metadata and package archives
-  // `-- git/  -- git repositories in the fetched state
+  // |-- git/  -- git repositories in the fetched state
+  // `-- tmp/  -- temporary directory for intermediate results
   //
   // ~/.build2/cache/
   // |
@@ -63,6 +64,14 @@ namespace bpkg
   // |       `-- repositories.manifest
   // `-- packages/
   //     `-- libfoo-1.2.3.tar.gz
+  //
+  // The git/ subdirectory has the following structure:
+  //
+  // git/
+  // `-- 1ecc6299db9ec823/
+  //     |-- repository/
+  //     |   `-- .git/
+  //     `-- ls-remote.txt
   //
   // The directories inside metadata/ are abbreviated SHA256 hashes of
   // repository URLs. Note that the signature.manifest files are not stored:
@@ -265,6 +274,55 @@ namespace bpkg
                                  path file,
                                  string checksum,
                                  repository_url);
+
+    // State cache API for git repositories.
+    //
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between.
+    //
+  public:
+    // Load (find) repository state for the specified git repository URL.
+    //
+    // Note that the returned paths point into the temporary directory and
+    // which will be moved back into their permanent location by
+    // save_*(). This, in particular, means that save_*() should be called
+    // even if nothing was fetched. If the cache entry is absent, the returned
+    // paths are valid but the corresponding filesystem entries do not exist
+    // (but their containing directory does). Likewise, if the cache entry is
+    // outdated, then the returned ls-remote output paht is valid but the
+    // corresponding filesystem entry does not exist.
+    //
+    struct loaded_git_repository_state
+    {
+      enum state_type
+      {
+        absent,    // No cache entry for this repository yet.
+        outdated,  // Existing cache entry but ls-remote output is out of date.
+        up_to_date // Existing cache entry and ls-remote output is up to date.
+      };
+
+      dir_path repository;
+      path ls_remote;
+      state_type state;
+    };
+
+    loaded_git_repository_state
+    load_git_repository_state (const repository_url&);
+
+    // Save (insert of update) repository state for the specified git
+    // repository URL. Specifically, move the filesystem entries from the
+    // paths returned by load_*() to their permanent location.
+    //
+    // Note that it's valid to call save_*() with absent ls-remote file. This
+    // can be used to preserve (expensive to fetch) git repository state in
+    // case of network failures during git-ls-remove (or, more generally,
+    // before spoiling the git repository state).
+    //
+    // @@ FC: need to think about pkg-checkout. May neet to try to restore
+    //    the state in case of common failure.
+    //
+    void
+    save_git_repository_state (const repository_url&);
 
     // Implementation details (also used by cfg_create()).
     //
