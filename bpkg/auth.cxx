@@ -179,10 +179,17 @@ namespace bpkg
     // Should we close (release) the fetch cache before prompting the user and
     // re-lock and re-query the entry afterwards? Probably not, since this way
     // we may potentially end up asking the same question in multiple
-    // terminals.
+    // terminals. Let's also not start the garbage collection, which may
+    // potentially interfere with the prompt (trace, issue warnings, etc) on
+    // the higher verbosity levels.
+    //
+    // Note that the cache garbage collection may potentially be in progress,
+    // in which case we need to stop it before the load_pkg_repository_auth()
+    // call and re-start it when we are done.
     //
     bool cached (false);
     bool close_cache (false);
+    bool start_cache_gc (false);
 
     if (cache.enabled ())
     {
@@ -190,6 +197,11 @@ namespace bpkg
       {
         cache.open (trace);
         close_cache = true;
+      }
+      else if (cache.gc_started ())
+      {
+        cache.stop_gc ();
+        start_cache_gc = true;
       }
 
       cached = cache.load_pkg_repository_auth (fp);
@@ -227,10 +239,15 @@ namespace bpkg
     if (cache.enabled ())
     {
       if (!cached)
-        cache.save_pkg_repository_auth (fp, "" /* fingerprint */, cert->name);
+        cache.save_pkg_repository_auth (fp,
+                                        "" /* fingerprint */,
+                                        cert->name,
+                                        nullopt /* end_date */);
 
       if (close_cache)
         cache.close ();
+      else if (start_cache_gc)
+        cache.start_gc ();
     }
 
     return cert;
@@ -375,7 +392,7 @@ namespace bpkg
     try
     {
       // The order of the options we pass to openssl determines the order in
-      // which we get things in the output. And want we expect is this
+      // which we get things in the output. And what we expect is this
       // (leading space added):
       //
       // subject=
@@ -660,11 +677,13 @@ namespace bpkg
     // user. In this case the dependent trust doesn't really matter as the
     // user is more authoritative then the dependent.
     //
-    // Note that we don't close (release) the fetch cache before prompting the
-    // user (see auth_dummy() for the reasoning).
+    // Note that we don't close (release) the fetch cache nor start the
+    // garbage collection before prompting the user (see auth_dummy() for the
+    // reasoning).
     //
     bool cached (false);
     bool close_cache (false);
+    bool start_cache_gc (false);
 
     if (cache.enabled ())
     {
@@ -672,6 +691,11 @@ namespace bpkg
       {
         cache.open (trace);
         close_cache = true;
+      }
+      else if (cache.gc_started ())
+      {
+        cache.stop_gc ();
+        start_cache_gc = true;
       }
 
       cached = cache.load_pkg_repository_auth (fp.abbreviated);
@@ -738,10 +762,13 @@ namespace bpkg
       if (user && !cached)
         cache.save_pkg_repository_auth (fp.abbreviated,
                                         fp.canonical,
-                                        cert->name);
+                                        cert->name,
+                                        cert->end_date);
 
       if (close_cache)
         cache.close ();
+      else if (start_cache_gc)
+        cache.start_gc ();
     }
 
     return cert_auth {move (cert), user};

@@ -4,6 +4,7 @@
       <column name="id" type="TEXT" null="true"/>
       <column name="fingerprint" type="TEXT" null="true"/>
       <column name="name" type="TEXT" null="true"/>
+      <column name="end_date" type="INTEGER" null="true"/>
       <primary-key>
         <column name="id"/>
       </primary-key>

@@ -437,6 +437,9 @@ namespace bpkg
 
       if (!crp)
       {
+        if (cache.enabled ())
+          cache.start_gc ();
+
         pkg_fetch_archive (co, rl, pl->location, a);
 
         arm = auto_rmfile (a);
@@ -509,6 +512,9 @@ namespace bpkg
       //
       if (cache.enabled ())
       {
+        if (cache.gc_started ())
+          cache.stop_gc ();
+
         if (!crp)
         {
           // Note that the fragment for pkg repository URLs is always nullopt,

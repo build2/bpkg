@@ -98,6 +98,9 @@ namespace bpkg
   static dir_path sp_directory_; // Semi-precious (~/.build2/cache/).
   static string session_;
 
+  static dir_path pkg_repository_metadata_directory_; // ~/.cache/build2/pkg/metadata
+  static dir_path pkg_repository_package_directory_;  // ~/.cache/build2/pkg/packages
+
   cache_mode fetch_cache::
   mode (const common_options& co)
   {
@@ -283,6 +286,12 @@ namespace bpkg
           sp_directory_ /= ".build2";
           sp_directory_ /= "cache";
         }
+
+        pkg_repository_metadata_directory_ =
+          ((dir_path (np_directory_) /= "pkg") /= "metadata");
+
+        pkg_repository_package_directory_ =
+          ((dir_path (np_directory_) /= "pkg") /= "packages");
       }
       catch (const invalid_path& e)
       {
@@ -578,7 +587,7 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
-    if (gc_thread_.joinable ())
+    if (gc_started ())
       stop_gc (true /* ignore_errors */);
 
     // The tracer could already be destroyed (e.g., if called from the
@@ -638,7 +647,14 @@ namespace bpkg
     auto tg = make_guard ([o = db.tracer (), &db] () {db.tracer (o);});
     db.tracer (trace);
 
-    timestamp three_months_ago (system_clock::now () - chrono::months (3));
+    auto since_epoch_ns = [] (timestamp t)
+    {
+      return chrono::duration_cast<chrono::nanoseconds> (
+        t.time_since_epoch ()).count ();
+    };
+
+    uint64_t three_months_ago (
+      since_epoch_ns (system_clock::now () - chrono::months (3)));
 
     try
     {
@@ -655,23 +671,102 @@ namespace bpkg
           return false;
       };
 
-      // @@ TODO: trust (1 year?)
-
-      for (pkg_repository_metadata& o:
-             db.query<pkg_repository_metadata> (
-               /*query<pkg_repository_metadata>::access_time < three_months_ago*/))
+      // There is no harm in keeping the expired entries for trusted pkg
+      // repository certificates, since they don't take much space.
+      //
+      // Note that the certificate validity is re-checked regardless if it is
+      // trusted or not (see auth_cert() and auth_real()). Normally, a
+      // certificate is replaced in the repository manifest before it is
+      // expired, eventually is trusted by the user, and ends up in the cache
+      // under the new id.
+      //
+#if 0
+      for (pkg_repository_auth& o:
+             db.query<pkg_repository_auth> (
+               query<pkg_repository_auth>::end_date.is_not_null () &&
+               query<pkg_repository_auth>::end_date <
+                 since_epoch_ns (system_clock::now ())))
       {
         if (stop ())
           return;
 
-        // @@ TODO: delete filesystem entries, delete object.
+        db.erase (o);
+
+        if (stop ())
+          return;
+      }
+#endif
+
+      // Remove the metadata for pkg repositories which have not been fetched
+      // in the last 3 months.
+      //
+      for (pkg_repository_metadata& o:
+             db.query<pkg_repository_metadata> (
+               query<pkg_repository_metadata>::access_time < three_months_ago))
+      {
+        if (stop ())
+          return;
+
+        dir_path d (pkg_repository_metadata_directory_ / o.directory);
+
+        if (verb >= 2)
+          text << "rm -r " << d;
+
+        try
+        {
+          if (dir_exists (d))
+            rmdir_r (d, true /* dir */);
+        }
+        catch (const system_error& e)
+        {
+          // Let's issue this warning only in the verbose mode, since we may
+          // potentially issue the same warning multiple times (each time we
+          // start garbage collection) for the same bpkg run.
+          //
+          if (verb >= 2)
+            warn << "unable to remove directory " << d << ": " << e;
+
+          continue;
+        }
+
         db.erase (o);
 
         if (stop ())
           return;
       }
 
-      // @@ TODO: pkg archives (3 months).
+      // Remove the package archives which have not been fetched in the last 3
+      // months.
+      //
+      for (pkg_repository_package& o:
+             db.query<pkg_repository_package> (
+               query<pkg_repository_package>::access_time < three_months_ago))
+      {
+        if (stop ())
+          return;
+
+        path f (pkg_repository_package_directory_ / o.archive);
+
+        if (verb >= 2)
+          text << "rm " << f;
+
+        try
+        {
+          try_rmfile (f);
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 2)
+            warn << "unable to remove file " << f << ": " << e;
+
+          continue;
+        }
+
+        db.erase (o);
+
+        if (stop ())
+          return;
+      }
 
       t.commit ();
     }
@@ -684,7 +779,7 @@ namespace bpkg
   void fetch_cache::
   start_gc ()
   {
-    assert (is_open () && !gc_thread_.joinable () && gc_error_.empty ());
+    assert (is_open () && !gc_started () && gc_error_.empty ());
 
     gc_stop_.store (false, memory_order_relaxed);
     gc_thread_ = thread (&fetch_cache::garbage_collector, this);
@@ -693,7 +788,7 @@ namespace bpkg
   void fetch_cache::
   stop_gc (bool ie)
   {
-    assert (is_open () && gc_thread_.joinable ());
+    assert (is_open () && gc_started ());
 
     gc_stop_.store (true, memory_order_release);
     gc_thread_.join ();
@@ -708,7 +803,7 @@ namespace bpkg
   bool fetch_cache::
   load_pkg_repository_auth (const string& id)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !gc_started ());
 
     auto& db (*db_);
 
@@ -730,9 +825,12 @@ namespace bpkg
   }
 
   void fetch_cache::
-  save_pkg_repository_auth (string id, string fingerprint, string name)
+  save_pkg_repository_auth (string id,
+                            string fingerprint,
+                            string name,
+                            optional<timestamp> end_date)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !gc_started ());
 
     auto& db (*db_);
 
@@ -740,7 +838,9 @@ namespace bpkg
     {
       transaction t (db);
 
-      pkg_repository_auth a {move (id), move (fingerprint), move (name)};
+      pkg_repository_auth a {
+        move (id), move (fingerprint), move (name), end_date};
+
       db.persist (a);
 
       t.commit ();
@@ -751,12 +851,10 @@ namespace bpkg
     }
   }
 
-  static dir_path pkg_repository_metadata_directory_;
-
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
   load_pkg_repository_metadata (const repository_url& u)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !gc_started ());
 
     // The overall plan is as follows:
     //
@@ -775,12 +873,6 @@ namespace bpkg
     // 5. Return paths and checksums.
 
     optional<loaded_pkg_repository_metadata> r;
-
-    if (pkg_repository_metadata_directory_.empty ())
-    {
-      pkg_repository_metadata_directory_ =
-        ((dir_path (np_directory_) /= "pkg") /= "metadata");
-    }
 
     auto& db (*db_);
 
@@ -836,8 +928,7 @@ namespace bpkg
                                 string repositories_checksum,
                                 string packages_checksum)
   {
-    assert (is_open () && !gc_thread_.joinable () &&
-            !pkg_repository_metadata_directory_.empty ());
+    assert (is_open () && !gc_started ());
 
     // The overall plan is as follows:
     //
@@ -923,12 +1014,10 @@ namespace bpkg
     return saved_pkg_repository_metadata {move (rf), move (pf)};
   }
 
-  static dir_path pkg_repository_package_directory_;
-
   optional<fetch_cache::loaded_pkg_repository_package> fetch_cache::
   load_pkg_repository_package (const package_id& id)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !gc_started ());
 
     // The overall plan is as follows:
     //
@@ -943,12 +1032,6 @@ namespace bpkg
     // 4. Return the archive path and checksum.
 
     optional<loaded_pkg_repository_package> r;
-
-    if (pkg_repository_package_directory_.empty ())
-    {
-      pkg_repository_package_directory_ =
-        ((dir_path (np_directory_) /= "pkg") /= "packages");
-    }
 
     auto& db (*db_);
 
@@ -993,8 +1076,7 @@ namespace bpkg
                                string checksum,
                                repository_url repository)
   {
-    assert (is_open () && !gc_thread_.joinable () &&
-            !pkg_repository_package_directory_.empty ());
+    assert (is_open () && !gc_started ());
 
     // The overall plan is as follows:
     //

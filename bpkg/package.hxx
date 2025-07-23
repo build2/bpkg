@@ -37,8 +37,6 @@
 
 namespace bpkg
 {
-  using optional_uint64_t = optional<uint64_t>; // Preserve uint64_t alias.
-
   // uuid
   //
   #pragma db map type(uuid) as(string) to((?).string ()) from(bpkg::uuid (?))

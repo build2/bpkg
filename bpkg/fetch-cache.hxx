@@ -170,13 +170,19 @@ namespace bpkg
     // are nested between load/save_*() calls.
     //
     void
-    start_gc ();
+    start_gc (); // @@ FC Rename to gc_start() ?
 
     // Unless ignore_errors is true, issue diagnostics and throw failed if
     // there was an error during garbage collection.
     //
     void
     stop_gc (bool ignore_errors = false);
+
+    bool
+    gc_started () const
+    {
+      return gc_thread_.joinable ();
+    }
 
     // Trusted (authenticated) pkg repository certificates cache API.
     //
@@ -190,7 +196,10 @@ namespace bpkg
     load_pkg_repository_auth (const string& id);
 
     void
-    save_pkg_repository_auth (string id, string fingerprint, string name);
+    save_pkg_repository_auth (string id,
+                              string fingerprint,
+                              string name,
+                              optional<timestamp> end_date);
 
     // Metadata cache API for pkg repositories.
     //

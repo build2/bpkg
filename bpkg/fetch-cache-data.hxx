@@ -48,6 +48,8 @@ namespace bpkg
     string fingerprint; // Fingerprint canonical representation (empty if dummy).
     string name;        // CN component of Subject.
 
+    optional<timestamp> end_date; // notAfter (UTC) (absent if dummy).
+
     // Database mapping.
     //
     #pragma db member(id) id

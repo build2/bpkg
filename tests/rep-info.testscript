@@ -413,6 +413,8 @@ else
 : default-options-files
 :
 {{
+  +export BPKG_FETCH_CACHE=0
+
   : specified-dir
   :
   {

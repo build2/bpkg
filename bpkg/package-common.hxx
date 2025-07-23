@@ -106,6 +106,20 @@ namespace bpkg
       std::chrono::duration_cast<butl::timestamp::duration> ( \
         std::chrono::nanoseconds (?))))
 
+  using optional_timestamp = optional<timestamp>;
+  using optional_uint64_t = optional<uint64_t>;   // Preserve uint64_t alias.
+
+  #pragma db map type(optional_timestamp) as(bpkg::optional_uint64_t) \
+    to((?)                                                            \
+       ? std::chrono::duration_cast<std::chrono::nanoseconds> (       \
+           (?)->time_since_epoch ()).count ()                         \
+       : bpkg::optional_uint64_t ())                                  \
+    from((?)                                                          \
+         ? bpkg::timestamp (                                          \
+             std::chrono::duration_cast<bpkg::timestamp::duration> (  \
+               std::chrono::nanoseconds (*(?))))                      \
+         : bpkg::optional_timestamp ())
+
   // repository_url
   //
   #pragma db value(repository_url) type("TEXT")

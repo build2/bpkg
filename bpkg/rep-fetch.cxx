@@ -157,6 +157,8 @@ namespace bpkg
       }
       else
       {
+        cache.start_gc ();
+
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
 
         if (sm->sha256sum == crm->packages_checksum)
@@ -187,6 +189,8 @@ namespace bpkg
         }
       }
     }
+    else if (cache.enabled ())
+      cache.start_gc ();
 
     rep_fetch_data::fragment fr;
 
@@ -323,6 +327,9 @@ namespace bpkg
       //
       assert (cached_repositories_path.empty () == rmc.has_value () &&
               cached_packages_path.empty ()     == pmc.has_value ());
+
+      if (cache.gc_started ())
+        cache.stop_gc ();
 
       if (pmc)
       {
