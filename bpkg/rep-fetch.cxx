@@ -158,8 +158,8 @@ namespace bpkg
       else
       {
         cache.start_gc ();
-
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
+        cache.stop_gc ();
 
         if (sm->sha256sum == crm->packages_checksum)
         {
@@ -168,7 +168,9 @@ namespace bpkg
         }
         else
         {
+          cache.start_gc ();
           pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+          cache.stop_gc ();
 
           if (sm->sha256sum != pmc->second)
           {
@@ -189,8 +191,6 @@ namespace bpkg
         }
       }
     }
-    else if (cache.enabled ())
-      cache.start_gc ();
 
     rep_fetch_data::fragment fr;
 
@@ -201,7 +201,9 @@ namespace bpkg
 
     if (cached_repositories_path.empty ())
     {
+      if (cache.enabled ()) cache.start_gc ();
       rmc = pkg_fetch_repositories (co, rl, ignore_unknown);
+      if (cache.enabled ()) cache.stop_gc ();
 
       fr.repositories = move (rmc->first);
     }
@@ -264,7 +266,9 @@ namespace bpkg
       //
       if (!pmc)
       {
+        if (cache.enabled ()) cache.start_gc ();
         pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
+        if (cache.enabled ()) cache.stop_gc ();
 
         if (rmc->second != pmc->first.sha256sum)
         {
@@ -291,7 +295,11 @@ namespace bpkg
     if (a)
     {
       if (!sm)
+      {
+        if (cache.enabled ()) cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
+        if (cache.enabled ()) cache.stop_gc ();
+      }
 
       assert (pmc); // Wouldn't be here otherwise.
 
@@ -327,9 +335,6 @@ namespace bpkg
       //
       assert (cached_repositories_path.empty () == rmc.has_value () &&
               cached_packages_path.empty ()     == pmc.has_value ());
-
-      if (cache.gc_started ())
-        cache.stop_gc ();
 
       if (pmc)
       {

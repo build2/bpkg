@@ -587,7 +587,7 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
-    if (gc_started ())
+    if (gc_thread_.joinable ())
       stop_gc (true /* ignore_errors */);
 
     // The tracer could already be destroyed (e.g., if called from the
@@ -779,7 +779,7 @@ namespace bpkg
   void fetch_cache::
   start_gc ()
   {
-    assert (is_open () && !gc_started () && gc_error_.empty ());
+    assert (is_open () && !gc_thread_.joinable () && gc_error_.empty ());
 
     gc_stop_.store (false, memory_order_relaxed);
     gc_thread_ = thread (&fetch_cache::garbage_collector, this);
@@ -788,7 +788,7 @@ namespace bpkg
   void fetch_cache::
   stop_gc (bool ie)
   {
-    assert (is_open () && gc_started ());
+    assert (is_open () && gc_thread_.joinable ());
 
     gc_stop_.store (true, memory_order_release);
     gc_thread_.join ();
@@ -803,7 +803,7 @@ namespace bpkg
   bool fetch_cache::
   load_pkg_repository_auth (const string& id)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     auto& db (*db_);
 
@@ -830,7 +830,7 @@ namespace bpkg
                             string name,
                             optional<timestamp> end_date)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     auto& db (*db_);
 
@@ -854,7 +854,7 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
   load_pkg_repository_metadata (const repository_url& u)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     // The overall plan is as follows:
     //
@@ -928,7 +928,7 @@ namespace bpkg
                                 string repositories_checksum,
                                 string packages_checksum)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     // The overall plan is as follows:
     //
@@ -1017,7 +1017,7 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_package> fetch_cache::
   load_pkg_repository_package (const package_id& id)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     // The overall plan is as follows:
     //
@@ -1076,7 +1076,7 @@ namespace bpkg
                                string checksum,
                                repository_url repository)
   {
-    assert (is_open () && !gc_started ());
+    assert (is_open () && !gc_thread_.joinable ());
 
     // The overall plan is as follows:
     //

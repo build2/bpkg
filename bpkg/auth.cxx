@@ -183,13 +183,8 @@ namespace bpkg
     // potentially interfere with the prompt (trace, issue warnings, etc) on
     // the higher verbosity levels.
     //
-    // Note that the cache garbage collection may potentially be in progress,
-    // in which case we need to stop it before the load_pkg_repository_auth()
-    // call and re-start it when we are done.
-    //
     bool cached (false);
     bool close_cache (false);
-    bool start_cache_gc (false);
 
     if (cache.enabled ())
     {
@@ -197,11 +192,6 @@ namespace bpkg
       {
         cache.open (trace);
         close_cache = true;
-      }
-      else if (cache.gc_started ())
-      {
-        cache.stop_gc ();
-        start_cache_gc = true;
       }
 
       cached = cache.load_pkg_repository_auth (fp);
@@ -246,8 +236,6 @@ namespace bpkg
 
       if (close_cache)
         cache.close ();
-      else if (start_cache_gc)
-        cache.start_gc ();
     }
 
     return cert;
@@ -683,7 +671,6 @@ namespace bpkg
     //
     bool cached (false);
     bool close_cache (false);
-    bool start_cache_gc (false);
 
     if (cache.enabled ())
     {
@@ -691,11 +678,6 @@ namespace bpkg
       {
         cache.open (trace);
         close_cache = true;
-      }
-      else if (cache.gc_started ())
-      {
-        cache.stop_gc ();
-        start_cache_gc = true;
       }
 
       cached = cache.load_pkg_repository_auth (fp.abbreviated);
@@ -767,8 +749,6 @@ namespace bpkg
 
       if (close_cache)
         cache.close ();
-      else if (start_cache_gc)
-        cache.start_gc ();
     }
 
     return cert_auth {move (cert), user};
