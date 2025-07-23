@@ -109,10 +109,7 @@ namespace bpkg
     void
     close ();
 
-    ~fetch_cache ()
-    {
-      close ();
-    }
+    ~fetch_cache ();
 
     fetch_cache (fetch_cache&&) = delete;
     fetch_cache (const fetch_cache&) = delete;

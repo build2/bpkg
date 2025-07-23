@@ -325,6 +325,12 @@ namespace bpkg
     }
   }
 
+  fetch_cache::
+  ~fetch_cache ()
+  {
+    close ();
+  }
+
   static const path   db_file_name   ("fetch-cache.sqlite3");
   static const path   db_lock_name   ("fetch-cache.lock");
   static const string db_schema_name ("fetch-cache");
@@ -654,7 +660,7 @@ namespace bpkg
     };
 
     uint64_t three_months_ago (
-      since_epoch_ns (system_clock::now () - chrono::months (3)));
+      since_epoch_ns (system_clock::now () - chrono::hours (24 * 90)));
 
     try
     {

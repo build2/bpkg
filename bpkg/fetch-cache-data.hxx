@@ -48,7 +48,18 @@ namespace bpkg
     string fingerprint; // Fingerprint canonical representation (empty if dummy).
     string name;        // CN component of Subject.
 
-    optional<timestamp> end_date; // notAfter (UTC) (absent if dummy).
+    // @@ Note that if define as `optional<timestamp> end_date;` instead,
+    //    then it won't compile on Windows:
+    //
+    //    C:\tmp\dist\bpkg-0.18.0-a.0.20250723100816.14e000312c9c\bpkg\fetch-cache-data-odb.cxx:326:153: error: non-const lvalue reference to type 'optional<time_point<[...], duration<long, ratio<[...], 1000000000>>>>' cannot bind to a value of unrelated type 'optional<time_point<[...], duration<long long, ratio<[...], 10000000>>>>'
+    //      326 |       ::butl::optional< ::std::chrono::time_point< ::std::chrono::system_clock, ::std::chrono::duration< long int, ::std::ratio< 1, 1000000000 > > > >& v =
+    //          |                                                                                                                                                         ^
+    //      327 |         o.end_date;
+    //          |         ~~~~~~~~~~
+    //    1 error generated.
+    //    error: process clang++ exited with code 1
+    //
+    optional_timestamp end_date; // notAfter (UTC, absent if dummy).
 
     // Database mapping.
     //

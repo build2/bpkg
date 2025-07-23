@@ -19,7 +19,7 @@
 #ifndef LIBBUTL_MINGW_STDTHREAD
 #  include <thread>
 #else
-#  include <libbutl/mingw-mutex.hxx>
+#  include <libbutl/mingw-thread.hxx>
 #endif
 
 #include <ios>           // ios_base::failure
