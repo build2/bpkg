@@ -659,8 +659,9 @@ namespace bpkg
         t.time_since_epoch ()).count ();
     };
 
-    uint64_t three_months_ago (
-      since_epoch_ns (system_clock::now () - chrono::hours (24 * 90)));
+    timestamp now (system_clock::now ());
+
+    uint64_t three_months_ago (since_epoch_ns (now - chrono::hours (24 * 90)));
 
     try
     {
@@ -677,45 +678,53 @@ namespace bpkg
           return false;
       };
 
-      // There is no harm in keeping the expired entries for trusted pkg
-      // repository certificates, since they don't take much space.
+      // Note: do the work in the most likely to be fruitful order.
+
+      // Remove the package archives which have not been fetched in the last 3
+      // months.
       //
-      // Note that the certificate validity is re-checked regardless if it is
-      // trusted or not (see auth_cert() and auth_real()). Normally, a
-      // certificate is replaced in the repository manifest before it is
-      // expired, eventually is trusted by the user, and ends up in the cache
-      // under the new id.
-      //
-#if 0
-      for (pkg_repository_auth& o:
-             db.query<pkg_repository_auth> (
-               query<pkg_repository_auth>::end_date.is_not_null () &&
-               query<pkg_repository_auth>::end_date <
-                 since_epoch_ns (system_clock::now ())))
+      if (stop ()) return;
+      for (pkg_repository_package& o:
+             db.query<pkg_repository_package> (
+               query<pkg_repository_package>::access_time < three_months_ago))
       {
-        if (stop ())
-          return;
+        if (stop ()) return;
+
+        path f (pkg_repository_package_directory_ / o.archive);
+
+        if (verb >= 3)
+          text << "rm " << f;
+
+        try
+        {
+          try_rmfile (f);
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to remove file " << f << ": " << e;
+
+          continue;
+        }
 
         db.erase (o);
 
-        if (stop ())
-          return;
+        if (stop ()) return;
       }
-#endif
 
       // Remove the metadata for pkg repositories which have not been fetched
       // in the last 3 months.
       //
+      if (stop ()) return;
       for (pkg_repository_metadata& o:
              db.query<pkg_repository_metadata> (
                query<pkg_repository_metadata>::access_time < three_months_ago))
       {
-        if (stop ())
-          return;
+        if (stop ()) return;
 
         dir_path d (pkg_repository_metadata_directory_ / o.directory);
 
-        if (verb >= 2)
+        if (verb >= 3)
           text << "rm -r " << d;
 
         try
@@ -725,11 +734,7 @@ namespace bpkg
         }
         catch (const system_error& e)
         {
-          // Let's issue this warning only in the verbose mode, since we may
-          // potentially issue the same warning multiple times (each time we
-          // start garbage collection) for the same bpkg run.
-          //
-          if (verb >= 2)
+          if (verb >= 3)
             warn << "unable to remove directory " << d << ": " << e;
 
           continue;
@@ -737,41 +742,26 @@ namespace bpkg
 
         db.erase (o);
 
-        if (stop ())
-          return;
+        if (stop ()) return;
       }
 
-      // Remove the package archives which have not been fetched in the last 3
-      // months.
+      // Note that the certificate validity is re-checked regardless if it is
+      // trusted or not (see auth_cert() and auth_real()). Normally, a
+      // certificate is replaced in the repository manifest before it is
+      // expired, eventually is trusted by the user, and ends up in the cache
+      // under the new id.
       //
-      for (pkg_repository_package& o:
-             db.query<pkg_repository_package> (
-               query<pkg_repository_package>::access_time < three_months_ago))
+      if (stop ()) return;
+      for (pkg_repository_auth& o:
+             db.query<pkg_repository_auth> (
+               query<pkg_repository_auth>::end_date.is_not_null () &&
+               query<pkg_repository_auth>::end_date < since_epoch_ns (now)))
       {
-        if (stop ())
-          return;
-
-        path f (pkg_repository_package_directory_ / o.archive);
-
-        if (verb >= 2)
-          text << "rm " << f;
-
-        try
-        {
-          try_rmfile (f);
-        }
-        catch (const system_error& e)
-        {
-          if (verb >= 2)
-            warn << "unable to remove file " << f << ": " << e;
-
-          continue;
-        }
+        if (stop ()) return;
 
         db.erase (o);
 
-        if (stop ())
-          return;
+        if (stop ()) return;
       }
 
       t.commit ();
