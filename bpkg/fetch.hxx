@@ -70,10 +70,18 @@ namespace bpkg
             const repository_location&,
             const dir_path&);
 
-  // Fetch a git repository in the specifid directory (previously created by
+  // Fetch a git repository in the specified directory (previously created by
   // git_init() for the references obtained with the repository URL fragment
   // filters, returning commit ids these references resolve to in the earliest
-  // to latest order. Update the remote repository URL, if changed.
+  // to latest order. Update the remote repository URL, if changed. If
+  // ls_remote argument is specified (not empty), then use the referenced
+  // file, if exists, to retrieve the advertized refs/commits and to save them
+  // otherwise. In the offline mode fail if any network interaction needs to
+  // be performed. Return nullopt if the function failed before it started to
+  // fetch the repository (no connectivity, etc). Note that the diagnostics is
+  // still issued in this case. If the returned value is nullopt, before
+  // throwing failed exception the caller may, for example, do something
+  // useful about the repository (return it to its permanent location, etc).
   //
   // Note that submodules are not fetched.
   //
@@ -87,12 +95,22 @@ namespace bpkg
     string      friendly_name;
   };
 
-  vector<git_fragment>
+  optional<vector<git_fragment>>
   git_fetch (const common_options&,
              const repository_location&,
-             const dir_path&);
+             const dir_path&,
+             const path& ls_remote = {},
+             bool offline = false);
 
-  // Checkout the specified commit previously fetched by git_fetch().
+  // Return true if a commit is already fetched.
+  //
+  bool
+  git_commit_fetched (const common_options&,
+                      const dir_path&,
+                      const string& commit);
+
+  // Checkout the specified commit previously fetched by git_fetch(). Expects
+  // the commit to be fetched.
   //
   // Note that submodules may not be checked out.
   //
@@ -103,12 +121,19 @@ namespace bpkg
 
   // Fetch (if necessary) and checkout submodules, recursively, in a working
   // tree previously checked out by git_checkout(). Update the remote
-  // repository URL, if changed.
+  // repository URL, if changed. In the offline mode fail if any network
+  // interaction needs to be performed. Return false if the function failed
+  // before it started to fetch any of the submodules (no connectivity, etc).
+  // Note that the diagnostics is still issued in this case. If the returned
+  // value is false, before throwing failed exception the caller may, for
+  // example, do something useful about the repository (return it to its
+  // permanent location, etc).
   //
-  void
+  bool
   git_checkout_submodules (const common_options&,
                            const repository_location&,
-                           const dir_path&);
+                           const dir_path&,
+                           bool offline);
 
   // Verify that the symlinks target paths in the working tree are valid,
   // relative, and none of them refer outside the repository directory.

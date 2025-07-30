@@ -54,6 +54,15 @@ namespace bpkg
     #pragma db member(id) id
   };
 
+  #pragma db view object(pkg_repository_auth)
+  struct pkg_repository_auth_count
+  {
+    #pragma db column("count(*)")
+    size_t result;
+
+    operator size_t () const {return result;}
+  };
+
   // Cache entry for metadata of pkg type repositories.
   //
   #pragma db object pointer(unique_ptr)
@@ -71,11 +80,15 @@ namespace bpkg
     // file:///foo
     // file://localhost/foo
     //
+    // If local, then on Windows it is canonicalized by converting its path
+    // into lower case. Note that such a canonicalization is consistent with
+    // the repository location canonical name production.
+    //
     repository_url url;
 
     // Directory for this repository inside the metadata/ directory.
     // Calculated as a 16-character abbreviated SHA256 checksum of the
-    // repository URL.
+    // canonicalized repository URL.
     //
     dir_path directory;
 
@@ -104,6 +117,10 @@ namespace bpkg
     //
     #pragma db member(url) id
     #pragma db member(directory) unique
+
+    // Speed-up queries with filtering by the access time.
+    //
+    #pragma db member(access_time) index
   };
 
   // Cache entry for package archive of pkg type repositories.
@@ -135,15 +152,10 @@ namespace bpkg
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
     #pragma db member(archive) unique
-  };
 
-  #pragma db view object(pkg_repository_auth)
-  struct pkg_repository_auth_count
-  {
-    #pragma db column("count(*)")
-    size_t result;
-
-    operator size_t () const {return result;}
+    // Speed-up queries with filtering by the access time.
+    //
+    #pragma db member(access_time) index
   };
 
   // Cache entry for state of git type repositories.
@@ -163,12 +175,19 @@ namespace bpkg
     // file:///foo.git
     // file://localhost/foo.git
     //
-    // @@ FC: .git vs no .git: see rep-fetch.cxx for prior art.
+    // Canonicalized as follows:
+    //
+    // - If local, then on Windows convert its path into lower case.
+    // - Strip the .git extension, if present, from its path.
+    //
+    // Note that such a canonicalization is consistent with the repository
+    // location canonical name production.
     //
     repository_url url;
 
     // Directory for this repository inside the git/ directory. Calculated as
-    // a 16-character abbreviated SHA256 checksum of the repository URL.
+    // a 16-character abbreviated SHA256 checksum of the canonicalized
+    // repository URL.
     //
     dir_path directory;
 
@@ -179,6 +198,15 @@ namespace bpkg
     // Timestamp of the last time this cached entry was accessed.
     //
     timestamp access_time;
+
+    // Database mapping.
+    //
+    #pragma db member(url) id
+    #pragma db member(directory) unique
+
+    // Speed-up queries with filtering by the access time.
+    //
+    #pragma db member(access_time) index
   };
 }
 

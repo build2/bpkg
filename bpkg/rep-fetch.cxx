@@ -841,74 +841,35 @@ namespace bpkg
                            nullptr /* certificate */};
   }
 
-  static rep_fetch_data
+  // Return the fetched repository data together with the total number of the
+  // packages in the fetched repository. Return nullopt, if the underlying
+  // git_fetch() call returned nullopt.
+  //
+  static optional<pair<rep_fetch_data, size_t>>
   rep_fetch_git (const common_options& co,
-                 const dir_path* conf,
                  const repository_location& rl,
+                 const dir_path& rd,
+                 bool init,
+                 const path& ls_remote,
+                 bool offline,
                  bool iu,
                  bool it,
                  bool ev,
                  bool lb)
   {
-    auto i (tmp_dirs.find (conf != nullptr ? *conf : empty_dir_path));
-    assert (i != tmp_dirs.end ());
-
-    dir_path sd (repository_state (rl));
-
-    auto_rmdir rm (i->second / sd, !keep_tmp);
-    const dir_path& td (rm.path);
-
-    if (exists (td))
-      rm_r (td);
-
-    // If the git repository directory already exists, then we are fetching
-    // an already existing repository, moved to the temporary directory first.
-    // Otherwise, we initialize the repository in the temporary directory.
-    //
-    // In the first case also set the filesystem_state_changed flag since we
-    // are modifying the repository filesystem state.
-    //
-    // In the future we can probably do something smarter about the flag,
-    // keeping it unset unless the repository state directory is really
-    // changed.
-    //
-    dir_path rsd;
-    dir_path rd;
-    bool init (true);
-
-    if (conf != nullptr)
-    {
-      rsd = *conf / repos_dir;
-      rd = rsd / sd;
-
-      // Convert the 12 characters checksum abbreviation to 16 characters for
-      // the repository directory names.
-      //
-      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
-      //
-      {
-        const string& s (rd.string ());
-        dir_path d (s, s.size () - 4);
-
-        if (exists (d))
-          mv (d, rd);
-      }
-
-      if (exists (rd))
-      {
-        mv (rd, td);
-        filesystem_state_changed = true;
-        init = false;
-      }
-    }
-
-    // Initialize a new repository in the temporary directory.
+    // Initialize a new repository in the specified directory.
     //
     if (init)
-      git_init (co, rl, td);
+      git_init (co, rl, rd);
 
-    // Fetch the repository in the temporary directory.
+    // Fetch the repository in the specified directory.
     //
+    optional<vector<git_fragment>> frags (
+      git_fetch (co, rl, rd, ls_remote, offline));
+
+    if (!frags)
+      return nullopt;
+
     // Go through fetched commits, checking them out and collecting the
     // prerequisite repositories and packages.
     //
@@ -934,9 +895,9 @@ namespace bpkg
     rep_fetch_data r;
     size_t np (0);
 
-    for (git_fragment& gf: git_fetch (co, rl, td))
+    for (git_fragment& gf: *frags)
     {
-      git_checkout (co, td, gf.commit);
+      git_checkout (co, rd, gf.commit);
 
       rep_fetch_data::fragment fr;
       fr.id            = move (gf.commit);
@@ -945,7 +906,7 @@ namespace bpkg
       // Parse repository manifests.
       //
       fr.repositories = parse_repository_manifests<git_repository_manifests> (
-          td / repositories_file,
+          rd / repositories_file,
           iu,
           rl,
           fr.friendly_name);
@@ -954,7 +915,7 @@ namespace bpkg
       //
       git_package_manifests pms (
         parse_directory_manifests<git_package_manifests> (
-          td / packages_file,
+          rd / packages_file,
           iu,
           rl,
           fr.friendly_name));
@@ -962,24 +923,36 @@ namespace bpkg
       // Checkout submodules on the first call.
       //
       bool cs (true);
-      auto checkout_submodules = [&co, &rl, &td, &cs] ()
+      auto checkout_submodules = [&co, &rl, &rd, &cs, offline] ()
       {
         if (cs)
         {
-          git_checkout_submodules (co, rl, td);
           cs = false;
+          return git_checkout_submodules (co, rl, rd, offline);
         }
+
+        return true;
       };
 
       // Checkout submodules to parse package manifests, if required.
       //
       for (const package_manifest& sm: pms)
       {
-        dir_path d (td / path_cast<dir_path> (*sm.location));
+        dir_path d (rd / path_cast<dir_path> (*sm.location));
 
         if (!exists (d) || empty (d))
         {
-          checkout_submodules ();
+          // To fully conform to the function description we should probably
+          // throw failed here if git_checkout_submodules() returns false,
+          // since the root repository has been fetched, its state has
+          // changed, etc. However, let's return nullopt (as if the root
+          // repository fetch has not started) not to, for example, remove the
+          // cleanly fetched root repository state just because some of its
+          // submodule repositories may be not available at the moment.
+          //
+          if (!checkout_submodules ())
+            return nullopt;
+
           break;
         }
       }
@@ -988,7 +961,7 @@ namespace bpkg
       //
       pair<vector<package_manifest>, vector<package_info>> pmi (
         parse_package_manifests (co,
-                                 td,
+                                 rd,
                                  move (pms),
                                  iu,
                                  it,
@@ -1012,8 +985,9 @@ namespace bpkg
           //
           try
           {
+            bool bail (false);
             m.load_files (
-              [ev, &td, &rl, &pl, &fr, &checkout_submodules]
+              [ev, &rd, &rl, &pl, &fr, &checkout_submodules, &bail]
               (const string& n, const path& p) -> optional<string>
               {
                 // Always expand the build-file values.
@@ -1031,13 +1005,19 @@ namespace bpkg
                   // (if someone really wants this to work, they can always
                   // enable real symlinks in git).
                   //
-                  if (!exists (td / pl / p))
-                    checkout_submodules ();
+                  if (!exists (rd / pl / p))
+                  {
+                    if (!checkout_submodules ())
+                    {
+                      bail = true;
+                      return nullopt;
+                    }
+                  }
 
                   return read_package_file (p,
                                             n,
                                             pl,
-                                            td,
+                                            rd,
                                             rl,
                                             fr.friendly_name);
                 }
@@ -1045,6 +1025,9 @@ namespace bpkg
                   return nullopt;
               },
               iu);
+
+            if (bail)
+              return nullopt;
           }
           catch (const manifest_parsing& e)
           {
@@ -1061,7 +1044,7 @@ namespace bpkg
           if (lb)
           try
           {
-            load_package_buildfiles (m, td / pl, true /* err_path_relative */);
+            load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
           }
           catch (const runtime_error& e)
           {
@@ -1078,33 +1061,258 @@ namespace bpkg
       r.fragments.push_back (move (fr));
     }
 
-    // Remove the working tree from the state directory and return it to its
-    // proper place.
+    return make_pair (move (r), np);
+  }
+
+  static rep_fetch_data
+  rep_fetch_git (const common_options& co,
+                 const dir_path* conf,
+                 database* db,
+                 const repository_location& rl,
+                 bool iu,
+                 bool it,
+                 bool ev,
+                 bool lb)
+  {
+    tracer trace ("rep_fetch_git");
+
+    // If we fetch in the configuration but the database is not open yet
+    // (rep-info case), then open it to get the fetch cache mode.
     //
-    // If there is no configuration directory then we let auto_rmdir clean it
-    // up from the the temporary directory.
-    //
-    if (!rd.empty ())
+    unique_ptr<database> pdb;
+    if (conf != nullptr && db == nullptr)
     {
-      git_remove_worktree (co, td);
+      pdb.reset (new database (*conf,
+                               trace,
+                               false /* pre_attach */,
+                               false /* sys_rep */));
 
-      // Make sure the repos/ directory exists (could potentially be manually
-      // removed).
-      //
-      if (!exists (rsd))
-        mk (rsd);
-
-      mv (td, rd);
-      rm.cancel ();
-      filesystem_state_changed = true;
+      db = pdb.get ();
     }
 
-    if (np == 0 && !rl.url ().fragment)
+    dir_path sd (repository_state (rl));
+
+    dir_path rsd;
+    dir_path rd;
+
+    if (conf != nullptr)
+    {
+      rsd = *conf / repos_dir;
+      rd = rsd / sd;
+
+      // Convert the 12 characters checksum abbreviation to 16 characters for
+      // the repository directory names.
+      //
+      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+      //
+      {
+        const string& s (rd.string ());
+        dir_path d (s, s.size () - 4);
+
+        if (exists (d))
+          mv (d, rd);
+      }
+    }
+
+    bool config_repo_exists (!rd.empty () && exists (rd));
+
+    optional<pair<rep_fetch_data, size_t>> r;
+
+    // NOTE: keep the subsequent fetch logic for using global and
+    //       configuration-specific caches parallel.
+
+    fetch_cache cache (co, db);
+
+    if (cache.enabled ())
+    {
+      // Remove the configuration-specific repository directory, if exists.
+      //
+      if (config_repo_exists)
+      {
+        filesystem_state_changed = true;
+
+        rm_r (rd);
+      }
+
+      cache.open (trace);
+
+      // Note that we cache both local and remote URLs since a local URL could
+      // be on a network filesystem or some such.
+      //
+      repository_url url (rl.url ());
+      url.fragment = nullopt;
+
+      fetch_cache::loaded_git_repository_state crs (
+        cache.load_git_repository_state (url));
+
+      // Remove the cache entry on failure, unless it is saved.
+      //
+      bool saved (false);
+      auto g (
+        make_exception_guard (
+          [&cache, &url, &saved] ()
+          {
+            // @@ Print 'run bpkg rep-fetch'? How not to duplicate?
+            //
+            if (!saved)
+              cache.remove_git_repository_state (move (url));
+          }));
+
+      const dir_path& td (crs.repository);
+
+      // If the repository is already cached, then we are fetching an already
+      // existing repository, moved to the temporary directory first.
+      // Otherwise, we initialize the repository in the temporary directory,
+      // unless we are in the offline mode in which case we fail.
+      //
+      // In the former case also set the filesystem_state_changed flag since
+      // we are modifying the repository filesystem state.
+      //
+      bool cached_repo (
+        crs.state != fetch_cache::loaded_git_repository_state::absent);
+
+      bool fsc (filesystem_state_changed);
+
+      if (cached_repo)
+        filesystem_state_changed = true;
+      else if (cache.offline ())
+        fail << "no state in fetch cache for repository " << rl.url ()
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
+
+      // If this call throws failed, then the cache entry is removed.
+      // Otherwise, we save the entry if the fetch succeeded or even didn't
+      // start (no connectivity, etc) for an already cached repository.
+      // Otherwise (fetch of new repository didn't start), we remove the
+      // (absent) cache entry.
+      //
+      r = rep_fetch_git (co,
+                         rl,
+                         td,
+                         !cached_repo /* initialize */,
+                         crs.ls_remote,
+                         cache.offline (),
+                         iu,
+                         it,
+                         ev,
+                         lb);
+
+      // Remove the working tree from the state directory and save it to the
+      // cache.
+      //
+      if (r || cached_repo)
+      {
+        git_remove_worktree (co, td);
+
+        // Note: don't move the url from since it still can be used by the
+        // above exception guard.
+        //
+        cache.save_git_repository_state (url);
+
+        saved = true;
+      }
+
+      // If the cached repository is saved without being fetched, then revert
+      // the filesystem_state_changed flag.
+      //
+      if (cached_repo && !r)
+        filesystem_state_changed = fsc;
+
+      // Fail for incomplete fetch.
+      //
+      if (!r)
+        throw failed (); // Note that the diagnostics has already been issued.
+    }
+    else
+    {
+      if (cache.offline ())
+        fail << "no way to obtain state for repository " << rl.url ()
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
+
+      auto i (tmp_dirs.find (conf != nullptr ? *conf : empty_dir_path));
+      assert (i != tmp_dirs.end ());
+
+      auto_rmdir rm (i->second / sd, !keep_tmp);
+      const dir_path& td (rm.path);
+
+      if (exists (td))
+        rm_r (td);
+
+      // If the git repository directory already exists, then we are fetching
+      // an already existing repository, moved to the temporary directory
+      // first. Otherwise, we initialize the repository in the temporary
+      // directory.
+      //
+      // In the former case also set the filesystem_state_changed flag since
+      // we are modifying the repository filesystem state.
+      //
+      bool fsc (filesystem_state_changed);
+      if (config_repo_exists)
+      {
+        mv (rd, td);
+        filesystem_state_changed = true;
+      }
+
+      // If this call throws failed exception, then the temporary state
+      // directory is removed. Otherwise, we return it to its permanent
+      // location if the fetch succeeded or even didn't start (no
+      // connectivity, etc) for an existing repository. Otherwise (fetch of
+      // new repository didn't start), we remove the temporary state.
+      //
+      r = rep_fetch_git (co,
+                         rl,
+                         td,
+                         !config_repo_exists /* initialize */,
+                         path () /* ls_remote */,
+                         false /* offline */,
+                         iu,
+                         it,
+                         ev,
+                         lb);
+
+      // Remove the working tree from the state directory and return it to its
+      // permanent location.
+      //
+      // If there is no configuration directory, then we let auto_rmdir clean
+      // it up from the temporary directory.
+      //
+      if (!rd.empty ())
+      {
+        if (r || config_repo_exists)
+        {
+          git_remove_worktree (co, td);
+
+          // Make sure the repos/ directory exists (could potentially be
+          // manually removed).
+          //
+          if (!exists (rsd))
+            mk (rsd);
+
+          mv (td, rd);
+          rm.cancel ();
+        }
+
+        // If the existing repository is returned to its permanent location
+        // without being fetched, then revert the filesystem_state_changed
+        // flag.
+        //
+        if (config_repo_exists && !r)
+          filesystem_state_changed = fsc;
+      }
+
+      // Fail for incomplete fetch.
+      //
+      if (!r)
+        throw failed (); // Note that the diagnostics has already been issued.
+    }
+
+    if (r->second == 0 && !rl.url ().fragment)
       warn << "repository " << rl << " has no available packages" <<
         info << "consider specifying explicit URL fragment (for example, "
              << "#master)";
 
-    return r;
+    return move (r->first);
   }
 
   static rep_fetch_data
@@ -1130,7 +1338,7 @@ namespace bpkg
       }
     case repository_type::git:
       {
-        return rep_fetch_git (co, conf, rl, iu, it, ev, lb);
+        return rep_fetch_git (co, conf, db, rl, iu, it, ev, lb);
       }
     }
 
@@ -1502,7 +1710,7 @@ namespace bpkg
             // If we fetch all the repositories then the mismatch is
             // definitely caused by the broken repository. Otherwise, it may
             // also happen due to the old available package that is not wiped
-            // out yet.  Thus, we advice the user to perform the full fetch,
+            // out yet. Thus, we advice the user to perform the full fetch,
             // unless the filesystem state is already changed and so this
             // advice will be given anyway (see rep_fetch() for details).
             //

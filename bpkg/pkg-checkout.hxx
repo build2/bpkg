@@ -10,7 +10,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction, selected_package
+#include <bpkg/forward.hxx> // transaction, selected_package, fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/pkg-checkout-options.hxx>
@@ -35,7 +35,8 @@ namespace bpkg
     // Restore the cached repositories in their permanent locations (remove
     // the working trees, move back from the temporary directory, etc) and
     // erase the entries. On error issue diagnostics and return false if fail
-    // is false and throw failed otherwise.
+    // is false and throw failed otherwise. Note that in both cases the
+    // function will try to restore as many repositories as possible.
     //
     // Note that the destructor will clear the cache but will not fail on
     // errors. To detect such errors, call clear() explicitly.
@@ -43,7 +44,7 @@ namespace bpkg
     bool
     clear (bool fail = true);
 
-    // Call clear() in the ignore errors mode and issue the "repository is now
+    // Call clear() in the non-failing mode and issue the "repository is now
     // broken" warning on failure.
     //
     ~pkg_checkout_cache ();
@@ -62,6 +63,29 @@ namespace bpkg
       // fixed up.
       //
       optional<bool> fixedup;
+
+      // If specified (not NULL), then this is the state of a repository
+      // located in the referenced fetch cache and prepared for checkout by
+      // the respective load_git_*() function call. In this case, the
+      // destructor removes the respective cached entry by calling
+      // remove_git_repository_state().
+      //
+      bpkg::fetch_cache* fetch_cache;
+
+      state (auto_rmdir&& r,
+             repository_location l,
+             optional<bool> f,
+             bpkg::fetch_cache* c)
+          : rmt (move (r)), rl (move (l)), fixedup (f), fetch_cache (c) {}
+
+      // Movable-only type. Move-assignment cancels the lhs object.
+      //
+      state (state&&) noexcept;
+      state& operator= (state&&) noexcept;
+      state (const state&) = delete;
+      state& operator= (const state&) = delete;
+
+      ~state ();
     };
 
     using state_map = std::map<dir_path, state>;
@@ -89,7 +113,8 @@ namespace bpkg
   };
 
   // Note that for the following functions both package and repository
-  // information configurations need to be passed.
+  // information configurations need to be passed. Also note that if the fetch
+  // cache is enabled it should be pre-open.
   //
 
   // Check out the package from a version control-based repository into a
@@ -98,7 +123,8 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache&,
+  pkg_checkout (fetch_cache&,
+                pkg_checkout_cache&,
                 const common_options&,
                 database& pdb,
                 database& rdb,
@@ -115,7 +141,8 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache&,
+  pkg_checkout (fetch_cache&,
+                pkg_checkout_cache&,
                 const common_options&,
                 database& pdb,
                 database& rdb,

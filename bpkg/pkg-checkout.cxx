@@ -12,6 +12,7 @@
 #include <bpkg/checksum.hxx>
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
@@ -24,12 +25,16 @@ namespace bpkg
 {
   // pkg_checkout()
   //
-  static void
+  // Return nullopt, if the underlying git_checkout_submodules() call returned
+  // nullopt.
+  //
+  static bool
   checkout (const common_options& o,
             const repository_location& rl,
             const dir_path& dir,
             const shared_ptr<available_package>& ap,
-            database& db)
+            database& db,
+            bool offline)
   {
     switch (rl.type ())
     {
@@ -48,7 +53,8 @@ namespace bpkg
             text << "checking out "
                  << package_string (ap->id.name, ap->version) << db;
 
-          git_checkout_submodules (o, rl, dir);
+          if (!git_checkout_submodules (o, rl, dir, offline))
+            return false;
         }
 
         break;
@@ -56,6 +62,8 @@ namespace bpkg
     case repository_type::pkg:
     case repository_type::dir: assert (false); break;
     }
+
+    return true;
   }
 
   // For some platforms/repository types the working tree needs to be
@@ -90,7 +98,8 @@ namespace bpkg
   // Return the selected package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache& cache,
+  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+                pkg_checkout_cache& checkout_cache,
                 const common_options& o,
                 database& pdb,
                 database& rdb,
@@ -211,6 +220,8 @@ namespace bpkg
           mv (d, rd);
       }
 
+      bool config_repo_exists (exists (rd));
+
       // Use the temporary directory from the repository information source
       // configuration, so that we can always move the repository into and out
       // of it (note that if they appear on different filesystems that won't
@@ -220,62 +231,196 @@ namespace bpkg
       assert (ti != tmp_dirs.end ());
       const dir_path& tdir (ti->second);
 
-      // Try to reuse the cached repository (moved to the temporary directory
-      // with some fragment checked out and fixed up).
+      using state = pkg_checkout_cache::state;
+
+      pkg_checkout_cache::state_map& cm (checkout_cache.map_);
+      pkg_checkout_cache::state_map::iterator i;
+
+      // NOTE: keep the subsequent checkout logic for using global and
+      //       configuration-specific caches parallel.
+
+      // If the configuration-specific repository directory exists, then use
+      // that regardless of whether the fetch cache is enabled or not.
       //
-      pkg_checkout_cache::state_map& cm (cache.map_);
-      auto i (cm.find (rd));
-
-      if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
+      if (!config_repo_exists && fetch_cache.enabled ())
       {
-        // The repository temporary directory.
+        assert (fetch_cache.is_open ());
+
+        repository_url url (rl.url ());
+        url.fragment = nullopt;
+
+        // Use the repository state directory in the fetch cache as a key for
+        // the checkout cache. Note that it won't be used for any other
+        // purpose.
         //
-        auto_rmdir rmt;
-
-        // Restore the repository if some different fragment is checked out.
+        // Note also that we cache both local and remote URLs since a local
+        // URL could be on a network filesystem or some such.
         //
-        if (i != cm.end ())
-        {
-          rmt = cache.release (i);
-        }
-        else
-        {
-          if (!exists (rd))
-            fail << "missing repository directory for package " << n << " "
-                 << v << " in its repository information configuration "
-                 << rdb.config_orig <<
-              info << "run 'bpkg rep-fetch' to repair";
+        dir_path crd (fetch_cache.git_repository_state_dir (url));
 
-          rmt = auto_rmdir (tdir / sd, !keep_tmp);
+        // Try to reuse the cached repository (loaded from the fetch cache
+        // with some fragment checked out and fixed up).
+        //
+        i = cm.find (crd);
 
-          // Move the repository to the temporary directory.
+        if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
+        {
+          // The repository temporary directory.
           //
-          const dir_path& td (rmt.path);
+          auto_rmdir rmt;
 
-          if (exists (td))
-            rm_r (td);
+          // Restore the repository working tree state if some different
+          // fragment is checked out.
+          //
+          if (i != cm.end ())
+          {
+            rmt = checkout_cache.release (i);
+          }
+          else
+          {
+            fetch_cache::loaded_git_repository_state crs (
+              fetch_cache.load_git_repository_state (move (url)));
 
-          mv (rd, td);
+            if (crs.state == fetch_cache::loaded_git_repository_state::absent)
+              fail << "missing repository state for package " << n << ' '
+                   << v << " in fetch cache" <<
+                info << "repository: " << rl.url () <<
+                info << "run 'bpkg rep-fetch' to repair";
+
+            // Let's keep the cached repository directory in the fetch cache
+            // temporary directory if the --keep-temp option is specified. It
+            // can be handy for troubleshooting.
+            //
+            rmt = auto_rmdir (crs.repository, !keep_tmp);
+          }
+
+          // Pre-insert the repository entry into the checkout cache before we
+          // finalize it. This way, on failure, the repository get restored in
+          // its permanent location.
+          //
+          i = cm.emplace (
+            crd,
+            state {move (rmt), rl, false /* fixedup */, &fetch_cache}).first;
+
+          state& s (i->second);
+          const dir_path& td (s.rmt.path);
+
+          assert (rl.fragment ());
+
+          const string& commit (*rl.fragment ());
+
+          if (!git_commit_fetched (o, td, commit))
+          {
+            fail << "missing commit in repository state for package " << n
+                 << ' ' << v << " in fetch cache" <<
+              info << "repository: " << rl.url () <<
+              info << "commit: " << commit <<
+              info << "run 'bpkg rep-fetch' to repair";
+          }
+
+          // Checkout the repository fragment, fix up the working tree, and
+          // "finalize" it by setting the proper fixedup value. Remove the
+          // cache entry if checkout or fixup fails, unless checkout fails
+          // before even starting to fetch submodules (no connectivity, etc).
+          //
+          s.fixedup = nullopt; // Make incomplete to remove entry on failure.
+
+          if (!checkout (o, rl, td, ap, pdb, fetch_cache.offline ()))
+          {
+            s.fixedup = false; // Save the entry since not fetched.
+            throw failed (); // Note: the diagnostics has already been issued.
+          }
+
+          s.fixedup = fixup (o, rl, td);
         }
+      }
+      else
+      {
+        if (!fetch_cache.enabled () && fetch_cache.offline ())
+          fail << "no way to obtain state for repository " << rl.url ()
+               << " in offline mode with fetch cache disabled" <<
+            info << "consider enabling fetch cache or turning offline mode off";
 
-        // Checkout and cache the fragment.
+        // Try to reuse the cached repository (moved to the temporary directory
+        // with some fragment checked out and fixed up).
         //
-        // Pre-insert the incomplete repository entry into the cache and
-        // "finalize" it by setting the fixed up value later, after the
-        // repository fragment checkout succeeds. Until then the repository
-        // may not be restored in its permanent place.
-        //
-        using state = pkg_checkout_cache::state;
+        i = cm.find (rd);
 
-        i = cm.emplace (rd, state {move (rmt), rl, nullopt}).first;
+        if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
+        {
+          // The repository temporary directory.
+          //
+          auto_rmdir rmt;
 
-        // Checkout the repository fragment and fix up the working tree.
-        //
-        state& s (i->second);
-        const dir_path& td (s.rmt.path);
+          // Restore the repository working tree state if some different
+          // fragment is checked out.
+          //
+          if (i != cm.end ())
+          {
+            rmt = checkout_cache.release (i);
+          }
+          else
+          {
+            if (!config_repo_exists)
+              fail << "missing repository directory for package " << n << " "
+                   << v << " in its repository information configuration "
+                   << rdb.config_orig <<
+                info << "repository: " << rl.url () <<
+                info << "run 'bpkg rep-fetch' to repair";
 
-        checkout (o, rl, td, ap, pdb);
-        s.fixedup = fixup (o, rl, td);
+            rmt = auto_rmdir (tdir / sd, !keep_tmp);
+
+            // Move the repository to the temporary directory.
+            //
+            const dir_path& td (rmt.path);
+
+            if (exists (td))
+              rm_r (td);
+
+            mv (rd, td);
+          }
+
+          // Pre-insert the repository entry into the checkout cache before we
+          // finalize it. This way, on failure, the repository get restored in
+          // its permanent location.
+          //
+          i = cm.emplace (
+            rd, state {move (rmt), rl, false /* fixedup */, nullptr}).first;
+
+          // Checkout the repository fragment and fix up the working tree.
+          //
+          state& s (i->second);
+          const dir_path& td (s.rmt.path);
+
+          assert (rl.fragment ());
+
+          const string& commit (*rl.fragment ());
+
+          if (!git_commit_fetched (o, td, commit))
+          {
+            fail << "missing commit in repository directory for package " << n
+                 << ' ' << v << " in its repository information configuration "
+                 << rdb.config_orig <<
+              info << "repository: " << rl.url () <<
+              info << "commit: " << commit <<
+              info << "run 'bpkg rep-fetch' to repair";
+          }
+
+          // Checkout the repository fragment, fix up the working tree, and
+          // "finalize" it by setting the proper fixedup value. Remove the
+          // repository if checkout or fixup fails, unless checkout fails
+          // before even starting to fetch submodules (no connectivity, etc).
+          //
+          s.fixedup = nullopt; // Make incomplete not to restore on failure.
+
+          if (!checkout (o, rl, td, ap, pdb, false /* offline */))
+          {
+            s.fixedup = false; // Restore since not fetched.
+            throw failed (); // Note: the diagnostics has already been issued.
+          }
+
+          s.fixedup = fixup (o, rl, td);
+        }
       }
 
       // The temporary out of source directory that is required for the dist
@@ -423,7 +568,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache& cache,
+  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+                pkg_checkout_cache& checkout_cache,
                 const common_options& o,
                 database& pdb,
                 database& rdb,
@@ -435,7 +581,8 @@ namespace bpkg
                 bool purge,
                 bool simulate)
   {
-    return pkg_checkout (cache,
+    return pkg_checkout (fetch_cache,
+                         checkout_cache,
                          o,
                          pdb,
                          rdb,
@@ -449,7 +596,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (pkg_checkout_cache& cache,
+  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+                pkg_checkout_cache& checkout_cache,
                 const common_options& o,
                 database& pdb,
                 database& rdb,
@@ -459,7 +607,8 @@ namespace bpkg
                 bool replace,
                 bool simulate)
   {
-    return pkg_checkout (cache,
+    return pkg_checkout (fetch_cache,
+                         checkout_cache,
                          o,
                          pdb,
                          rdb,
@@ -498,12 +647,18 @@ namespace bpkg
       fail << "package version expected" <<
         info << "run 'bpkg help pkg-checkout' for more information";
 
+    bpkg::fetch_cache fetch_cache (o, &db);
+
+    if (fetch_cache.enabled ())
+      fetch_cache.open (trace);
+
     pkg_checkout_cache checkout_cache (o);
 
     // Commits the transaction.
     //
     if (o.output_root_specified ())
-      p = pkg_checkout (checkout_cache,
+      p = pkg_checkout (fetch_cache,
+                        checkout_cache,
                         o,
                         db /* pdb */,
                         db /* rdb */,
@@ -515,7 +670,8 @@ namespace bpkg
                         o.output_purge (),
                         false /* simulate */);
     else
-      p = pkg_checkout (checkout_cache,
+      p = pkg_checkout (fetch_cache,
+                        checkout_cache,
                         o,
                         db /* pdb */,
                         db /* rdb */,
@@ -526,6 +682,9 @@ namespace bpkg
                         false /* simulate */);
 
     checkout_cache.clear (); // Detect errors.
+
+    if (fetch_cache.enabled ())
+      fetch_cache.close ();
 
     if (verb && !o.no_result ())
       text << "checked out " << *p;
@@ -550,17 +709,32 @@ namespace bpkg
   bool pkg_checkout_cache::
   clear (bool fail)
   {
-    // It would good to return to the permanent location as many repositories
-    // as possible before throwing an exception. Let's, however, keep it
-    // simple for now.
+    // Let's always return to the permanent location as many repositories as
+    // possible.
     //
-    while (!map_.empty ())
+    bool r (true);
+
+    using iterator = pkg_checkout_cache::state_map::iterator;
+
+    for (iterator i (map_.begin ()); i != map_.end (); )
     {
-      if (!erase (map_.begin (), fail))
-        return false;
+      iterator j (i++);
+
+      try
+      {
+        if (!erase (j, fail))
+          r = false;
+      }
+      catch (const failed&)
+      {
+        r = false;
+      }
     }
 
-    return true;
+    if (!r && fail)
+      throw failed (); // The diagnostics is already issued.
+
+    return r;
   }
 
   bool pkg_checkout_cache::
@@ -584,14 +758,37 @@ namespace bpkg
     //
     s.fixedup = nullopt;
 
-    if (!git_remove_worktree (options_, s.rmt.path, fail))
+    const dir_path& td (s.rmt.path);
+
+    if (!git_remove_worktree (options_, td, fail))
       return false;
 
-    // Manipulations over the repository are now complete, so we can return it
-    // to the permanent location.
+    // Manipulations over the repository are now complete so, if it exists, we
+    // can return it to the permanent location.
     //
-    if (!mv (s.rmt.path, i->first, fail))
-      return false;
+    if (s.fetch_cache != nullptr)
+    {
+      try
+      {
+        repository_url url (s.rl.url ());
+        url.fragment = nullopt;
+
+        s.fetch_cache->save_git_repository_state (move (url));
+        s.fetch_cache = nullptr; // Disable cache entry removal.
+      }
+      catch (const failed&)
+      {
+        if (fail)
+          throw;
+
+        return false;
+      }
+    }
+    else
+    {
+      if (!mv (td, i->first, fail))
+        return false;
+    }
 
     s.rmt.cancel ();
 
@@ -625,7 +822,51 @@ namespace bpkg
       return auto_rmdir ();
 
     auto_rmdir r (move (s.rmt));
+    s.fetch_cache = nullptr; // Disable cache entry removal.
     map_.erase (i);
     return r;
+  }
+
+  // pkg_checkout_cache::state
+  //
+  pkg_checkout_cache::state::
+  state (state&& x) noexcept
+    : rmt (move (x.rmt)),
+      rl (move (x.rl)),
+      fixedup (x.fixedup),
+      fetch_cache (x.fetch_cache)
+  {
+    fetch_cache = nullptr;
+  }
+
+  pkg_checkout_cache::state& pkg_checkout_cache::state::
+  operator= (state&& x) noexcept
+  {
+    if (this != &x)
+    {
+      rmt = move (x.rmt);
+      rl = move (x.rl);
+      fixedup = x.fixedup;
+      fetch_cache = x.fetch_cache;
+      x.fetch_cache = nullptr;
+    }
+
+    return *this;
+  }
+
+  pkg_checkout_cache::state::
+  ~state ()
+  {
+    // Similarly to the removal of the temporary repository state, unless rmt
+    // is deactivated, for a disabled fetch cache, remove the cache entry for
+    // an enabled fetch cache.
+    //
+    if (fetch_cache != nullptr)
+    {
+      repository_url url (rl.url ());
+      url.fragment = nullopt;
+
+      fetch_cache->remove_git_repository_state (move (url));
+    }
   }
 }

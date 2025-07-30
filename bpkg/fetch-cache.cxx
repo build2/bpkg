@@ -100,6 +100,8 @@ namespace bpkg
 
   static dir_path pkg_repository_metadata_directory_; // ~/.cache/build2/pkg/metadata
   static dir_path pkg_repository_package_directory_;  // ~/.cache/build2/pkg/packages
+  static dir_path git_repository_state_directory_;    // ~/.cache/build2/git
+  static dir_path tmp_directory_;                     // ~/.cache/build2/tmp
 
   cache_mode fetch_cache::
   mode (const common_options& co)
@@ -163,51 +165,7 @@ namespace bpkg
   fetch_cache::
   fetch_cache (const common_options& co, const database* db)
   {
-    if (!ops_enabled_)
-      ops_enabled_ = enabled (co);
-
-    enabled_ =
-      *ops_enabled_                         ? **ops_enabled_ :
-      db != nullptr && db->fetch_cache_mode ? *db->fetch_cache_mode != "false" :
-      true; // Enabled by default.
-
-    // Initialize options mode. We have to do it regardless of whether the
-    // cache is enabled due to offline().
-    //
-    if (!ops_mode_)
-      ops_mode_ = mode (co);
-
-    if (!enabled_)
-      return;
-
-    // Calculate effective mode for this configuration.
-    //
-    cache_mode m (*ops_mode_);
-
-    if ((!m.src || !m.trust) && db != nullptr && db->fetch_cache_mode)
-    {
-      // This is effective mode, meaning it should only contain final values
-      // without any overrides. Should be fast to parse every time without
-      // caching (typically it will be just `src`).
-      //
-      const string& s (*db->fetch_cache_mode);
-
-      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
-      {
-        if      (s.compare (b, n, "src") == 0      && !m.src)   m.src = true;
-        else if (s.compare (b, n, "no-src") == 0   && !m.src)   m.src = false;
-        else if (s.compare (b, n, "trust") == 0    && !m.trust) m.trust = true;
-        else if (s.compare (b, n, "no-trust") == 0 && !m.trust) m.trust = false;
-      }
-    }
-
-    // Defaults.
-    //
-    if (!m.src) m.src = false;
-    if (!m.trust) m.trust = true;
-
-    src_ = *m.src;
-    trust_ = *m.trust;
+    mode (co, db);
 
     // Get specified or calculate default cache directories.
     //
@@ -292,6 +250,9 @@ namespace bpkg
 
         pkg_repository_package_directory_ =
           ((dir_path (np_directory_) /= "pkg") /= "packages");
+
+        git_repository_state_directory_ = (dir_path (np_directory_) /= "git");
+        tmp_directory_ = (dir_path (np_directory_) /= "tmp");
       }
       catch (const invalid_path& e)
       {
@@ -329,6 +290,56 @@ namespace bpkg
   ~fetch_cache ()
   {
     close ();
+  }
+
+  void fetch_cache::
+  mode (const common_options& co, const database* db)
+  {
+    if (!ops_enabled_)
+      ops_enabled_ = enabled (co);
+
+    enabled_ =
+      *ops_enabled_                         ? **ops_enabled_ :
+      db != nullptr && db->fetch_cache_mode ? *db->fetch_cache_mode != "false" :
+      true; // Enabled by default.
+
+    // Initialize options mode. We have to do it regardless of whether the
+    // cache is enabled due to offline().
+    //
+    if (!ops_mode_)
+      ops_mode_ = mode (co);
+
+    if (!enabled_)
+      return;
+
+    // Calculate effective mode for this configuration.
+    //
+    cache_mode m (*ops_mode_);
+
+    if ((!m.src || !m.trust) && db != nullptr && db->fetch_cache_mode)
+    {
+      // This is effective mode, meaning it should only contain final values
+      // without any overrides. Should be fast to parse every time without
+      // caching (typically it will be just `src`).
+      //
+      const string& s (*db->fetch_cache_mode);
+
+      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
+      {
+        if      (s.compare (b, n, "src") == 0      && !m.src)   m.src = true;
+        else if (s.compare (b, n, "no-src") == 0   && !m.src)   m.src = false;
+        else if (s.compare (b, n, "trust") == 0    && !m.trust) m.trust = true;
+        else if (s.compare (b, n, "no-trust") == 0 && !m.trust) m.trust = false;
+      }
+    }
+
+    // Defaults.
+    //
+    if (!m.src) m.src = false;
+    if (!m.trust) m.trust = true;
+
+    src_ = *m.src;
+    trust_ = *m.trust;
   }
 
   static const path   db_file_name   ("fetch-cache.sqlite3");
@@ -712,6 +723,39 @@ namespace bpkg
         if (stop ()) return;
       }
 
+      // Remove the git repositories which have not been fetched or checked
+      // out in the last 3 months.
+      //
+      if (stop ()) return;
+      for (git_repository_state& o:
+             db.query<git_repository_state> (
+               query<git_repository_state>::access_time < three_months_ago))
+      {
+        if (stop ()) return;
+
+        dir_path d (git_repository_state_directory_ / o.directory);
+
+        if (verb >= 3)
+          text << "rm -r " << d;
+
+        try
+        {
+          if (dir_exists (d))
+            rmdir_r (d, true /* dir */);
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to remove directory " << d << ": " << e;
+
+          continue;
+        }
+
+        db.erase (o);
+
+        if (stop ()) return;
+      }
+
       // Remove the metadata for pkg repositories which have not been fetched
       // in the last 3 months.
       //
@@ -847,10 +891,28 @@ namespace bpkg
     }
   }
 
+  // Convert the local repository URL path to lower case on Windows. Noop on
+  // POSIX.
+  //
+  inline static repository_url
+  canonicalize_url (repository_url&& u)
+  {
+    assert (u.path);
+
+#ifdef _WIN32
+    if (u.scheme == repository_protocol::file)
+      *u.path = path (lcase (move (*u.path).string ()));
+#endif
+
+    return move (u);
+  }
+
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
-  load_pkg_repository_metadata (const repository_url& u)
+  load_pkg_repository_metadata (repository_url u)
   {
     assert (is_open () && !gc_thread_.joinable ());
+
+    u = canonicalize_url (move (u));
 
     // The overall plan is as follows:
     //
@@ -889,7 +951,9 @@ namespace bpkg
           // Remove the database entry last, to make sure we are still tracking
           // the directory if its removal fails for any reason.
           //
-          rm_r (d);
+          if (exists (d))
+            rm_r (d);
+
           db.erase (m);
         }
         else
@@ -920,11 +984,13 @@ namespace bpkg
   }
 
   fetch_cache::saved_pkg_repository_metadata fetch_cache::
-  save_pkg_repository_metadata (const repository_url& u,
+  save_pkg_repository_metadata (repository_url u,
                                 string repositories_checksum,
                                 string packages_checksum)
   {
     assert (is_open () && !gc_thread_.joinable ());
+
+    u = canonicalize_url (move (u));
 
     // The overall plan is as follows:
     //
@@ -988,7 +1054,7 @@ namespace bpkg
         pf = d / packages_file;
 
         pkg_repository_metadata md {
-          u,
+          move (u),
           move (dn),
           session_,
           system_clock::now (),
@@ -1116,5 +1182,264 @@ namespace bpkg
     }
 
     return r;
+  }
+
+  static dir_path repository_dir ("repository");
+  static dir_path ls_remote_file ("ls-remote.txt");
+
+  // Canonicalize the repository URL by converting the path to lower case, if
+  // the URL is local and we are running on Windows, and stripping the .git
+  // extension, if present.
+  //
+  static repository_url
+  canonicalize_git_url (repository_url&& u)
+  {
+    u = canonicalize_url (move (u));
+
+    assert (u.path);
+
+    path& up (*u.path);
+    const char* e (up.extension_cstring ());
+
+    if (e != nullptr && strcmp (e, "git") == 0)
+      up = up.base ();
+
+    return move (u);
+  }
+
+  inline static dir_path
+  git_repository_state_name (const repository_url& u)
+  {
+    return dir_path (sha256 (u.string ()).abbreviated_string (16));
+  }
+
+  fetch_cache::loaded_git_repository_state fetch_cache::
+  load_git_repository_state (repository_url u)
+  {
+    assert (is_open () && !gc_thread_.joinable () && !u.fragment);
+
+    u = canonicalize_git_url (move (u));
+
+    // The overall plan is as follows:
+    //
+    // 1. See if there is an entry for this URL in the database. If not,
+    //    assume the absent state.
+    //
+    // 2. Otherwise, check if the repository subdirectory exists in the
+    //    repository state directory. If not, remove the state directory on
+    //    disk, remove the entry from the database, and assume the absent
+    //    state.
+    //
+    // 3. Otherwise, assume the up-to-date state if ls-remote.txt exists in
+    //    the repository state directory and the current session matches the
+    //    entry session or we are in the offline mode.
+    //
+    // 4. Otherwise, assume the outdated state and remove the ls-remote.txt
+    //    file, if present.
+    //
+    // 5. For the absent state, create an empty repository state directory in
+    //    the cache temporary directory. For other states, update the entry
+    //    session and access time and move the repository state directory into
+    //    the cache temporary directory.
+    //
+    // 6. Return the deduced state and paths to the repository directory and
+    //    ls-remote.txt file in the cache temporary directory, regardless of
+    //    whether they exist or not.
+
+    loaded_git_repository_state r;
+
+    auto& db (*db_);
+
+    dir_path sd;
+    dir_path td;
+
+    try
+    {
+      transaction t (db);
+
+      git_repository_state s;
+      if (db.find<git_repository_state> (u, s))
+      {
+        sd = git_repository_state_directory_ / s.directory;
+        td = tmp_directory_ / s.directory;
+
+        dir_path rd (sd / repository_dir);
+
+        if (!exists (rd))
+        {
+          // Remove the database entry last, to make sure we are still tracking
+          // the directory if its removal fails for any reason.
+          //
+          if (exists (sd))
+            rm_r (sd);
+
+          db.erase (s);
+
+          r.state = loaded_git_repository_state::absent;
+        }
+        else
+        {
+          path lf (sd / ls_remote_file);
+
+          // True if ls-remote exists and is up-to-date.
+          //
+          bool utd (exists (lf));
+
+          if (utd)
+          {
+            utd = (offline () || s.session == session_);
+
+            if (!utd)
+              rm (lf);
+          }
+
+          s.session = session_;
+          s.access_time = system_clock::now ();
+
+          db.update (s);
+
+          r.state = utd
+            ? loaded_git_repository_state::up_to_date
+            : loaded_git_repository_state::outdated;
+        }
+      }
+      else
+      {
+        dir_path d (git_repository_state_name (u));
+
+        sd = git_repository_state_directory_ / d;
+        td = tmp_directory_ / d;
+
+        if (exists (sd))
+          rm_r (sd);
+
+        r.state = loaded_git_repository_state::absent;
+      }
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    if (exists (td))
+      rm_r (td);
+    else if (!exists (tmp_directory_))
+      mk_p (tmp_directory_);
+
+    if (r.state == loaded_git_repository_state::absent)
+      mk (td);
+    else
+      mv (sd, td);
+
+    r.repository = td / repository_dir;
+    r.ls_remote = td / ls_remote_file;
+
+    return r;
+  }
+
+  void fetch_cache::
+  save_git_repository_state (repository_url u)
+  {
+    assert (is_open () && !gc_thread_.joinable () && !u.fragment);
+
+    u = canonicalize_git_url (move (u));
+
+    // The overall plan is as follows:
+    //
+    // 1. Try to load the current entry from the database. If absent, create
+    //    new database entry with current session and access time.
+    //
+    // 2. Move the temporary repository state directory to its permanent
+    //    location.
+
+    auto& db (*db_);
+
+    dir_path sd;
+    dir_path td;
+
+    try
+    {
+      transaction t (db);
+
+      git_repository_state s;
+      if (db.find<git_repository_state> (u, s))
+      {
+        sd = git_repository_state_directory_ / s.directory;
+        td = tmp_directory_ / s.directory;
+      }
+      else
+      {
+        dir_path d (git_repository_state_name (u));
+
+        sd = git_repository_state_directory_ / d;
+        td = tmp_directory_ / d;
+
+        git_repository_state rs {
+          move (u), move (d), session_, system_clock::now ()};
+
+        db.persist (rs);
+      }
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    if (exists (sd))
+      rm_r (sd);
+    else if (!exists (git_repository_state_directory_))
+      mk_p (git_repository_state_directory_);
+
+    mv (td, sd);
+  }
+
+  void fetch_cache::
+  remove_git_repository_state (repository_url u)
+  {
+    assert (is_open () && !gc_thread_.joinable () && !u.fragment);
+
+    u = canonicalize_git_url (move (u));
+
+    auto& db (*db_);
+
+    dir_path td;
+
+    try
+    {
+      transaction t (db);
+
+      git_repository_state s;
+      if (db.find<git_repository_state> (u, s))
+      {
+        td = tmp_directory_ / s.directory;
+
+        db.erase (s);
+      }
+      else
+        td = tmp_directory_ / git_repository_state_name (u);
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    rm_r (td);
+  }
+
+  // Note that this function is not static to make sure that the global
+  // variable git_repository_state_directory_ is already set (note: set by
+  // fetch_cache constructor).
+  //
+  dir_path fetch_cache::
+  git_repository_state_dir (repository_url u) const
+  {
+    u = canonicalize_git_url (move (u));
+    return git_repository_state_directory_ / git_repository_state_name (u);
   }
 }

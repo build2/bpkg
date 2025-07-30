@@ -212,7 +212,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_fetch (const common_options& co,
+  pkg_fetch (fetch_cache& cache,
+             const common_options& co,
              database& pdb,
              database& rdb,
              transaction& t,
@@ -402,12 +403,11 @@ namespace bpkg
       // to do so (cache is disabled or there is no cached entry for the
       // package version).
       //
-      fetch_cache cache (co, &pdb);
       optional<fetch_cache::loaded_pkg_repository_package> crp;
 
       if (cache.enabled ())
       {
-        cache.open (trace);
+        assert (cache.is_open ());
 
         crp = cache.load_pkg_repository_package (pid);
 
@@ -507,7 +507,7 @@ namespace bpkg
       }
 
       // If the fetch cache is enabled, then save the package archive, if we
-      // fetched it, into the cache and close (release) the cache.
+      // fetched it, into the cache.
       //
       if (cache.enabled ())
       {
@@ -552,8 +552,6 @@ namespace bpkg
           else
             hardlink (a, ca);
         }
-
-        cache.close ();
       }
     }
 
@@ -622,7 +620,13 @@ namespace bpkg
         fail << "package version expected" <<
           info << "run 'bpkg help pkg-fetch' for more information";
 
-      p = pkg_fetch (o,
+      fetch_cache cache (o, &db);
+
+      if (cache.enabled ())
+        cache.open (trace);
+
+      p = pkg_fetch (cache,
+                     o,
                      db /* pdb */,
                      db /* rdb */,
                      t,
@@ -630,6 +634,9 @@ namespace bpkg
                      move (v),
                      o.replace (),
                      false /* simulate */);
+
+      if (cache.enabled ())
+        cache.close ();
     }
 
     if (verb && !o.no_result ())

@@ -24,6 +24,9 @@
       <index name="pkg_repository_metadata_directory_i" type="UNIQUE">
         <column name="directory"/>
       </index>
+      <index name="pkg_repository_metadata_access_time_i">
+        <column name="access_time"/>
+      </index>
     </table>
     <table name="pkg_repository_package" kind="object">
       <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
@@ -48,6 +51,24 @@
       </primary-key>
       <index name="pkg_repository_package_archive_i" type="UNIQUE">
         <column name="archive"/>
+      </index>
+      <index name="pkg_repository_package_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
+    <table name="git_repository_state" kind="object">
+      <column name="url" type="TEXT" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="session" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <primary-key>
+        <column name="url"/>
+      </primary-key>
+      <index name="git_repository_state_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+      <index name="git_repository_state_access_time_i">
+        <column name="access_time"/>
       </index>
     </table>
   </model>

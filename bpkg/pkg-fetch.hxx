@@ -8,7 +8,7 @@
 #include <libbpkg/package-name.hxx>
 
 #include <bpkg/types.hxx>
-#include <bpkg/forward.hxx> // transaction, selected_package
+#include <bpkg/forward.hxx> // transaction, selected_package, fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/pkg-fetch-options.hxx>
@@ -31,8 +31,8 @@ namespace bpkg
              bool simulate);
 
   // Fetch the package from an archive-based repository and commit the
-  // transaction. Return the selected package object which may replace the
-  // existing one.
+  // transaction. If the fetch cache is enabled it should be pre-open. Return
+  // the selected package object which may replace the existing one.
   //
   // Note that both package and repository information configurations need to
   // be passed.
@@ -40,7 +40,8 @@ namespace bpkg
   // Also note that it should be called in session.
   //
   shared_ptr<selected_package>
-  pkg_fetch (const common_options&,
+  pkg_fetch (fetch_cache&,
+             const common_options&,
              database& pdb,
              database& rdb,
              transaction&,

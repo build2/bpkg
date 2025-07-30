@@ -92,14 +92,25 @@ namespace bpkg
   public:
     // Create an unopened object. The passed database should correspond to the
     // configuration on which the operation requiring the cache is being
-    // performed. Make sure you don't reuse cache instanced across different
-    // configurations. If there is no configuration (e.g., rep-info), then
-    // pass NULL.
+    // performed. If there is no configuration (e.g., rep-info), then pass
+    // NULL.
     //
     // Note that the object should only be opened if enabled() below returns
     // true.
     //
+    // NOTE: don't reuse cache instances across different configurations
+    // without prior mode(database*) function call.
+    //
     fetch_cache (const common_options&, const database*);
+
+    // Set the enabled status and/or src, etc modes, taking into account the
+    // configuration-specific defaults, if the database is specified.
+    //
+    // NOTE: needs to be called before reusing the cache instance for a
+    // different configuration or without configuration.
+    //
+    void
+    mode (const common_options&, const database*);
 
     // Lock and open the fetch cache database.
     //
@@ -222,7 +233,7 @@ namespace bpkg
     };
 
     optional<loaded_pkg_repository_metadata>
-    load_pkg_repository_metadata (const repository_url&);
+    load_pkg_repository_metadata (repository_url);
 
     // Save (insert of update) metadata for the specified pkg repository
     // URL. The metadata should be written to the returned paths. Note that
@@ -240,7 +251,7 @@ namespace bpkg
     };
 
     saved_pkg_repository_metadata
-    save_pkg_repository_metadata (const repository_url&,
+    save_pkg_repository_metadata (repository_url,
                                   string repositories_checksum,
                                   string packages_checksum);
 
@@ -289,8 +300,10 @@ namespace bpkg
     // even if nothing was fetched. If the cache entry is absent, the returned
     // paths are valid but the corresponding filesystem entries do not exist
     // (but their containing directory does). Likewise, if the cache entry is
-    // outdated, then the returned ls-remote output paht is valid but the
-    // corresponding filesystem entry does not exist.
+    // outdated, then the returned ls-remote output path is valid but the
+    // corresponding filesystem entry does not exist. This, in particular,
+    // means that if an absent entry need not be saved (fetch error occurred,
+    // etc), then remove_*() should still be called.
     //
     struct loaded_git_repository_state
     {
@@ -307,7 +320,7 @@ namespace bpkg
     };
 
     loaded_git_repository_state
-    load_git_repository_state (const repository_url&);
+    load_git_repository_state (repository_url);
 
     // Save (insert of update) repository state for the specified git
     // repository URL. Specifically, move the filesystem entries from the
@@ -315,14 +328,32 @@ namespace bpkg
     //
     // Note that it's valid to call save_*() with absent ls-remote file. This
     // can be used to preserve (expensive to fetch) git repository state in
-    // case of network failures during git-ls-remove (or, more generally,
-    // before spoiling the git repository state).
-    //
-    // @@ FC: need to think about pkg-checkout. May neet to try to restore
-    //    the state in case of common failure.
+    // case of network failures during git-ls-remote (or, more generally,
+    // before spoiling the git repository state). This can also be the case if
+    // git-ls-remote call has not been made since there were no need to
+    // resolve git references to commit ids.
     //
     void
-    save_git_repository_state (const repository_url&);
+    save_git_repository_state (repository_url);
+
+    // Remove repository state, if exists, for the specified git repository
+    // URL. Specifically, remove the filesystem entries from the paths
+    // returned by load_*().
+    //
+    // Normally, it is called instead of save_*() to discard a spoiled
+    // repository entry (fetch error occurred, etc).
+    //
+    void
+    remove_git_repository_state (repository_url);
+
+    // Git repository state directory.
+    //
+    // Note that a repository state should never be amended via this path.
+    // Normally, it is used as a global identifier of the repository cached
+    // state (as a map key, etc).
+    //
+    dir_path
+    git_repository_state_dir (repository_url) const;
 
     // Implementation details (also used by cfg_create()).
     //

@@ -41,6 +41,7 @@ namespace bpkg
 
   // <libbutl/utility.hxx>
   //
+  using butl::lcase;
   using butl::icasecmp;
   using butl::reverse_iterate;
 

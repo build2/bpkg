@@ -15,6 +15,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
@@ -8003,7 +8004,17 @@ namespace bpkg
 
     // purge, fetch/unpack|checkout
     //
+    // Note that pkg_checkout() may reuse the same fetch cache entry for
+    // multiple packages (see pkg_checkout_cache for details). Thus, we use a
+    // single fetch cache object for all the pkg_checkout() and pkg_fetch()
+    // calls in the loop, open (lock) the cache by demand, and only close it
+    // when the loop is finished. Note that the load_git_*() cache calls will
+    // also be followed by the corresponding save_git_*() calls only when the
+    // loop is finished.
+    //
+    bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8135,7 +8146,16 @@ namespace bpkg
             {
             case repository_basis::archive:
               {
-                sp = pkg_fetch (o,
+                if (!simulate)
+                {
+                  fetch_cache.mode (o, &pdb);
+
+                  if (fetch_cache.enabled () && !fetch_cache.is_open ())
+                    fetch_cache.open (trace);
+                }
+
+                sp = pkg_fetch (fetch_cache,
+                                o,
                                 pdb,
                                 af.database (),
                                 t,
@@ -8147,8 +8167,17 @@ namespace bpkg
               }
             case repository_basis::version_control:
               {
+                if (!simulate)
+                {
+                  fetch_cache.mode (o, &pdb);
+
+                  if (fetch_cache.enabled () && !fetch_cache.is_open ())
+                    fetch_cache.open (trace);
+                }
+
                 sp = p.checkout_root
-                  ? pkg_checkout (checkout_cache,
+                  ? pkg_checkout (fetch_cache,
+                                  checkout_cache,
                                   o,
                                   pdb,
                                   af.database (),
@@ -8159,7 +8188,8 @@ namespace bpkg
                                   true /* replace */,
                                   p.checkout_purge,
                                   simulate)
-                  : pkg_checkout (checkout_cache,
+                  : pkg_checkout (fetch_cache,
+                                  checkout_cache,
                                   o,
                                   pdb,
                                   af.database (),
@@ -8286,6 +8316,9 @@ namespace bpkg
       }
     }
     checkout_cache.clear (); // Detect errors.
+
+    if (fetch_cache.is_open ())
+      fetch_cache.close ();
 
     // configure
     //
