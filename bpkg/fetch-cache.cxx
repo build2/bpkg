@@ -166,6 +166,62 @@ namespace bpkg
   fetch_cache (const common_options& co, const database* db)
   {
     mode (co, db);
+  }
+
+  fetch_cache::
+  ~fetch_cache ()
+  {
+    close ();
+  }
+
+  void fetch_cache::
+  mode (const common_options& co, const database* db)
+  {
+    if (!ops_enabled_)
+      ops_enabled_ = enabled (co);
+
+    enabled_ =
+      *ops_enabled_                         ? **ops_enabled_ :
+      db != nullptr && db->fetch_cache_mode ? *db->fetch_cache_mode != "false" :
+      true; // Enabled by default.
+
+    // Initialize options mode. We have to do it regardless of whether the
+    // cache is enabled due to offline().
+    //
+    if (!ops_mode_)
+      ops_mode_ = mode (co);
+
+    if (!enabled_)
+      return;
+
+    // Calculate effective mode for this configuration.
+    //
+    cache_mode m (*ops_mode_);
+
+    if ((!m.src || !m.trust) && db != nullptr && db->fetch_cache_mode)
+    {
+      // This is effective mode, meaning it should only contain final values
+      // without any overrides. Should be fast to parse every time without
+      // caching (typically it will be just `src`).
+      //
+      const string& s (*db->fetch_cache_mode);
+
+      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
+      {
+        if      (s.compare (b, n, "src") == 0      && !m.src)   m.src = true;
+        else if (s.compare (b, n, "no-src") == 0   && !m.src)   m.src = false;
+        else if (s.compare (b, n, "trust") == 0    && !m.trust) m.trust = true;
+        else if (s.compare (b, n, "no-trust") == 0 && !m.trust) m.trust = false;
+      }
+    }
+
+    // Defaults.
+    //
+    if (!m.src) m.src = false;
+    if (!m.trust) m.trust = true;
+
+    src_ = *m.src;
+    trust_ = *m.trust;
 
     // Get specified or calculate default cache directories.
     //
@@ -284,62 +340,6 @@ namespace bpkg
       if (session_.empty ())
         session_ = uuid::generate ().string ();
     }
-  }
-
-  fetch_cache::
-  ~fetch_cache ()
-  {
-    close ();
-  }
-
-  void fetch_cache::
-  mode (const common_options& co, const database* db)
-  {
-    if (!ops_enabled_)
-      ops_enabled_ = enabled (co);
-
-    enabled_ =
-      *ops_enabled_                         ? **ops_enabled_ :
-      db != nullptr && db->fetch_cache_mode ? *db->fetch_cache_mode != "false" :
-      true; // Enabled by default.
-
-    // Initialize options mode. We have to do it regardless of whether the
-    // cache is enabled due to offline().
-    //
-    if (!ops_mode_)
-      ops_mode_ = mode (co);
-
-    if (!enabled_)
-      return;
-
-    // Calculate effective mode for this configuration.
-    //
-    cache_mode m (*ops_mode_);
-
-    if ((!m.src || !m.trust) && db != nullptr && db->fetch_cache_mode)
-    {
-      // This is effective mode, meaning it should only contain final values
-      // without any overrides. Should be fast to parse every time without
-      // caching (typically it will be just `src`).
-      //
-      const string& s (*db->fetch_cache_mode);
-
-      for (size_t b (0), e (0), n; (n = next_word (s, b, e, ',')) != 0; )
-      {
-        if      (s.compare (b, n, "src") == 0      && !m.src)   m.src = true;
-        else if (s.compare (b, n, "no-src") == 0   && !m.src)   m.src = false;
-        else if (s.compare (b, n, "trust") == 0    && !m.trust) m.trust = true;
-        else if (s.compare (b, n, "no-trust") == 0 && !m.trust) m.trust = false;
-      }
-    }
-
-    // Defaults.
-    //
-    if (!m.src) m.src = false;
-    if (!m.trust) m.trust = true;
-
-    src_ = *m.src;
-    trust_ = *m.trust;
   }
 
   static const path   db_file_name   ("fetch-cache.sqlite3");
@@ -723,39 +723,6 @@ namespace bpkg
         if (stop ()) return;
       }
 
-      // Remove the git repositories which have not been fetched or checked
-      // out in the last 3 months.
-      //
-      if (stop ()) return;
-      for (git_repository_state& o:
-             db.query<git_repository_state> (
-               query<git_repository_state>::access_time < three_months_ago))
-      {
-        if (stop ()) return;
-
-        dir_path d (git_repository_state_directory_ / o.directory);
-
-        if (verb >= 3)
-          text << "rm -r " << d;
-
-        try
-        {
-          if (dir_exists (d))
-            rmdir_r (d, true /* dir */);
-        }
-        catch (const system_error& e)
-        {
-          if (verb >= 3)
-            warn << "unable to remove directory " << d << ": " << e;
-
-          continue;
-        }
-
-        db.erase (o);
-
-        if (stop ()) return;
-      }
-
       // Remove the metadata for pkg repositories which have not been fetched
       // in the last 3 months.
       //
@@ -789,11 +756,71 @@ namespace bpkg
         if (stop ()) return;
       }
 
+      // Remove the git repositories which have not been fetched or checked
+      // out in the last 3 months.
+      //
+      if (stop ()) return;
+      for (git_repository_state& o:
+             db.query<git_repository_state> (
+               query<git_repository_state>::access_time < three_months_ago))
+      {
+        if (stop ()) return;
+
+        dir_path d (git_repository_state_directory_ / o.directory);
+
+        if (verb >= 3)
+          text << "rm -r " << d;
+
+        try
+        {
+          if (dir_exists (d))
+            rmdir_r (d, true /* dir */);
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to remove directory " << d << ": " << e;
+
+          continue;
+        }
+
+        db.erase (o);
+
+        if (stop ()) return;
+      }
+
       // Note that the certificate validity is re-checked regardless if it is
       // trusted or not (see auth_cert() and auth_real()). Normally, a
       // certificate is replaced in the repository manifest before it is
       // expired, eventually is trusted by the user, and ends up in the cache
       // under the new id.
+      //
+      // @@ On Windows we end up with the following warning for the line
+      //    'query<pkg_repository_auth>::end_date < since_epoch_ns (now)':
+      //
+      //    fetch-cache.cxx(802): warning C4244: 'argument': conversion from '_Rep' to 'const T', possible loss of data
+      //      with
+      //      [
+      //          _Rep=__int64
+      //      ]
+      //      and
+      //      [
+      //          T=unsigned long
+      //      ]
+      //
+      //    Looks like this is because of the strangely ODB-generated code:
+      //
+      //    // end_date
+      //    //
+      //    typedef
+      //    sqlite::query_column<
+      //      sqlite::value_traits<
+      //        long unsigned int,
+      //        sqlite::id_integer >::query_type,
+      //      sqlite::id_integer >
+      //    end_date_type_;
+      //
+      //    Why 'long unsigned int' rather than uint64_t?
       //
       if (stop ()) return;
       for (pkg_repository_auth& o:

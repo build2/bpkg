@@ -1152,8 +1152,6 @@ namespace bpkg
         make_exception_guard (
           [&cache, &url, &saved] ()
           {
-            // @@ Print 'run bpkg rep-fetch'? How not to duplicate?
-            //
             if (!saved)
               cache.remove_git_repository_state (move (url));
           }));
@@ -1165,8 +1163,9 @@ namespace bpkg
       // Otherwise, we initialize the repository in the temporary directory,
       // unless we are in the offline mode in which case we fail.
       //
-      // In the former case also set the filesystem_state_changed flag since
-      // we are modifying the repository filesystem state.
+      // In the former case, unless offline, also set the
+      // filesystem_state_changed flag since we are modifying the repository
+      // filesystem state.
       //
       bool cached_repo (
         crs.state != fetch_cache::loaded_git_repository_state::absent);
@@ -1174,7 +1173,10 @@ namespace bpkg
       bool fsc (filesystem_state_changed);
 
       if (cached_repo)
-        filesystem_state_changed = true;
+      {
+        if (!cache.offline ())
+          filesystem_state_changed = true;
+      }
       else if (cache.offline ())
         fail << "no state in fetch cache for repository " << rl.url ()
              << " in offline mode" <<

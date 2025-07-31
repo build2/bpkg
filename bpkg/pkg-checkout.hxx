@@ -66,9 +66,10 @@ namespace bpkg
 
       // If specified (not NULL), then this is the state of a repository
       // located in the referenced fetch cache and prepared for checkout by
-      // the respective load_git_*() function call. In this case, the
-      // destructor removes the respective cached entry by calling
-      // remove_git_repository_state().
+      // the respective load_git_*() function call. In this case, rmt is only
+      // used to hold the repository path and the destructor removes the
+      // respective cached entry by calling remove_git_repository_state()
+      // (symmetrically to rmt.~auto_rmdir() when fetch_cache is NULL).
       //
       bpkg::fetch_cache* fetch_cache;
 
@@ -78,7 +79,8 @@ namespace bpkg
              bpkg::fetch_cache* c)
           : rmt (move (r)), rl (move (l)), fixedup (f), fetch_cache (c) {}
 
-      // Movable-only type. Move-assignment cancels the lhs object.
+      // Movable-only type. Move-assignment cancels repository removal for the
+      // rhs object.
       //
       state (state&&) noexcept;
       state& operator= (state&&) noexcept;

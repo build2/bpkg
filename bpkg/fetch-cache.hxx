@@ -99,12 +99,13 @@ namespace bpkg
     // true.
     //
     // NOTE: don't reuse cache instances across different configurations
-    // without prior mode(database*) function call.
+    // without prior mode(common_options, database*) function call.
     //
     fetch_cache (const common_options&, const database*);
 
-    // Set the enabled status and/or src, etc modes, taking into account the
-    // configuration-specific defaults, if the database is specified.
+    // Re-calculate the enabled status and/or src, etc modes, taking into
+    // account the configuration-specific defaults, if the database is
+    // specified.
     //
     // NOTE: needs to be called before reusing the cache instance for a
     // different configuration or without configuration.
@@ -337,7 +338,7 @@ namespace bpkg
     save_git_repository_state (repository_url);
 
     // Remove repository state, if exists, for the specified git repository
-    // URL. Specifically, remove the filesystem entries from the paths
+    // URL. Specifically, remove the containing directory of the paths
     // returned by load_*().
     //
     // Normally, it is called instead of save_*() to discard a spoiled
@@ -350,7 +351,7 @@ namespace bpkg
     //
     // Note that a repository state should never be amended via this path.
     // Normally, it is used as a global identifier of the repository cached
-    // state (as a map key, etc).
+    // state (map key, etc).
     //
     dir_path
     git_repository_state_dir (repository_url) const;

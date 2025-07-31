@@ -1320,8 +1320,9 @@ namespace bpkg
 
   // Fetch and return repository fragments resolved using the specified
   // repository reference filters. Regardless whether the function has failed
-  // or not, return an indication if git-fetch has been called. In the offline
-  // mode fail if any network interaction needs to be performed.
+  // or not, return an indication if git-fetch has been called (start_fetching
+  // argument). In the offline mode fail if any network interaction needs to
+  // be performed.
   //
   static vector<git_fragment>
   fetch (const common_options& co,
@@ -2265,7 +2266,7 @@ namespace bpkg
   // Checkout the repository submodules (see git_checkout_submodules()
   // description for details). Regardless whether the function has failed or
   // not, return an indication if git-fetch has been called for any of the
-  // submodules.
+  // submodules (start_fetching argument).
   //
   static void
   checkout_submodules (const common_options& co,

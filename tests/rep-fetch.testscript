@@ -1129,99 +1129,167 @@ else
   +mkdir $options_guard
   +echo '--no-default-options' >=$options_guard/bpkg.options
   +export -u BPKG_FETCH_CACHE
-  test.options += --fetch-cache-path cache --auth all -v
+  test.options += --fetch-cache-path cache
 
-  : signed-repository
+  : pkg-rep
   :
-  {
-    $clone_root_cfg && $rep_add $rep/hello
+  {{
+    test.options += --auth all -v
 
-    # Verify that for the first repository fetch we download all the manifest
-    # files and authenticate the certificate.
-    #
-    $* --trust $cert_fp 2>&1 &cache/*** | set out
-
-    sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >~/.+/
-
-    if $remote
+    : signed-repository
+    :
     {
-      sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >>~%EOO%
-        %.+
-        EOO
+      $clone_root_cfg && $rep_add $rep/hello
 
-      sed -n -e 's%(https://.*/packages.manifest)%\1%p' <$out >>~%EOO%
-        %.+
-        EOO
-
-      sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
-        %.+
-        EOO
-    }
-
-    # Verify that the fetched manifest files are cached.
-    #
-    ms = $sort($filesystem.path_search(*/*.manifest, $~/cache/pkg/metadata))
-
-    sed -n -e 's%^(.+packages.manifest)$%\1%p'     <($ms[0]) >~/.+/
-    sed -n -e 's%^(.+repositories.manifest)$%\1%p' <($ms[1]) >~/.+/
-
-    rm -r cfg
-
-    $clone_root_cfg && $rep_add $rep/hello
-
-    # Verify that now, as the metadata and authentication answers are cached,
-    # we don't download the repositories and packages manifest files nor
-    # authenticate the certificate.
-    #
-    $* 2>&1 | set out
-
-    sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >:''
-
-    if $remote
-    {
-      sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >:''
-      sed -n -e 's%(https://.*/packages.manifest)%\1%p'     <$out >:''
-
-      # Note: we should still be downloading the signature manifest to perform
-      # the up-to-dateness check.
+      # Verify that for the first repository fetch we download all the manifest
+      # files and authenticate the certificate.
       #
-      sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
-        %.+
-        EOO
+      $* --trust $cert_fp 2>&1 &cache/*** | set out
+
+      sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >~/.+/
+
+      if $remote
+      {
+        sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+
+        sed -n -e 's%(https://.*/packages.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+
+        sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+      }
+
+      # Verify that the fetched manifest files are cached.
+      #
+      ms = $sort($filesystem.path_search(*/*.manifest, $~/cache/pkg/metadata))
+
+      sed -n -e 's%^(.+packages.manifest)$%\1%p'     <($ms[0]) >~/.+/
+      sed -n -e 's%^(.+repositories.manifest)$%\1%p' <($ms[1]) >~/.+/
+
+      rm -r cfg
+
+      $clone_root_cfg && $rep_add $rep/hello
+
+      # Verify that now, as the metadata and authentication answers are cached,
+      # we don't download the repositories and packages manifest files nor
+      # authenticate the certificate.
+      #
+      $* 2>&1 | set out
+
+      sed -n -e 's%(certificate .* authenticated by command line)%\1%p' <$out >:''
+
+      if $remote
+      {
+        sed -n -e 's%(https://.*/repositories.manifest)%\1%p' <$out >:''
+        sed -n -e 's%(https://.*/packages.manifest)%\1%p'     <$out >:''
+
+        # Note: we should still be downloading the signature manifest to perform
+        # the up-to-dateness check.
+        #
+        sed -n -e 's%(https://.*/signature.manifest)%\1%p' <$out >>~%EOO%
+          %.+
+          EOO
+      }
+
+      $rep_list >~'%pkg:build2.org/rep-fetch/hello.+%'
+      $pkg_status libhello >'libhello available 1.0.0'
+
+      $rep_remove --all
     }
 
-    $rep_list >~'%pkg:build2.org/rep-fetch/hello.+%'
-    $pkg_status libhello >'libhello available 1.0.0'
+    : unsigned-repository
+    :
+    {
+      $clone_root_cfg && $rep_add $rep/hello-unsigned
 
-    $rep_remove --all
-  }
+      # Verify that for the first unsigned repository fetch we trust the
+      # repository by command line.
+      #
+      $* --trust-yes 2>&1 &cache/*** | set out
 
-  : unsigned-repository
+      sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_root_cfg && $rep_add $rep/hello-unsigned
+
+      # Verify that now, as the authentication answers are cached, the unsigned
+      # repository is trusted automatically.
+      #
+      $* 2>&1 | set out
+
+      sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >:''
+
+      $rep_list >~'%pkg:build2.org/rep-fetch/hello-unsigned.+%'
+      $pkg_status libhello >'libhello available 1.0.0'
+
+      $rep_remove --all
+    }
+  }}
+
+  : git-rep
   :
-  {
-    $clone_root_cfg && $rep_add $rep/hello-unsigned
+  if $git_supported
+  {{
+    rep_git = ($remote ? $rep_git_https_smart_unadv : $rep_git_local)
 
-    # Verify that for the first unsigned repository fetch we trust the
-    # repository by command line.
-    #
-    $* --trust-yes 2>&1 &cache/*** | set out
+    : basics
+    :
+    {
+      $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
 
-    sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >~/.+/
+      $* --offline &cache/*** 2>>~%EOE% != 0
+        %fetching git:.+libfoo#master%
+        %error: no state in fetch cache for repository .+libfoo.git#master in offline mode%
+          info: consider turning offline mode off
+        EOE
 
-    rm -r cfg
+      test.options += --fetch-cache-session 2487f19f-230e-4692-b9e3-0c3654d88a5b
 
-    $clone_root_cfg && $rep_add $rep/hello-unsigned
+      # Verify that for the first repository fetch we run git-ls-remote and
+      # git-fetch.
+      #
+      $* -v 2>&1 &cache/*** | set out
 
-    # Verify that now, as the authentication answers are cached, the unsigned
-    # repository is trusted automatically.
-    #
-    $* 2>&1 | set out
+      sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >~/.+/
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
 
-    sed -n -e 's%(unsigned repository .* trusted by command line)%\1%p' <$out >:''
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'  <$out >~/.+/
+      sed -n -e 's%^(querying .*libfoo.git)$%\1%p'         <$out >~/.+/
+      sed -n -e 's%^(fetching from .*libfoo.git .*)$%\1%p' <$out >~/.+/
 
-    $rep_list >~'%pkg:build2.org/rep-fetch/hello-unsigned.+%'
-    $pkg_status libhello >'libhello available 1.0.0'
+      # Verify that the fetched filesystem entries are cached.
+      #
+      out=$filesystem.path_search(*/repository/, $~/cache/git)
+      sed -n -e 's%^(.+repository.)$%\1%p' <$out >~/.+/
 
-    $rep_remove --all
-  }
+      out=$filesystem.path_search(*/ls-remote.txt, $~/cache/git)
+      sed -n -e 's%^(.+ls-remote.txt)$%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
+
+      # Verify that now, as the repository is cached, we don't run
+      # git-ls-remote nor git-fetch.
+      #
+      $* -v 2>&1 | set out
+
+      sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >:''
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
+
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'  <$out >~/.+/
+      sed -n -e 's%^(querying .*libfoo.git)$%\1%p'         <$out >:''
+      sed -n -e 's%^(fetching from .*libfoo.git .*)$%\1%p' <$out >:''
+
+      $rep_list >~'%git:.+libfoo#master.+%'
+      $pkg_status libfoo >'libfoo available 1.0.0'
+
+      $rep_remove --all
+    }
+  }}
 }}

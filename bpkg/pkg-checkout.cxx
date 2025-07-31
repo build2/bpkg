@@ -25,8 +25,8 @@ namespace bpkg
 {
   // pkg_checkout()
   //
-  // Return nullopt, if the underlying git_checkout_submodules() call returned
-  // nullopt.
+  // Return false, if the underlying git_checkout_submodules() call returned
+  // false.
   //
   static bool
   checkout (const common_options& o,
@@ -267,6 +267,8 @@ namespace bpkg
         {
           // The repository temporary directory.
           //
+          // Note: only used to hold the repository path.
+          //
           auto_rmdir rmt;
 
           // Restore the repository working tree state if some different
@@ -279,19 +281,23 @@ namespace bpkg
           else
           {
             fetch_cache::loaded_git_repository_state crs (
-              fetch_cache.load_git_repository_state (move (url)));
+              fetch_cache.load_git_repository_state (url));
 
             if (crs.state == fetch_cache::loaded_git_repository_state::absent)
+            {
+              fetch_cache.remove_git_repository_state (move (url));
+
               fail << "missing repository state for package " << n << ' '
                    << v << " in fetch cache" <<
                 info << "repository: " << rl.url () <<
                 info << "run 'bpkg rep-fetch' to repair";
+            }
 
-            // Let's keep the cached repository directory in the fetch cache
-            // temporary directory if the --keep-temp option is specified. It
-            // can be handy for troubleshooting.
+            // Note: inactive since fetch cache entries are removed by
+            // checkout cache using remove_git_repository_state() rather than
+            // auto_rm.
             //
-            rmt = auto_rmdir (crs.repository, !keep_tmp);
+            rmt = auto_rmdir (crs.repository, false /* active */);
           }
 
           // Pre-insert the repository entry into the checkout cache before we
@@ -336,7 +342,7 @@ namespace bpkg
       }
       else
       {
-        if (!fetch_cache.enabled () && fetch_cache.offline ())
+        if (fetch_cache.offline () && !fetch_cache.enabled ())
           fail << "no way to obtain state for repository " << rl.url ()
                << " in offline mode with fetch cache disabled" <<
             info << "consider enabling fetch cache or turning offline mode off";
@@ -720,15 +726,8 @@ namespace bpkg
     {
       iterator j (i++);
 
-      try
-      {
-        if (!erase (j, fail))
-          r = false;
-      }
-      catch (const failed&)
-      {
+      if (!erase (j, false /* fail */))
         r = false;
-      }
     }
 
     if (!r && fail)
@@ -763,8 +762,8 @@ namespace bpkg
     if (!git_remove_worktree (options_, td, fail))
       return false;
 
-    // Manipulations over the repository are now complete so, if it exists, we
-    // can return it to the permanent location.
+    // Manipulations over the repository are now complete, so we can return it
+    // to the permanent location.
     //
     if (s.fetch_cache != nullptr)
     {
@@ -788,9 +787,9 @@ namespace bpkg
     {
       if (!mv (td, i->first, fail))
         return false;
-    }
 
-    s.rmt.cancel ();
+      s.rmt.cancel ();
+    }
 
     map_.erase (i);
     return true;
@@ -821,8 +820,9 @@ namespace bpkg
     if (f && !fixup (options_, s.rl, s.rmt.path, true /* revert */, fail))
       return auto_rmdir ();
 
-    auto_rmdir r (move (s.rmt));
     s.fetch_cache = nullptr; // Disable cache entry removal.
+
+    auto_rmdir r (move (s.rmt));
     map_.erase (i);
     return r;
   }
@@ -836,7 +836,7 @@ namespace bpkg
       fixedup (x.fixedup),
       fetch_cache (x.fetch_cache)
   {
-    fetch_cache = nullptr;
+    x.fetch_cache = nullptr;
   }
 
   pkg_checkout_cache::state& pkg_checkout_cache::state::
@@ -848,6 +848,7 @@ namespace bpkg
       rl = move (x.rl);
       fixedup = x.fixedup;
       fetch_cache = x.fetch_cache;
+
       x.fetch_cache = nullptr;
     }
 

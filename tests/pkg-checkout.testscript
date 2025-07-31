@@ -267,4 +267,50 @@ else
       $pkg_purge libmbar
     }
   }}
+
+  : fetch-cache
+  :
+  {{
+    # Enable the test-specific fetch caches.
+    #
+    options_guard = $~/.build2
+    +mkdir $options_guard
+    +echo '--no-default-options' >=$options_guard/bpkg.options
+    +export BPKG_FETCH_CACHE=src
+    rep_fetch    += --fetch-cache-path cache
+    test.options += --fetch-cache-path cache
+
+    : basics
+    :
+    {
+      $clone_root_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch &cache/***
+
+      # Verify that for the first repository fetch we run git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching submodule .extras. from .+style-basic.git .+)$%\1%p' <$out >~/.+/
+
+      rm -r cfg
+
+      $clone_root_cfg
+      $rep_add "$rep/libbar.git#master"
+      $rep_fetch
+
+      # Verify that now, as the repository is cached, we don't run
+      # git-fetch.
+      #
+      $* -v libbar/1.0.0+1 2>&1 | set out
+
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
+      sed -n -e 's%^(fetching submodule .extras. from .+style-basic.git .+)$%\1%p' <$out >:''
+
+      $pkg_status libbar >'libbar unpacked 1.0.0+1'
+
+      $pkg_drop libbar -d cfg/ 2>!
+    }
+  }}
 }}
