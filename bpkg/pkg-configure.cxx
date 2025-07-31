@@ -843,8 +843,8 @@ namespace bpkg
         const operation_info& oif (op_default);
 
         // Skip configure_pre() and configure_operation_pre() calls since we
-        // don't pass any parameteres and pass default operation. We also know
-        // that op_default has no pre/post operations, naturally.
+        // don't pass any parameteres @@ FC and pass default operation. We
+        // also know that op_default has no pre/post operations, naturally.
 
         // Find the root buildfile. Note that the implied buildfile logic does
         // not apply (our target is the project root directory).
