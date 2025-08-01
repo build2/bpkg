@@ -103,6 +103,11 @@ namespace bpkg
   static dir_path git_repository_state_directory_;    // ~/.cache/build2/git
   static dir_path tmp_directory_;                     // ~/.cache/build2/tmp
 
+  // If true, then print progress indicators while waiting for the lock and
+  // cache databases.
+  //
+  static bool progress_;
+
   cache_mode fetch_cache::
   mode (const common_options& co)
   {
@@ -340,6 +345,10 @@ namespace bpkg
       if (session_.empty ())
         session_ = uuid::generate ().string ();
     }
+
+    // Progress indicators.
+    //
+    progress_ = (verb && !co.no_progress ()) || co.progress ();
   }
 
   static const path   db_file_name   ("fetch-cache.sqlite3");
@@ -401,7 +410,7 @@ namespace bpkg
 
     tracer trace ("fetch_cache::open");
 
-    for (;;) // Lock wait loop.
+    for (size_t i (0);; ++i) // Lock wait loop.
     {
       path f; // Cache database path.
       try
@@ -585,12 +594,14 @@ namespace bpkg
         db_.reset ();
         lock_.reset ();
 
-        // @@ FC: sleep and retry, also issue progress diagnostics.
+        // Sleep 100 milliseconds and retry. Issue the first progress
+        // indicator after 200 milliseconds and then every 5 seconds.
         //
-        // Maybe we should first wait up to 200ms before issuing progress?
+        if (progress_ && (i == 2 || (i > 2 && (i - 2) % 50 == 0)))
+          info << "fetch cache in " << np_directory_
+               << " is already used by another process";
 
-        info << "fetch cache in " << np_directory_
-             << " is already used by another process";
+        this_thread::sleep_for (chrono::milliseconds (100));
       }
       catch (const database_exception& e)
       {
