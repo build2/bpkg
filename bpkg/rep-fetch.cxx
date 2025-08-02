@@ -1118,8 +1118,8 @@ namespace bpkg
 
     optional<pair<rep_fetch_data, size_t>> r;
 
-    // NOTE: keep the subsequent fetch logic for using global and
-    //       configuration-specific caches parallel.
+    // NOTE: keep the subsequent fetch logic of using fetch cache and
+    //       configuration-specific repository cache parallel.
 
     fetch_cache cache (co, db);
 
@@ -1145,17 +1145,6 @@ namespace bpkg
       fetch_cache::loaded_git_repository_state crs (
         cache.load_git_repository_state (url));
 
-      // Remove the cache entry on failure, unless it is saved.
-      //
-      bool saved (false);
-      auto g (
-        make_exception_guard (
-          [&cache, &url, &saved] ()
-          {
-            if (!saved)
-              cache.remove_git_repository_state (move (url));
-          }));
-
       const dir_path& td (crs.repository);
 
       // If the repository is already cached, then we are fetching an already
@@ -1168,7 +1157,7 @@ namespace bpkg
       // filesystem state.
       //
       bool cached_repo (
-        crs.state != fetch_cache::loaded_git_repository_state::absent);
+        crs.state != fetch_cache::loaded_git_repository_state::created);
 
       bool fsc (filesystem_state_changed);
 
@@ -1182,11 +1171,11 @@ namespace bpkg
              << " in offline mode" <<
           info << "consider turning offline mode off";
 
-      // If this call throws failed, then the cache entry is removed.
+      // If this call throws failed, then the cache entry is not saved.
       // Otherwise, we save the entry if the fetch succeeded or even didn't
       // start (no connectivity, etc) for an already cached repository.
-      // Otherwise (fetch of new repository didn't start), we remove the
-      // (absent) cache entry.
+      // Otherwise (fetch of new repository didn't start), we don't save the
+      // cache entry.
       //
       r = rep_fetch_git (co,
                          rl,
@@ -1206,12 +1195,7 @@ namespace bpkg
       {
         git_remove_worktree (co, td);
 
-        // Note: don't move the url from since it still can be used by the
-        // above exception guard.
-        //
-        cache.save_git_repository_state (url);
-
-        saved = true;
+        cache.save_git_repository_state (move (url));
       }
 
       // If the cached repository is saved without being fetched, then revert
@@ -1256,11 +1240,11 @@ namespace bpkg
         filesystem_state_changed = true;
       }
 
-      // If this call throws failed exception, then the temporary state
-      // directory is removed. Otherwise, we return it to its permanent
-      // location if the fetch succeeded or even didn't start (no
-      // connectivity, etc) for an existing repository. Otherwise (fetch of
-      // new repository didn't start), we remove the temporary state.
+      // If this call throws failed, then the temporary state directory is
+      // removed. Otherwise, we return it to its permanent location if the
+      // fetch succeeded or even didn't start (no connectivity, etc) for an
+      // existing repository. Otherwise (fetch of new repository didn't
+      // start), we remove the temporary state.
       //
       r = rep_fetch_git (co,
                          rl,

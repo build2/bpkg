@@ -236,8 +236,8 @@ namespace bpkg
       pkg_checkout_cache::state_map& cm (checkout_cache.map_);
       pkg_checkout_cache::state_map::iterator i;
 
-      // NOTE: keep the subsequent checkout logic for using global and
-      //       configuration-specific caches parallel.
+      // NOTE: keep the subsequent checkout logic of using fetch cache and
+      //       configuration-specific repository cache parallel.
 
       // If the configuration-specific repository directory exists, then use
       // that regardless of whether the fetch cache is enabled or not.
@@ -267,7 +267,7 @@ namespace bpkg
         {
           // The repository temporary directory.
           //
-          // Note: only used to hold the repository path.
+          // Note: only used to hold the repository path (not active).
           //
           auto_rmdir rmt;
 
@@ -281,22 +281,18 @@ namespace bpkg
           else
           {
             fetch_cache::loaded_git_repository_state crs (
-              fetch_cache.load_git_repository_state (url));
+              fetch_cache.load_git_repository_state (move (url)));
 
-            if (crs.state == fetch_cache::loaded_git_repository_state::absent)
+            if (crs.state == fetch_cache::loaded_git_repository_state::created)
             {
-              fetch_cache.remove_git_repository_state (move (url));
-
+              // Note that this fetch cache entry won't be saved.
+              //
               fail << "missing repository state for package " << n << ' '
                    << v << " in fetch cache" <<
                 info << "repository: " << rl.url () <<
                 info << "run 'bpkg rep-fetch' to repair";
             }
 
-            // Note: inactive since fetch cache entries are removed by
-            // checkout cache using remove_git_repository_state() rather than
-            // auto_rm.
-            //
             rmt = auto_rmdir (crs.repository, false /* active */);
           }
 
@@ -304,9 +300,12 @@ namespace bpkg
           // finalize it. This way, on failure, the repository get restored in
           // its permanent location.
           //
-          i = cm.emplace (
-            crd,
-            state {move (rmt), rl, false /* fixedup */, &fetch_cache}).first;
+          i = cm.emplace (crd,
+                          state {move (rmt),
+                                 rl,
+                                 true /* valid */,
+                                 false /* fixedup */,
+                                 &fetch_cache}).first;
 
           state& s (i->second);
           const dir_path& td (s.rmt.path);
@@ -317,6 +316,8 @@ namespace bpkg
 
           if (!git_commit_fetched (o, td, commit))
           {
+            // Note that this fetch cache entry will be saved.
+            //
             fail << "missing commit in repository state for package " << n
                  << ' ' << v << " in fetch cache" <<
               info << "repository: " << rl.url () <<
@@ -325,19 +326,21 @@ namespace bpkg
           }
 
           // Checkout the repository fragment, fix up the working tree, and
-          // "finalize" it by setting the proper fixedup value. Remove the
-          // cache entry if checkout or fixup fails, unless checkout fails
-          // before even starting to fetch submodules (no connectivity, etc).
+          // "finalize" it by setting the valid member to true. Don't save the
+          // fetch cache entry if checkout or fixup fails, unless checkout
+          // fails before even starting to fetch submodules (no connectivity,
+          // etc).
           //
-          s.fixedup = nullopt; // Make incomplete to remove entry on failure.
+          s.valid = false; // Make invalid not to save fetch entry on failure.
 
           if (!checkout (o, rl, td, ap, pdb, fetch_cache.offline ()))
           {
-            s.fixedup = false; // Save the entry since not fetched.
+            s.valid = true;  // Save the fetch entry since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.
           }
 
-          s.fixedup = fixup (o, rl, td);
+          s.fixedup = *fixup (o, rl, td);
+          s.valid = true;
         }
       }
       else
@@ -347,8 +350,8 @@ namespace bpkg
                << " in offline mode with fetch cache disabled" <<
             info << "consider enabling fetch cache or turning offline mode off";
 
-        // Try to reuse the cached repository (moved to the temporary directory
-        // with some fragment checked out and fixed up).
+        // Try to reuse the cached repository (moved to the temporary
+        // directory with some fragment checked out and fixed up).
         //
         i = cm.find (rd);
 
@@ -390,8 +393,12 @@ namespace bpkg
           // finalize it. This way, on failure, the repository get restored in
           // its permanent location.
           //
-          i = cm.emplace (
-            rd, state {move (rmt), rl, false /* fixedup */, nullptr}).first;
+          i = cm.emplace (rd,
+                          state {move (rmt),
+                                 rl,
+                                 true /* valid */,
+                                 false /* fixedup */,
+                                 nullptr /* fetch_cache */ }).first;
 
           // Checkout the repository fragment and fix up the working tree.
           //
@@ -404,6 +411,9 @@ namespace bpkg
 
           if (!git_commit_fetched (o, td, commit))
           {
+            // Note that the repository will be restored in its permanent
+            // location.
+            //
             fail << "missing commit in repository directory for package " << n
                  << ' ' << v << " in its repository information configuration "
                  << rdb.config_orig <<
@@ -413,19 +423,20 @@ namespace bpkg
           }
 
           // Checkout the repository fragment, fix up the working tree, and
-          // "finalize" it by setting the proper fixedup value. Remove the
+          // "finalize" it by setting the valid member to true. Remove the
           // repository if checkout or fixup fails, unless checkout fails
           // before even starting to fetch submodules (no connectivity, etc).
           //
-          s.fixedup = nullopt; // Make incomplete not to restore on failure.
+          s.valid = false; // Make invalid not to restore on failure.
 
           if (!checkout (o, rl, td, ap, pdb, false /* offline */))
           {
-            s.fixedup = false; // Restore since not fetched.
+            s.valid = true;  // Restore the repository since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.
           }
 
-          s.fixedup = fixup (o, rl, td);
+          s.fixedup = *fixup (o, rl, td);
+          s.valid = true;
         }
       }
 
@@ -741,9 +752,9 @@ namespace bpkg
   {
     state& s (i->second);
 
-    // Bail out if the entry is incomplete.
+    // Bail out if the entry is invalid.
     //
-    if (!s.fixedup)
+    if (!s.valid)
     {
       assert (!fail); // Only makes sense if we don't fail on errors.
       return false;
@@ -752,10 +763,10 @@ namespace bpkg
     // Remove the working tree and return the repository to the permanent
     // location.
     //
-    // But first make the entry incomplete, so on error we don't try to
-    // restore the partially restored repository later.
+    // But first make the entry invalid, so on error we don't try to restore
+    // the partially restored repository later.
     //
-    s.fixedup = nullopt;
+    s.valid = false;
 
     const dir_path& td (s.rmt.path);
 
@@ -773,7 +784,6 @@ namespace bpkg
         url.fragment = nullopt;
 
         s.fetch_cache->save_git_repository_state (move (url));
-        s.fetch_cache = nullptr; // Disable cache entry removal.
       }
       catch (const failed&)
       {
@@ -800,9 +810,9 @@ namespace bpkg
   {
     state& s (i->second);
 
-    // Bail out if the entry is incomplete.
+    // Bail out if the entry is invalid.
     //
-    if (!s.fixedup)
+    if (!s.valid)
     {
       assert (!fail);       // Only makes sense if we don't fail on errors.
       return auto_rmdir ();
@@ -810,64 +820,17 @@ namespace bpkg
 
     // Revert the fix-ups.
     //
-    // But first make the entry incomplete, so on error we don't try to
-    // restore the partially restored repository later.
+    // But first make the entry invalid, so on error we don't try to restore
+    // the partially restored repository later.
     //
-    bool f (*s.fixedup);
+    s.valid = false;
 
-    s.fixedup = nullopt;
-
-    if (f && !fixup (options_, s.rl, s.rmt.path, true /* revert */, fail))
+    if (s.fixedup &&
+        !fixup (options_, s.rl, s.rmt.path, true /* revert */, fail))
       return auto_rmdir ();
-
-    s.fetch_cache = nullptr; // Disable cache entry removal.
 
     auto_rmdir r (move (s.rmt));
     map_.erase (i);
     return r;
-  }
-
-  // pkg_checkout_cache::state
-  //
-  pkg_checkout_cache::state::
-  state (state&& x) noexcept
-    : rmt (move (x.rmt)),
-      rl (move (x.rl)),
-      fixedup (x.fixedup),
-      fetch_cache (x.fetch_cache)
-  {
-    x.fetch_cache = nullptr;
-  }
-
-  pkg_checkout_cache::state& pkg_checkout_cache::state::
-  operator= (state&& x) noexcept
-  {
-    if (this != &x)
-    {
-      rmt = move (x.rmt);
-      rl = move (x.rl);
-      fixedup = x.fixedup;
-      fetch_cache = x.fetch_cache;
-
-      x.fetch_cache = nullptr;
-    }
-
-    return *this;
-  }
-
-  pkg_checkout_cache::state::
-  ~state ()
-  {
-    // Similarly to the removal of the temporary repository state, unless rmt
-    // is deactivated, for a disabled fetch cache, remove the cache entry for
-    // an enabled fetch cache.
-    //
-    if (fetch_cache != nullptr)
-    {
-      repository_url url (rl.url ());
-      url.fragment = nullopt;
-
-      fetch_cache->remove_git_repository_state (move (url));
-    }
   }
 }

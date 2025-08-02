@@ -57,37 +57,24 @@ namespace bpkg
       auto_rmdir rmt;         // The repository temporary directory.
       repository_location rl; // The repository location.
 
-      // nullopt if the repository fragment checkout failed in the middle and
-      // the repository cannot be restored in its permanent location (we will
-      // call such entry incomplete). True if the repository directory was
-      // fixed up.
+      // False if the repository is spoiled and cannot be restored in its
+      // permanent location (submodule checkout failed during fetch, etc).
       //
-      optional<bool> fixedup;
+      bool valid;
+
+      // True if the repository directory was fixed up. Only meaningful if
+      // valid is true.
+      //
+      bool fixedup;
 
       // If specified (not NULL), then this is the state of a repository
       // located in the referenced fetch cache and prepared for checkout by
-      // the respective load_git_*() function call. In this case, rmt is only
-      // used to hold the repository path and the destructor removes the
-      // respective cached entry by calling remove_git_repository_state()
-      // (symmetrically to rmt.~auto_rmdir() when fetch_cache is NULL).
+      // the respective load_*() function call. In this case, rmt is only used
+      // to hold the repository path (not active). Is assumed to be valid till
+      // the end of the cache object lifetime. Only meaningful if valid is
+      // true.
       //
       bpkg::fetch_cache* fetch_cache;
-
-      state (auto_rmdir&& r,
-             repository_location l,
-             optional<bool> f,
-             bpkg::fetch_cache* c)
-          : rmt (move (r)), rl (move (l)), fixedup (f), fetch_cache (c) {}
-
-      // Movable-only type. Move-assignment cancels repository removal for the
-      // rhs object.
-      //
-      state (state&&) noexcept;
-      state& operator= (state&&) noexcept;
-      state (const state&) = delete;
-      state& operator= (const state&) = delete;
-
-      ~state ();
     };
 
     using state_map = std::map<dir_path, state>;
@@ -98,7 +85,7 @@ namespace bpkg
     // Remove the repository working tree, return the repository to its
     // permanent location, and erase the cache entry. On error issue
     // diagnostics and return false if fail is false and throw failed
-    // otherwise. Note that erasing an incomplete entry is an error.
+    // otherwise. Note that erasing an invalid entry is an error.
     //
     bool
     erase (state_map::iterator, bool fail = true);
@@ -107,7 +94,7 @@ namespace bpkg
     // erase the cache entry. Leave the repository in the temporary directory
     // and return the corresponding auto_rmdir object. On error issue
     // diagnostics and return an empty auto_rmdir object if fail is false and
-    // throw failed otherwise. Note that releasing an incomplete entry is an
+    // throw failed otherwise. Note that releasing an invalid entry is an
     // error.
     //
     auto_rmdir

@@ -103,9 +103,8 @@ namespace bpkg
     //
     fetch_cache (const common_options&, const database*);
 
-    // Re-calculate the enabled status and/or src, etc modes, taking into
-    // account the configuration-specific defaults, if the database is
-    // specified.
+    // Re-calculate the enabled status and src, etc flags, taking into account
+    // the configuration-specific defaults, if the database is specified.
     //
     // NOTE: needs to be called before reusing the cache instance for a
     // different configuration or without configuration.
@@ -293,24 +292,23 @@ namespace bpkg
     // unlocking the cache in between.
     //
   public:
-    // Load (find) repository state for the specified git repository URL.
+    // Load (find or insert) repository state for the specified git repository
+    // URL.
     //
     // Note that the returned paths point into the temporary directory and
-    // which will be moved back into their permanent location by
-    // save_*(). This, in particular, means that save_*() should be called
-    // even if nothing was fetched. If the cache entry is absent, the returned
-    // paths are valid but the corresponding filesystem entries do not exist
-    // (but their containing directory does). Likewise, if the cache entry is
+    // which will be moved back into their permanent location by save_*().
+    // This, in particular, means that save_*() should be called even if
+    // nothing was fetched. If the cache entry is created, the returned paths
+    // are valid but the corresponding filesystem entries do not exist (but
+    // their containing directory does). Likewise, if the cache entry is
     // outdated, then the returned ls-remote output path is valid but the
-    // corresponding filesystem entry does not exist. This, in particular,
-    // means that if an absent entry need not be saved (fetch error occurred,
-    // etc), then remove_*() should still be called.
+    // corresponding filesystem entry does not exist.
     //
     struct loaded_git_repository_state
     {
       enum state_type
       {
-        absent,    // No cache entry for this repository yet.
+        created,   // New cache entry is created.
         outdated,  // Existing cache entry but ls-remote output is out of date.
         up_to_date // Existing cache entry and ls-remote output is up to date.
       };
@@ -323,9 +321,9 @@ namespace bpkg
     loaded_git_repository_state
     load_git_repository_state (repository_url);
 
-    // Save (insert of update) repository state for the specified git
-    // repository URL. Specifically, move the filesystem entries from the
-    // paths returned by load_*() to their permanent location.
+    // Save repository state for the specified git repository URL.
+    // Specifically, move the filesystem entries from the paths returned by
+    // load_*() to their permanent location.
     //
     // Note that it's valid to call save_*() with absent ls-remote file. This
     // can be used to preserve (expensive to fetch) git repository state in
@@ -334,18 +332,15 @@ namespace bpkg
     // git-ls-remote call has not been made since there were no need to
     // resolve git references to commit ids.
     //
+    // Also note that it's valid not to call save_*() after the load_*() call,
+    // which indicates that the repository state is spoiled. In this case, the
+    // repository temporary directory is not removed, which can be handy for
+    // troubleshooting. It is only removed when load_*() is called again for
+    // this repository URL or this cache entry is removed by the garbage
+    // collector.
+    //
     void
     save_git_repository_state (repository_url);
-
-    // Remove repository state, if exists, for the specified git repository
-    // URL. Specifically, remove the containing directory of the paths
-    // returned by load_*().
-    //
-    // Normally, it is called instead of save_*() to discard a spoiled
-    // repository entry (fetch error occurred, etc).
-    //
-    void
-    remove_git_repository_state (repository_url);
 
     // Git repository state directory.
     //
