@@ -1220,16 +1220,15 @@ namespace bpkg
                      const string& commit,
                      const path& ls_remote)
   {
-    return load_refs (co,
+    return load_refs (co, offline,
                       url,
-                      ls_remote,
-                      offline).find_commit (commit) != nullptr;
+                      ls_remote).find_commit (commit) != nullptr;
   }
 
   bool
-  git_commit_fetched (const common_options& co,
-                      const dir_path& dir,
-                      const string& commit)
+  git_commit_status (const common_options& co,
+                     const dir_path& dir,
+                     const string& commit)
   {
     auto_fd dev_null (open_null ());
 
@@ -1258,7 +1257,7 @@ namespace bpkg
         const repository_url& url,
         const dir_path& git_dir = dir_path ())
   {
-    // Let's save a bit of space by instructing git not to copy the template
+    // Let's save a bit of space by instructing git to not copy the template
     // files into the being created .git directory. Note, though, that while
     // an empty value for the --template option does the trick for all the
     // supported git versions, it is not documented.
@@ -1303,7 +1302,7 @@ namespace bpkg
     case capabilities::smart:
       {
         return !rf.commit ||
-               commit_advertized (co, url, *rf.commit, ls_remote, offline);
+               commit_advertized (co, offline, url, *rf.commit, ls_remote);
       }
     case capabilities::unadv:
       {
@@ -1317,9 +1316,9 @@ namespace bpkg
 
   // Fetch and return repository fragments resolved using the specified
   // repository reference filters. Regardless whether the function has failed
-  // or not, return an indication if git-fetch has been called (start_fetching
-  // argument). In the offline mode fail if any network interaction needs to
-  // be performed.
+  // or not, return an indication if git-fetch has been called
+  // (started_fetching argument). In the offline mode fail if any network
+  // interaction needs to be performed.
   //
   static vector<git_fragment>
   fetch (const common_options& co, bool offline,
@@ -1346,7 +1345,7 @@ namespace bpkg
       return ou;
     };
 
-    auto caps = [&co, &url, offline, &cap] () -> capabilities
+    auto caps = [&co, offline, &url, &cap] () -> capabilities
     {
       // Note that url() runs `git config --get remote.origin.url` command on
       // the first call, and so git version get assigned (and checked).
@@ -1369,7 +1368,7 @@ namespace bpkg
         }
 
         if (!cap)
-          cap = sense_capabilities (co, u, offline);
+          cap = sense_capabilities (co, offline, u);
       }
 
       return *cap;
@@ -1377,23 +1376,22 @@ namespace bpkg
 
     function<probe_function> probe ([&caps] () {caps ();});
 
-    auto references = [&co, &url, &ls_remote, offline, &probe]
+    auto references = [&co, offline, &url, &ls_remote, &probe]
                       (const string& refname, bool abbr_commit)
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
-      return load_refs (co,
+      return load_refs (co, offline,
                         url (),
                         ls_remote,
-                        offline,
                         probe).search_names (refname, abbr_commit);
     };
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&co, &url, &ls_remote, offline, &probe] ()
+    auto default_references = [&co, offline, &url, &ls_remote, &probe] ()
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
@@ -1402,7 +1400,7 @@ namespace bpkg
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
 
-      for (const ref& rf: load_refs (co, url (), ls_remote, offline, probe))
+      for (const ref& rf: load_refs (co, offline, url (), ls_remote, probe))
       {
         if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
         {
@@ -1521,11 +1519,11 @@ namespace bpkg
       // scenarios we may do without it.
       //
       optional<bool> sh;
-      auto shallow = [&co, &url, &caps, &rf, &sh, &ls_remote, offline] ()
+      auto shallow = [&co, offline, &url, &caps, &rf, &sh, &ls_remote] ()
         -> bool
       {
         if (!sh)
-          sh = shallow_fetch (co, url (), caps (), rf, ls_remote, offline);
+          sh = shallow_fetch (co, offline, url (), caps (), rf, ls_remote);
 
         return *sh;
       };
@@ -1550,13 +1548,13 @@ namespace bpkg
           // the above default_references() or references() call.
           //
           const string& c (
-            load_refs (co, url (), ls_remote, offline).peel (r).commit);
+            load_refs (co, offline, url (), ls_remote).peel (r).commit);
 
           if (!rf.exclusion)
           {
             string n (friendly_name (r.get ().name));
 
-            if (git_commit_fetched (co, dir, c))
+            if (git_commit_status (co, dir, c))
               add_spec (
                 c, nullopt /* refspecs */, false /* shallow */, move (n));
             else
@@ -1578,7 +1576,7 @@ namespace bpkg
       // Check if the commit is already fetched and, if that's the case, save
       // it, indicating that no fetch is required.
       //
-      else if (git_commit_fetched (co, dir, *rf.commit))
+      else if (git_commit_status (co, dir, *rf.commit))
       {
         add_spec (*rf.commit);
       }
@@ -1629,7 +1627,7 @@ namespace bpkg
         // Fetch deep in both cases.
         //
         add_spec (c,
-                  (commit_advertized (co, url (), c, ls_remote, offline)
+                  (commit_advertized (co, offline, url (), c, ls_remote)
                    ? strings ({c})
                    : strings ()));
       }
@@ -1730,7 +1728,7 @@ namespace bpkg
     // Fetch the refspecs. If no refspecs are specified, then fetch the
     // whole repository history.
     //
-    auto fetch = [&co, &url, &ls_remote, offline, &dir, &caps, &start_fetching]
+    auto fetch = [&co, offline, &url, &ls_remote, &dir, &caps, &started_fetching]
                  (const strings& refspecs, bool shallow)
     {
       // We don't shallow fetch the whole repository.
@@ -1758,7 +1756,7 @@ namespace bpkg
         for (const string& c: refspecs)
         {
           const ref* r (
-            load_refs (co, url (), ls_remote, offline).find_commit (c));
+            load_refs (co, offline, url (), ls_remote).find_commit (c));
 
           assert (r != nullptr); // Otherwise we would fail earlier.
 
@@ -1833,7 +1831,7 @@ namespace bpkg
       // rely on the init() function that properly sets the
       // remote.origin.fetch configuration option.
       //
-      start_fetching = true;
+      started_fetching = true;
 
       if (!run_git (co,
                     progress,
@@ -1932,7 +1930,7 @@ namespace bpkg
       //
       for (auto i (scs.begin ()); i != scs.end (); )
       {
-        if (git_commit_fetched (co, dir, *i))
+        if (git_commit_status (co, dir, *i))
           i = scs.erase (i);
         else
           ++i;
@@ -1950,7 +1948,7 @@ namespace bpkg
     //
     for (const git_fragment& fr: r)
     {
-      if (!git_commit_fetched (co, dir, fr.commit))
+      if (!git_commit_status (co, dir, fr.commit))
         fail << "unable to fetch commit " << fr.commit;
     }
 
@@ -2261,14 +2259,14 @@ namespace bpkg
   // Checkout the repository submodules (see git_checkout_submodules()
   // description for details). Regardless whether the function has failed or
   // not, return an indication if git-fetch has been called for any of the
-  // submodules (start_fetching argument).
+  // submodules (started_fetching argument).
   //
   static void
   checkout_submodules (const common_options& co, bool offline,
                        const dir_path& dir,
                        const dir_path& git_dir,
                        const dir_path& prefix,
-                       bool& start_fetching)
+                       bool& started_fetching)
   {
     tracer trace ("checkout_submodules");
 
@@ -2440,13 +2438,12 @@ namespace bpkg
       git_ref_filters rfs {
         git_ref_filter {nullopt, sm.commit, false /* exclusion */}};
 
-      fetch (co,
+      fetch (co, offline,
              fsdir,
              psdir,
              rfs,
              path () /* ls_remote */,
-             offline,
-             start_fetching);
+             started_fetching);
 
       git_checkout (co, fsdir, sm.commit);
 
@@ -2459,7 +2456,7 @@ namespace bpkg
 
       // Check out the submodule submodules, recursively.
       //
-      checkout_submodules (co, fsdir, gdir, psdir, offline, start_fetching);
+      checkout_submodules (co, offline, fsdir, gdir, psdir, started_fetching);
     }
   }
 
@@ -2536,21 +2533,20 @@ namespace bpkg
     //
     sync_origin_url (co, rl, dir);
 
-    bool start_fetching (false);
+    bool started_fetching (false);
 
     try
     {
-      return fetch (co,
+      return fetch (co, offline,
                     dir,
                     dir_path () /* submodule */,
                     rfs,
                     ls_remote,
-                    offline,
-                    start_fetching);
+                    started_fetching);
     }
     catch (const failed&)
     {
-      if (start_fetching)
+      if (started_fetching)
         throw;
 
       return nullopt;
@@ -2558,10 +2554,9 @@ namespace bpkg
   }
 
   bool
-  git_checkout_submodules (const common_options& co,
+  git_checkout_submodules (const common_options& co, bool offline,
                            const repository_location& rl,
-                           const dir_path& dir,
-                           bool offline) // @@ move
+                           const dir_path& dir)
   {
     // Note that commits could come from different repository URLs that may
     // contain different sets of commits. Thus, we need to switch to the URL
@@ -2574,21 +2569,20 @@ namespace bpkg
     //
     sync_origin_url (co, rl, dir);
 
-    bool start_fetching (false);
+    bool started_fetching (false);
 
     try
     {
-      checkout_submodules (co,
+      checkout_submodules (co, offline,
                            dir,
                            dir / dir_path (".git"),
                            dir_path () /* prefix */,
-                           offline,
-                           start_fetching);
+                           started_fetching);
       return true;
     }
     catch (const failed&)
     {
-      if (start_fetching)
+      if (started_fetching)
         throw;
 
       return false;

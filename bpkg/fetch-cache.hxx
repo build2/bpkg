@@ -109,7 +109,7 @@ namespace bpkg
     //
     // NOTE: needs to be called before reusing the cache instance for a
     // different configuration or without configuration. Note also that this
-    // way we may end up with a diabled but open fetch cache.
+    // way we may end up with a disabled but open fetch cache.
     //
     void
     mode (const common_options&, const database*);
@@ -156,8 +156,6 @@ namespace bpkg
     bool
     offline () const;
 
-    // @@ FC: should we drop it if still unused?
-    //
     static bool
     offline (const common_options&);
 

@@ -212,8 +212,8 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_fetch (fetch_cache& cache,
-             const common_options& co,
+  pkg_fetch (const common_options& co,
+             fetch_cache& cache,
              database& pdb,
              database& rdb,
              transaction& t,
@@ -622,8 +622,8 @@ namespace bpkg
       if (cache.enabled ())
         cache.open (trace);
 
-      p = pkg_fetch (cache,
-                     o,
+      p = pkg_fetch (o,
+                     cache,
                      db /* pdb */,
                      db /* rdb */,
                      t,

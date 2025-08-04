@@ -53,7 +53,7 @@ namespace bpkg
             text << "checking out "
                  << package_string (ap->id.name, ap->version) << db;
 
-          if (!git_checkout_submodules (o, rl, dir, offline))
+          if (!git_checkout_submodules (o, offline, rl, dir))
             return false;
         }
 
@@ -314,7 +314,7 @@ namespace bpkg
 
           const string& commit (*rl.fragment ());
 
-          if (!git_commit_fetched (o, td, commit))
+          if (!git_commit_status (o, td, commit))
           {
             // Note that this fetch cache entry will be saved.
             //
@@ -409,7 +409,7 @@ namespace bpkg
 
           const string& commit (*rl.fragment ());
 
-          if (!git_commit_fetched (o, td, commit))
+          if (!git_commit_status (o, td, commit))
           {
             // Note that the repository will be restored in its permanent
             // location.
@@ -585,9 +585,9 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+  pkg_checkout (const common_options& o,
+                bpkg::fetch_cache& fetch_cache,
                 pkg_checkout_cache& checkout_cache,
-                const common_options& o,
                 database& pdb,
                 database& rdb,
                 transaction& t,
@@ -613,9 +613,9 @@ namespace bpkg
   }
 
   shared_ptr<selected_package>
-  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+  pkg_checkout (const common_options& o,
+                bpkg::fetch_cache& fetch_cache,
                 pkg_checkout_cache& checkout_cache,
-                const common_options& o,
                 database& pdb,
                 database& rdb,
                 transaction& t,
@@ -674,9 +674,9 @@ namespace bpkg
     // Commits the transaction.
     //
     if (o.output_root_specified ())
-      p = pkg_checkout (fetch_cache,
+      p = pkg_checkout (o,
+                        fetch_cache,
                         checkout_cache,
-                        o,
                         db /* pdb */,
                         db /* rdb */,
                         t,
@@ -687,9 +687,9 @@ namespace bpkg
                         o.output_purge (),
                         false /* simulate */);
     else
-      p = pkg_checkout (fetch_cache,
+      p = pkg_checkout (o,
+                        fetch_cache,
                         checkout_cache,
-                        o,
                         db /* pdb */,
                         db /* rdb */,
                         t,

@@ -8154,8 +8154,8 @@ namespace bpkg
             {
             case repository_basis::archive:
               {
-                sp = pkg_fetch (fetch_cache,
-                                o,
+                sp = pkg_fetch (o,
+                                fetch_cache,
                                 pdb,
                                 af.database (),
                                 t,
@@ -8168,9 +8168,9 @@ namespace bpkg
             case repository_basis::version_control:
               {
                 sp = p.checkout_root
-                  ? pkg_checkout (fetch_cache,
+                  ? pkg_checkout (o,
+                                  fetch_cache,
                                   checkout_cache,
-                                  o,
                                   pdb,
                                   af.database (),
                                   t,
@@ -8180,9 +8180,9 @@ namespace bpkg
                                   true /* replace */,
                                   p.checkout_purge,
                                   simulate)
-                  : pkg_checkout (fetch_cache,
+                  : pkg_checkout (o,
+                                  fetch_cache,
                                   checkout_cache,
-                                  o,
                                   pdb,
                                   af.database (),
                                   t,

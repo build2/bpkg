@@ -112,9 +112,9 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (fetch_cache&,
+  pkg_checkout (const common_options&,
+                fetch_cache&,
                 pkg_checkout_cache&,
-                const common_options&,
                 database& pdb,
                 database& rdb,
                 transaction&,
@@ -130,9 +130,9 @@ namespace bpkg
   // existing one.
   //
   shared_ptr<selected_package>
-  pkg_checkout (fetch_cache&,
+  pkg_checkout (const common_options&,
+                fetch_cache&,
                 pkg_checkout_cache&,
-                const common_options&,
                 database& pdb,
                 database& rdb,
                 transaction&,

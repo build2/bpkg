@@ -79,6 +79,7 @@ namespace bpkg
     // /foo
     // file:///foo
     // file://localhost/foo
+    // file:/foo
     //
     // If local, then on Windows it is canonicalized by converting its path
     // into lower case. Note that such a canonicalization is consistent with
@@ -174,6 +175,7 @@ namespace bpkg
     // /foo.git
     // file:///foo.git
     // file://localhost/foo.git
+    // file:/foo.git
     //
     // Canonicalized as follows:
     //

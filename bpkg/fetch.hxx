@@ -19,7 +19,6 @@ namespace bpkg
   //
   // Note that these functions should never be called in the offline mode.
   //
-  // @@ Let's add assert (!offline()).
 
   // If HTTP proxy is specified via the --pkg-proxy option, then use it for
   // fetching manifests and archives from the remote pkg repository.

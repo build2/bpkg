@@ -99,7 +99,7 @@ namespace bpkg
   // As pointed out in libbutl/timestamp.hxx we will overflow in year 2262, but
   // by that time some larger basic type will be available for mapping.
   //
-  #pragma db map type(timestamp) as(std::uint64_t)            \
+  #pragma db map type(timestamp) as(uint64_t)                 \
     to(std::chrono::duration_cast<std::chrono::nanoseconds> ( \
          (?).time_since_epoch ()).count ())                   \
     from(butl::timestamp (                                    \
@@ -151,7 +151,7 @@ namespace bpkg
   //
   using optional_timestamp = optional<timestamp>;
 #if 0
-  using optional_uint64_t = optional<uint64_t>;    // Preserve uint64_t alias.
+  using optional_uint64_t = optional<uint64_t>;   // Preserve uint64_t alias.
 #else
   using optional_uint64_t = optional<unsigned long long>;
 #endif

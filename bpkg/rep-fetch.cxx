@@ -865,7 +865,7 @@ namespace bpkg
     // Fetch the repository in the specified directory.
     //
     optional<vector<git_fragment>> frags (
-      git_fetch (co, rl, rd, ls_remote, offline));
+      git_fetch (co, offline, rl, rd, ls_remote));
 
     if (!frags)
       return nullopt;
@@ -928,7 +928,7 @@ namespace bpkg
         if (cs)
         {
           cs = false;
-          return git_checkout_submodules (co, rl, rd, offline);
+          return git_checkout_submodules (co, offline, rl, rd);
         }
 
         return true;

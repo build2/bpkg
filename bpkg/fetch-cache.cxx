@@ -1375,8 +1375,8 @@ namespace bpkg
 
     auto& db (*db_);
 
-    dir_path sd; // @@
-    dir_path td;
+    dir_path sd; // State directory for this repository.
+    dir_path td; // Temporary directory for this repository.
 
     try
     {
