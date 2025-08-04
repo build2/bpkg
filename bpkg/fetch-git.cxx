@@ -605,9 +605,8 @@ namespace bpkg
   using capabilities = git_protocol_capabilities;
 
   static capabilities
-  sense_capabilities (const common_options& co,
-                      const repository_url& repo_url,
-                      bool offline)
+  sense_capabilities (const common_options& co, bool offline,
+                      const repository_url& repo_url)
   {
     assert (repo_url.path);
 
@@ -629,8 +628,8 @@ namespace bpkg
     }
 
     if (offline)
-      fail << "unable to sense protocol capabilities for repository "
-           << repo_url << " in offline mode" <<
+      fail << "unable to fetch repository " << repo_url
+           << " in offline mode" <<
         info << "consider turning offline mode off";
 
     // Craft the URL for sensing the capabilities.
@@ -1060,6 +1059,8 @@ namespace bpkg
     {
       l4 ([&]{trace << "ref line: " << l;});
 
+      // NOTE: see also serialization below if changing anything here.
+      //
       size_t n (l.find ('\t'));
 
       if (n == string::npos)
@@ -1101,10 +1102,9 @@ namespace bpkg
   using probe_function = void ();
 
   static const refs&
-  load_refs (const common_options& co,
+  load_refs (const common_options& co, bool offline,
              const repository_url& url,
              const path& ls_remote,
-             bool offline,
              const function<probe_function>& probe = nullptr)
   {
     string u (url.string ());
@@ -1134,8 +1134,7 @@ namespace bpkg
     // Run git-ls-remote, unless in the offline mode.
     //
     if (offline)
-      fail << "unable to retrieve references for repository " << url
-           << " in offline mode" <<
+      fail << "unable to fetch repository " << url << " in offline mode" <<
         info << "consider turning offline mode off";
 
     if ((verb && !co.no_progress ()) || co.progress ())
@@ -1216,11 +1215,10 @@ namespace bpkg
   // assumed that sense_capabilities() function was already called for the URL.
   //
   static bool
-  commit_advertized (const common_options& co,
+  commit_advertized (const common_options& co, bool offline,
                      const repository_url& url,
                      const string& commit,
-                     const path& ls_remote,
-                     bool offline)
+                     const path& ls_remote)
   {
     return load_refs (co,
                       url,
@@ -1290,12 +1288,11 @@ namespace bpkg
   // Return true if the shallow fetch is possible for the reference.
   //
   static bool
-  shallow_fetch (const common_options& co,
+  shallow_fetch (const common_options& co, bool offline,
                  const repository_url& url,
                  capabilities cap,
                  const git_ref_filter& rf,
-                 const path& ls_remote,
-                 bool offline)
+                 const path& ls_remote)
   {
     switch (cap)
     {
@@ -1325,13 +1322,12 @@ namespace bpkg
   // be performed.
   //
   static vector<git_fragment>
-  fetch (const common_options& co,
+  fetch (const common_options& co, bool offline,
          const dir_path& dir,
          const dir_path& submodule,  // Used only for diagnostics.
          const git_ref_filters& rfs,
          const path& ls_remote,
-         bool offline,
-         bool& start_fetching)
+         bool& started_fetching)
   {
     assert (!rfs.empty ());
 
@@ -1728,8 +1724,7 @@ namespace bpkg
       return sort (move (r));
 
     if (offline)
-      fail << "unable to fetch repository " << url ()
-           << " in offline mode" <<
+      fail << "unable to fetch repository " << url () << " in offline mode" <<
         info << "consider turning offline mode off";
 
     // Fetch the refspecs. If no refspecs are specified, then fetch the
@@ -2269,11 +2264,10 @@ namespace bpkg
   // submodules (start_fetching argument).
   //
   static void
-  checkout_submodules (const common_options& co,
+  checkout_submodules (const common_options& co, bool offline,
                        const dir_path& dir,
                        const dir_path& git_dir,
                        const dir_path& prefix,
-                       bool offline,
                        bool& start_fetching)
   {
     tracer trace ("checkout_submodules");
@@ -2518,11 +2512,10 @@ namespace bpkg
   }
 
   optional<vector<git_fragment>>
-  git_fetch (const common_options& co,
+  git_fetch (const common_options& co, bool offline,
              const repository_location& rl,
              const dir_path& dir,
-             const path& ls_remote,
-             bool offline)
+             const path& ls_remote)
   {
     git_ref_filters rfs;
     const repository_url& url (rl.url ());
@@ -2568,7 +2561,7 @@ namespace bpkg
   git_checkout_submodules (const common_options& co,
                            const repository_location& rl,
                            const dir_path& dir,
-                           bool offline)
+                           bool offline) // @@ move
   {
     // Note that commits could come from different repository URLs that may
     // contain different sets of commits. Thus, we need to switch to the URL

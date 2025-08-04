@@ -17,6 +17,9 @@ namespace bpkg
 {
   // Repository type pkg (fetch-pkg.cxx).
   //
+  // Note that these functions should never be called in the offline mode.
+  //
+  // @@ Let's add assert (!offline()).
 
   // If HTTP proxy is specified via the --pkg-proxy option, then use it for
   // fetching manifests and archives from the remote pkg repository.
@@ -80,8 +83,8 @@ namespace bpkg
   // be performed. Return nullopt if the function failed before it started to
   // fetch the repository (no connectivity, etc). Note that the diagnostics is
   // still issued in this case. If the returned value is nullopt, then before
-  // throwing failed the caller may, for example, do something useful about
-  // the repository (return it to its permanent location, etc).
+  // throwing failed the caller may, for example, do something useful with the
+  // repository (return it to its permanent location, etc).
   //
   // Note that submodules are not fetched.
   //
@@ -96,18 +99,17 @@ namespace bpkg
   };
 
   optional<vector<git_fragment>>
-  git_fetch (const common_options&,
+  git_fetch (const common_options&, bool offline,
              const repository_location&,
              const dir_path&,
-             const path& ls_remote = {},
-             bool offline = false);
+             const path& ls_remote = {});
 
   // Return true if a commit is already fetched.
   //
   bool
-  git_commit_fetched (const common_options&,
-                      const dir_path&,
-                      const string& commit);
+  git_commit_status (const common_options&,
+                     const dir_path&,
+                     const string& commit);
 
   // Checkout the specified commit previously fetched by git_fetch().
   //
@@ -125,14 +127,13 @@ namespace bpkg
   // before it started to fetch any of the submodules (no connectivity, etc).
   // Note that the diagnostics is still issued in this case. If the returned
   // value is false, then before throwing failed the caller may, for example,
-  // do something useful about the repository (return it to its permanent
+  // do something useful with the repository (return it to its permanent
   // location, etc).
   //
   bool
-  git_checkout_submodules (const common_options&,
+  git_checkout_submodules (const common_options&, bool offline,
                            const repository_location&,
-                           const dir_path&,
-                           bool offline);
+                           const dir_path&);
 
   // Verify that the symlinks target paths in the working tree are valid,
   // relative, and none of them refer outside the repository directory.

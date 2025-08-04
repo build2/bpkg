@@ -108,7 +108,8 @@ namespace bpkg
     // specific defaults, if the database is specified.
     //
     // NOTE: needs to be called before reusing the cache instance for a
-    // different configuration or without configuration.
+    // different configuration or without configuration. Note also that this
+    // way we may end up with a diabled but open fetch cache.
     //
     void
     mode (const common_options&, const database*);
@@ -332,7 +333,7 @@ namespace bpkg
     // git-ls-remote call has not been made since there were no need to
     // resolve git references to commit ids.
     //
-    // Also note that it's valid not to call save_*() after the load_*() call,
+    // Also note that it's valid to not call save_*() after the load_*() call,
     // which indicates that the repository state is spoiled. In this case, the
     // repository temporary directory is removed on the next open() call.
     //

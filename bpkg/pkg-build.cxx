@@ -7067,7 +7067,7 @@ namespace bpkg
           // that and it doesn't feel like affects the performance too much.
           // However, in the future we may decide to optimize this by, for
           // example, collecting existing dependents in
-          // try_replace_dependency() by demand and for only those
+          // try_replace_dependency() on demand and for only those
           // dependencies which are considered for replacement.
           //
           if (!refine && !unsatisfied_depts.empty () && !cmdline_refine_index)
@@ -8007,9 +8007,9 @@ namespace bpkg
     // Note that pkg_checkout() may reuse the same fetch cache entry for
     // multiple packages (see pkg_checkout_cache for details). Thus, we use a
     // single fetch cache object for all the pkg_checkout() and pkg_fetch()
-    // calls in the loop, open (lock) the cache by demand, and only close it
-    // when the loop is finished. Note that save_git_*() is only called for
-    // the respective fetch cache entries only when the loop is finished.
+    // calls in the loop, opening (locking) the cache on demand, and only
+    // closing it when the loop is finished. Note that save_git_*() is called
+    // for the respective fetch cache entries only when the loop is finished.
     //
     bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
@@ -8307,7 +8307,8 @@ namespace bpkg
         break; // Get out from the breakout loop.
       }
     }
-    checkout_cache.clear (); // Detect errors.
+
+    checkout_cache.clear (); // Save repositories to fetch cache.
 
     if (fetch_cache.is_open ())
       fetch_cache.close ();

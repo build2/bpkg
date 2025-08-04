@@ -103,8 +103,8 @@ namespace bpkg
   static dir_path git_repository_state_directory_;    // ~/.cache/build2/git
   static dir_path tmp_directory_;                     // ~/.cache/build2/tmp
 
-  // If true, then print progress indicators while waiting for the lock and
-  // cache databases.
+  // If true, then print progress indicators while waiting for cache database
+  // lock.
   //
   static bool progress_;
 
@@ -599,7 +599,7 @@ namespace bpkg
         //
         if (progress_ && (i == 2 || (i > 2 && (i - 2) % 50 == 0)))
           info << "fetch cache in " << np_directory_
-               << " is already used by another process";
+               << " is used by another process, waiting";
 
         this_thread::sleep_for (chrono::milliseconds (100));
       }
@@ -611,7 +611,8 @@ namespace bpkg
       }
     }
 
-    // Clean up the temporary directory.
+    // Clean up the temporary directory. Note: do it only once we have the
+    // lock.
     //
     if (exists (tmp_directory_))
       rm_r (tmp_directory_, false /* dir_itself */);
@@ -620,6 +621,8 @@ namespace bpkg
   void fetch_cache::
   close ()
   {
+    // Note: may be open even if disabled (see mode()).
+
     if (gc_thread_.joinable ())
       stop_gc (true /* ignore_errors */);
 
@@ -810,46 +813,6 @@ namespace bpkg
       // certificate is replaced in the repository manifest before it is
       // expired, eventually is trusted by the user, and ends up in the cache
       // under the new id.
-      //
-      // @@ On Windows we end up with the following warning for the line
-      //    'query<pkg_repository_auth>::end_date < since_epoch_ns (now)',
-      //    where end_date is defined as optional_timestamp:
-      //
-      //    fetch-cache.cxx(802): warning C4244: 'argument': conversion from '_Rep' to 'const T', possible loss of data
-      //      with
-      //      [
-      //          _Rep=__int64
-      //      ]
-      //      and
-      //      [
-      //          T=unsigned long
-      //      ]
-      //
-      //    Looks like this is because of the strangely ODB-generated code:
-      //
-      //    // end_date
-      //    //
-      //    typedef
-      //    sqlite::query_column<
-      //      sqlite::value_traits<
-      //        long unsigned int,
-      //        sqlite::id_integer >::query_type,
-      //      sqlite::id_integer >
-      //    end_date_type_;
-      //
-      //    Why 'long unsigned int' rather than uint64_t? Note that for
-      //    non-optional timestamp there is no warning since the generated
-      //    code is as follows:
-      //
-      //    // access_time
-      //    //
-      //    typedef
-      //    sqlite::query_column<
-      //      sqlite::value_traits<
-      //        ::uint64_t,
-      //        sqlite::id_integer >::query_type,
-      //      sqlite::id_integer >
-      //    access_time_type_;
       //
       if (stop ()) return;
       for (pkg_repository_auth& o:
@@ -1245,7 +1208,7 @@ namespace bpkg
 
   // Canonicalize the repository URL by converting the path to lower case, if
   // the URL is local and we are running on Windows, and stripping the .git
-  // extension, if present.
+  // extension, if present. The same logic as elsewhere (libbpkg, etc).
   //
   static repository_url
   canonicalize_git_url (repository_url&& u)
@@ -1258,7 +1221,7 @@ namespace bpkg
     const char* e (up.extension_cstring ());
 
     if (e != nullptr && strcmp (e, "git") == 0)
-      up = up.base ();
+      up.make_base ();
 
     return move (u);
   }
@@ -1278,20 +1241,20 @@ namespace bpkg
 
     // The overall plan is as follows:
     //
-    // 1. See if there is an entry for this URL in the database. If not,
-    //    assume the absent state.
+    // 1. See if there is an entry for this URL in the database. If not, the
+    //    state is absent.
     //
     // 2. Otherwise, check if the repository subdirectory exists in the
     //    repository state directory. If not, remove the state directory on
-    //    disk, remove the entry from the database, and assume the absent
-    //    state.
+    //    disk, remove the entry from the database, and assume the state is
+    //    absent.
     //
-    // 3. Otherwise, assume the up-to-date state if ls-remote.txt exists in
-    //    the repository state directory and the current session matches the
-    //    entry session or we are in the offline mode.
+    // 3. Otherwise, the state is up-to-date if ls-remote.txt exists in the
+    //    repository state directory and the current session matches the entry
+    //    session or we are in the offline mode.
     //
-    // 4. Otherwise, assume the outdated state and remove the ls-remote.txt
-    //    file, if exists.
+    // 4. Otherwise, remove the ls-remote.txt file, if exists. The state is
+    //    outdated.
     //
     // 5. For the absent state, create an empty repository state directory in
     //    the cache temporary directory. For other states, update the entry
@@ -1306,8 +1269,8 @@ namespace bpkg
 
     auto& db (*db_);
 
-    dir_path sd;
-    dir_path td;
+    dir_path sd; // State directory for this repository.
+    dir_path td; // Temporary directory for this repository.
 
     try
     {
@@ -1323,8 +1286,8 @@ namespace bpkg
 
         if (!exists (rd))
         {
-          // Remove the database entry last, to make sure we are still tracking
-          // the directory if its removal fails for any reason.
+          // Remove the database entry last, to make sure we are still
+          // tracking the directory if its removal fails for any reason.
           //
           if (exists (sd))
             rm_r (sd);
@@ -1412,7 +1375,7 @@ namespace bpkg
 
     auto& db (*db_);
 
-    dir_path sd;
+    dir_path sd; // @@
     dir_path td;
 
     try

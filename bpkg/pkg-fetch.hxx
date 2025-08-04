@@ -31,8 +31,9 @@ namespace bpkg
              bool simulate);
 
   // Fetch the package from an archive-based repository and commit the
-  // transaction. If the fetch cache is enabled it should be pre-open. Return
-  // the selected package object which may replace the existing one.
+  // transaction. If the fetch cache is enabled it should be already open (and
+  // this function never closes it). Return the selected package object which
+  // may replace the existing one.
   //
   // Note that both package and repository information configurations need to
   // be passed.
@@ -40,8 +41,8 @@ namespace bpkg
   // Also note that it should be called in session.
   //
   shared_ptr<selected_package>
-  pkg_fetch (fetch_cache&,
-             const common_options&,
+  pkg_fetch (const common_options&,
+             fetch_cache&,
              database& pdb,
              database& rdb,
              transaction&,
