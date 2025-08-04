@@ -93,7 +93,8 @@ namespace bpkg
     // Create an unopened object. The passed database should correspond to the
     // configuration on which the operation requiring the cache is being
     // performed. If there is no configuration (e.g., rep-info), then pass
-    // NULL.
+    // NULL (can also be used to create an "uninitialized" instance that will
+    // be initialized with the mode() call).
     //
     // Note that the object should only be opened if enabled() below returns
     // true.
@@ -103,8 +104,8 @@ namespace bpkg
     //
     fetch_cache (const common_options&, const database*);
 
-    // Re-calculate the enabled status and src, etc flags, taking into account
-    // the configuration-specific defaults, if the database is specified.
+    // Re-calculate the cache settings taking into account the configuration-
+    // specific defaults, if the database is specified.
     //
     // NOTE: needs to be called before reusing the cache instance for a
     // different configuration or without configuration.
