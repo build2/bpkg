@@ -948,7 +948,7 @@ namespace bpkg
           // changed, etc. However, let's return nullopt (as if the root
           // repository fetch has not started) not to, for example, remove the
           // cleanly fetched root repository state just because some of its
-          // submodule repositories may be not available at the moment.
+          // submodule repositories may not be available at the moment.
           //
           if (!checkout_submodules ())
             return nullopt;
@@ -1156,12 +1156,12 @@ namespace bpkg
       // filesystem_state_changed flag since we are modifying the repository
       // filesystem state.
       //
-      bool cached_repo (
+      bool repo_cached (
         crs.state != fetch_cache::loaded_git_repository_state::created);
 
       bool fsc (filesystem_state_changed);
 
-      if (cached_repo)
+      if (repo_cached)
       {
         if (!cache.offline ())
           filesystem_state_changed = true;
@@ -1180,7 +1180,7 @@ namespace bpkg
       r = rep_fetch_git (co,
                          rl,
                          td,
-                         !cached_repo /* initialize */,
+                         !repo_cached /* initialize */,
                          crs.ls_remote,
                          cache.offline (),
                          iu,
@@ -1191,7 +1191,7 @@ namespace bpkg
       // Remove the working tree from the state directory and save it to the
       // cache.
       //
-      if (r || cached_repo)
+      if (r || repo_cached)
       {
         git_remove_worktree (co, td);
 
@@ -1201,7 +1201,7 @@ namespace bpkg
       // If the cached repository is saved without being fetched, then revert
       // the filesystem_state_changed flag.
       //
-      if (cached_repo && !r)
+      if (repo_cached && !r)
         filesystem_state_changed = fsc;
 
       // Fail for incomplete fetch.

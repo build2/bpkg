@@ -79,9 +79,9 @@ namespace bpkg
   // otherwise. In the offline mode fail if any network interaction needs to
   // be performed. Return nullopt if the function failed before it started to
   // fetch the repository (no connectivity, etc). Note that the diagnostics is
-  // still issued in this case. If the returned value is nullopt, before
-  // throwing failed exception the caller may, for example, do something
-  // useful about the repository (return it to its permanent location, etc).
+  // still issued in this case. If the returned value is nullopt, then before
+  // throwing failed the caller may, for example, do something useful about
+  // the repository (return it to its permanent location, etc).
   //
   // Note that submodules are not fetched.
   //
@@ -109,8 +109,7 @@ namespace bpkg
                       const dir_path&,
                       const string& commit);
 
-  // Checkout the specified commit previously fetched by git_fetch(). Expects
-  // the commit to be fetched.
+  // Checkout the specified commit previously fetched by git_fetch().
   //
   // Note that submodules may not be checked out.
   //
@@ -125,9 +124,9 @@ namespace bpkg
   // interaction needs to be performed. Return false if the function failed
   // before it started to fetch any of the submodules (no connectivity, etc).
   // Note that the diagnostics is still issued in this case. If the returned
-  // value is false, before throwing failed exception the caller may, for
-  // example, do something useful about the repository (return it to its
-  // permanent location, etc).
+  // value is false, then before throwing failed the caller may, for example,
+  // do something useful about the repository (return it to its permanent
+  // location, etc).
   //
   bool
   git_checkout_submodules (const common_options&,

@@ -509,49 +509,46 @@ namespace bpkg
       // If the fetch cache is enabled, then save the package archive, if we
       // fetched it, into the cache.
       //
-      if (cache.enabled ())
+      if (cache.enabled () && !crp)
       {
-        if (!crp)
+        // Note that the fragment for pkg repository URLs is always nullopt,
+        // so can use the repository URL as is.
+        //
+        // Note also that we cache both local and remote URLs since a local
+        // URL could be on a network filesystem or some such.
+        //
+        path ca (cache.save_pkg_repository_package (move (pid),
+                                                    v,
+                                                    move (an),
+                                                    move (fcs),
+                                                    rl.url ()));
+
+        // If sharing of the cached source directories is enabled, then move
+        // the package archive to the fetch cache, use it in place (from the
+        // cache) in the configuration, and don't remove it when the package
+        // is purged (see above for details). Otherwise, hardlink/copy the
+        // archive from the configuration directory into the cache.
+        //
+        if (cache.cache_src ())
         {
-          // Note that the fragment for pkg repository URLs is always nullopt,
-          // so can use the repository URL as is.
+          // Note that the move operation can fallback to copy, if the source
+          // and destination paths belong to different filesystems. Thus, to
+          // implement the "write to temporary and atomically move into place"
+          // technique, we move the archive in two steps: first, to the
+          // destination filesystem under the temporary name and then rename
+          // it to the final name.
           //
-          // Note also that we cache both local and remote URLs since a local
-          // URL could be on a network filesystem or some such.
-          //
-          path ca (cache.save_pkg_repository_package (move (pid),
-                                                      v,
-                                                      move (an),
-                                                      move (fcs),
-                                                      rl.url ()));
+          auto_rmfile rm (ca + ".tmp");
+          const path& p (rm.path);
+          mv (a, p);
+          mv (p, ca);
+          rm.cancel ();
 
-          // If sharing of the cached source directories is enabled, then move
-          // the package archive to the fetch cache, use it in place (from the
-          // cache) in the configuration, and don't remove it when the package
-          // is purged (see above for details). Otherwise, hardlink/copy the
-          // archive from the configuration directory into the cache.
-          //
-          if (cache.cache_src ())
-          {
-            // Note that the move operation can fallback to copy, if the
-            // source and destination paths belong to different filesystems.
-            // Thus, to implement the "write to temporary and atomically move
-            // into place" technique, we move the archive in two steps: first,
-            // to the destination filesystem under the temporary name and then
-            // rename it to the final name.
-            //
-            auto_rmfile rm (ca + ".tmp");
-            const path& p (rm.path);
-            mv (a, p);
-            mv (p, ca);
-            rm.cancel ();
-
-            a = move (ca);
-            purge = false;
-          }
-          else
-            hardlink (a, ca);
+          a = move (ca);
+          purge = false;
         }
+        else
+          hardlink (a, ca);
       }
     }
 

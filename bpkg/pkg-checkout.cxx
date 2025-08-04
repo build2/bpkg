@@ -293,7 +293,7 @@ namespace bpkg
                 info << "run 'bpkg rep-fetch' to repair";
             }
 
-            rmt = auto_rmdir (crs.repository, false /* active */);
+            rmt = auto_rmdir (move (crs.repository), false /* active */);
           }
 
           // Pre-insert the repository entry into the checkout cache before we

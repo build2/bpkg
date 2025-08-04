@@ -342,7 +342,7 @@ namespace bpkg
     void
     save_git_repository_state (repository_url);
 
-    // Git repository state directory.
+    // Git repository state directory. The caching is expected to be enabled.
     //
     // Note that a repository state should never be amended via this path.
     // Normally, it is used as a global identifier of the repository cached

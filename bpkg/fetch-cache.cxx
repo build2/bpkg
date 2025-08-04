@@ -1438,11 +1438,13 @@ namespace bpkg
 
   // Note that this function is not static to make sure that the global
   // variable git_repository_state_directory_ is already set (note: set by
-  // fetch_cache constructor).
+  // mode(common_options, database*) is the fetch caching is enabled).
   //
   dir_path fetch_cache::
   git_repository_state_dir (repository_url u) const
   {
+    assert (enabled ());
+
     u = canonicalize_git_url (move (u));
     return git_repository_state_directory_ / git_repository_state_name (u);
   }
