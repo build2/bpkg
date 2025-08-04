@@ -1157,7 +1157,7 @@ namespace bpkg
       // filesystem state.
       //
       bool repo_cached (
-        crs.state != fetch_cache::loaded_git_repository_state::created);
+        crs.state != fetch_cache::loaded_git_repository_state::absent);
 
       bool fsc (filesystem_state_changed);
 

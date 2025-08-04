@@ -293,13 +293,12 @@ namespace bpkg
     // unlocking the cache in between.
     //
   public:
-    // Load (find or insert) repository state for the specified git repository
-    // URL.
+    // Load (find) repository state for the specified git repository URL.
     //
     // Note that the returned paths point into the temporary directory and
     // which will be moved back into their permanent location by save_*().
     // This, in particular, means that save_*() should be called even if
-    // nothing was fetched. If the cache entry is created, the returned paths
+    // nothing was fetched. If the cache entry is absent, the returned paths
     // are valid but the corresponding filesystem entries do not exist (but
     // their containing directory does). Likewise, if the cache entry is
     // outdated, then the returned ls-remote output path is valid but the
@@ -309,7 +308,7 @@ namespace bpkg
     {
       enum state_type
       {
-        created,   // New cache entry is created.
+        absent,    // No cache entry for this repository yet.
         outdated,  // Existing cache entry but ls-remote output is out of date.
         up_to_date // Existing cache entry and ls-remote output is up to date.
       };
@@ -322,9 +321,9 @@ namespace bpkg
     loaded_git_repository_state
     load_git_repository_state (repository_url);
 
-    // Save repository state for the specified git repository URL.
-    // Specifically, move the filesystem entries from the paths returned by
-    // load_*() to their permanent location.
+    // Save (insert of update) repository state for the specified git
+    // repository URL. Specifically, move the filesystem entries from the
+    // paths returned by load_*() to their permanent location.
     //
     // Note that it's valid to call save_*() with absent ls-remote file. This
     // can be used to preserve (expensive to fetch) git repository state in
@@ -335,10 +334,7 @@ namespace bpkg
     //
     // Also note that it's valid not to call save_*() after the load_*() call,
     // which indicates that the repository state is spoiled. In this case, the
-    // repository temporary directory is not removed, which can be handy for
-    // troubleshooting. It is only removed when load_*() is called again for
-    // this repository URL or this cache entry is removed by the garbage
-    // collector.
+    // repository temporary directory is removed on the next open() call.
     //
     void
     save_git_repository_state (repository_url);

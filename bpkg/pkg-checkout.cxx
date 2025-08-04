@@ -283,7 +283,7 @@ namespace bpkg
             fetch_cache::loaded_git_repository_state crs (
               fetch_cache.load_git_repository_state (move (url)));
 
-            if (crs.state == fetch_cache::loaded_git_repository_state::created)
+            if (crs.state == fetch_cache::loaded_git_repository_state::absent)
             {
               // Note that this fetch cache entry won't be saved.
               //

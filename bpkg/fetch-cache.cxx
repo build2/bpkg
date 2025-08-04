@@ -610,6 +610,11 @@ namespace bpkg
         fail << f << ": " << e.message () << endf;
       }
     }
+
+    // Clean up the temporary directory.
+    //
+    if (exists (tmp_directory_))
+      rm_r (tmp_directory_, false /* dir_itself */);
   }
 
   void fetch_cache::
@@ -777,34 +782,25 @@ namespace bpkg
       {
         if (stop ()) return;
 
-        auto rm = [] (const dir_path& d)
+        dir_path d (git_repository_state_directory_ / o.directory);
+
+        if (verb >= 3)
+          text << "rm -r " << d;
+
+        try
         {
-          try
-          {
-            if (dir_exists (d))
-            {
-              if (verb >= 3)
-                text << "rm -r " << d;
-
-              rmdir_r (d, true /* dir */);
-            }
-          }
-          catch (const system_error& e)
-          {
-            if (verb >= 3)
-              warn << "unable to remove directory " << d << ": " << e;
-
-            return false;
-          }
-
-          return true;
-        };
-
-        if (rm (git_repository_state_directory_ / o.directory) &&
-            rm (tmp_directory_ / o.directory))
-        {
-          db.erase (o);
+          if (dir_exists (d))
+            rmdir_r (d, true /* dir */);
         }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to remove directory " << d << ": " << e;
+
+          continue;
+        }
+
+        db.erase (o);
 
         if (stop ()) return;
       }
@@ -1283,24 +1279,24 @@ namespace bpkg
     // The overall plan is as follows:
     //
     // 1. See if there is an entry for this URL in the database. If not,
-    //    assume the created state and create new database entry with current
-    //    session and access time.
+    //    assume the absent state.
     //
     // 2. Otherwise, check if the repository subdirectory exists in the
-    //    repository state directory. If not, assume the created state and
-    //    update the entry session and access time.
+    //    repository state directory. If not, remove the state directory on
+    //    disk, remove the entry from the database, and assume the absent
+    //    state.
     //
     // 3. Otherwise, assume the up-to-date state if ls-remote.txt exists in
     //    the repository state directory and the current session matches the
-    //    entry session or we are in the offline mode. In this case update the
-    //    entry session and access time.
+    //    entry session or we are in the offline mode.
     //
-    // 4. Otherwise, assume the outdated state, remove the ls-remote.txt file,
-    //    if present, and update the entry session and access time.
+    // 4. Otherwise, assume the outdated state and remove the ls-remote.txt
+    //    file, if exists.
     //
-    // 5. For the created state, create an empty repository state directory in
-    //    the cache temporary directory and move the repository state
-    //    directory into the cache temporary directory otherwise.
+    // 5. For the absent state, create an empty repository state directory in
+    //    the cache temporary directory. For other states, update the entry
+    //    session and access time and move the repository state directory into
+    //    the cache temporary directory.
     //
     // 6. Return the deduced state and paths to the repository directory and
     //    ls-remote.txt file in the cache temporary directory, regardless of
@@ -1327,10 +1323,15 @@ namespace bpkg
 
         if (!exists (rd))
         {
+          // Remove the database entry last, to make sure we are still tracking
+          // the directory if its removal fails for any reason.
+          //
           if (exists (sd))
             rm_r (sd);
 
-          r.state = loaded_git_repository_state::created;
+          db.erase (s);
+
+          r.state = loaded_git_repository_state::absent;
         }
         else
         {
@@ -1348,15 +1349,15 @@ namespace bpkg
               rm (lf);
           }
 
+          s.session = session_;
+          s.access_time = system_clock::now ();
+
+          db.update (s);
+
           r.state = utd
             ? loaded_git_repository_state::up_to_date
             : loaded_git_repository_state::outdated;
         }
-
-        s.session = session_;
-        s.access_time = system_clock::now ();
-
-        db.update (s);
       }
       else
       {
@@ -1368,12 +1369,7 @@ namespace bpkg
         if (exists (sd))
           rm_r (sd);
 
-        r.state = loaded_git_repository_state::created;
-
-        git_repository_state rs {
-          move (u), move (d), session_, system_clock::now ()};
-
-        db.persist (rs);
+        r.state = loaded_git_repository_state::absent;
       }
 
       t.commit ();
@@ -1388,7 +1384,7 @@ namespace bpkg
     else if (!exists (tmp_directory_))
       mk_p (tmp_directory_);
 
-    if (r.state == loaded_git_repository_state::created)
+    if (r.state == loaded_git_repository_state::absent)
       mk (td);
     else
       mv (sd, td);
@@ -1406,6 +1402,14 @@ namespace bpkg
 
     u = canonicalize_git_url (move (u));
 
+    // The overall plan is as follows:
+    //
+    // 1. Try to load the current entry from the database. If absent, create
+    //    new database entry with current session and access time.
+    //
+    // 2. Move the temporary repository state directory to its permanent
+    //    location.
+
     auto& db (*db_);
 
     dir_path sd;
@@ -1416,10 +1420,23 @@ namespace bpkg
       transaction t (db);
 
       git_repository_state s;
-      db.load<git_repository_state> (u, s);
+      if (db.find<git_repository_state> (u, s))
+      {
+        sd = git_repository_state_directory_ / s.directory;
+        td = tmp_directory_ / s.directory;
+      }
+      else
+      {
+        dir_path d (git_repository_state_name (u));
 
-      sd = git_repository_state_directory_ / s.directory;
-      td = tmp_directory_ / s.directory;
+        sd = git_repository_state_directory_ / d;
+        td = tmp_directory_ / d;
+
+        git_repository_state rs {
+          move (u), move (d), session_, system_clock::now ()};
+
+        db.persist (rs);
+      }
 
       t.commit ();
     }
