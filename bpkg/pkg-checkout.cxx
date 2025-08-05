@@ -240,7 +240,8 @@ namespace bpkg
       //       configuration-specific repository cache parallel.
 
       // If the configuration-specific repository directory exists, then use
-      // that regardless of whether the fetch cache is enabled or not.
+      // that regardless of whether the fetch cache is enabled or not. The
+      // switchover only happens on rep-fetch.
       //
       if (!config_repo_exists && fetch_cache.enabled ())
       {
@@ -250,8 +251,7 @@ namespace bpkg
         url.fragment = nullopt;
 
         // Use the repository state directory in the fetch cache as a key for
-        // the checkout cache. Note that it won't be used for any other
-        // purpose.
+        // the checkout cache. Note that it's not used for any other purpose.
         //
         // Note also that we cache both local and remote URLs since a local
         // URL could be on a network filesystem or some such.
@@ -285,7 +285,7 @@ namespace bpkg
 
             if (crs.state == fetch_cache::loaded_git_repository_state::absent)
             {
-              // Note that this fetch cache entry won't be saved.
+              // Note that this fetch cache entry won't be saved (naturally).
               //
               fail << "missing repository state for package " << n << ' '
                    << v << " in fetch cache" <<
@@ -345,7 +345,12 @@ namespace bpkg
       }
       else
       {
-        if (fetch_cache.offline () && !fetch_cache.enabled ())
+        bool offline (fetch_cache.offline ());
+
+        // Note that an existing configuration repository may contain all
+        // we need.
+        //
+        if (offline && !config_repo_exists)
           fail << "no way to obtain state for repository " << rl.url ()
                << " in offline mode with fetch cache disabled" <<
             info << "consider enabling fetch cache or turning offline mode off";
@@ -429,7 +434,7 @@ namespace bpkg
           //
           s.valid = false; // Make invalid not to restore on failure.
 
-          if (!checkout (o, rl, td, ap, pdb, false /* offline */))
+          if (!checkout (o, rl, td, ap, pdb, offline))
           {
             s.valid = true;  // Restore the repository since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.

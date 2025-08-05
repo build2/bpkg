@@ -1125,7 +1125,10 @@ namespace bpkg
 
     if (cache.enabled ())
     {
+      cache.open (trace);
+
       // Remove the configuration-specific repository directory, if exists.
+      // Essentially we are switching to the global cached one.
       //
       if (config_repo_exists)
       {
@@ -1133,8 +1136,6 @@ namespace bpkg
 
         rm_r (rd);
       }
-
-      cache.open (trace);
 
       // Note that we cache both local and remote URLs since a local URL could
       // be on a network filesystem or some such.
@@ -1172,10 +1173,10 @@ namespace bpkg
           info << "consider turning offline mode off";
 
       // If this call throws failed, then the cache entry is not saved.
-      // Otherwise, we save the entry if the fetch succeeded or even didn't
-      // start (no connectivity, etc) for an already cached repository.
-      // Otherwise (fetch of new repository didn't start), we don't save the
-      // cache entry.
+      // Otherwise, save the entry if the fetch succeeded or didn't start (no
+      // connectivity, etc) for an already cached repository. Otherwise
+      // (fetching of new repository didn't start), don't save the cache
+      // entry.
       //
       r = rep_fetch_git (co,
                          rl,
@@ -1241,10 +1242,10 @@ namespace bpkg
       }
 
       // If this call throws failed, then the temporary state directory is
-      // removed. Otherwise, we return it to its permanent location if the
-      // fetch succeeded or even didn't start (no connectivity, etc) for an
-      // existing repository. Otherwise (fetch of new repository didn't
-      // start), we remove the temporary state.
+      // removed. Otherwise, return it to its permanent location if the fetch
+      // succeeded or didn't start (no connectivity, etc) for an existing
+      // repository. Otherwise (fetching of new repository didn't start),
+      // remove the temporary state.
       //
       r = rep_fetch_git (co,
                          rl,

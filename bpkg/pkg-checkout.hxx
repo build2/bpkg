@@ -70,7 +70,7 @@ namespace bpkg
       // If specified (not NULL), then this is the state of a repository
       // located in the referenced fetch cache and prepared for checkout by
       // the respective load_*() function call. In this case, rmt is only used
-      // to hold the repository path (not active). Is assumed to be valid till
+      // to hold the repository path (not active). Assumed to be valid till
       // the end of the cache object lifetime. Only meaningful if valid is
       // true.
       //
@@ -103,7 +103,8 @@ namespace bpkg
 
   // Note that for the following functions both package and repository
   // information configurations need to be passed. Also note that if the fetch
-  // cache is enabled it should be pre-open.
+  // cache is enabled it should be already open (and these functions do not
+  // try to close it).
   //
 
   // Check out the package from a version control-based repository into a
