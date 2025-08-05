@@ -270,9 +270,17 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
+    // @@ Need to make consistent pkg-fetch & pkg-checkout.
+    //
     if (verb > 1 && !simulate)
+    {
       text << "fetching " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name;
+           << "from " << pl->repository_fragment->name << pdb;
+    }
+    else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
+    {
+      text << "fetching " << package_string (ap->id.name, ap->version) << pdb;
+    }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});

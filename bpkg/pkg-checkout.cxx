@@ -42,17 +42,17 @@ namespace bpkg
       {
         assert (rl.fragment ());
 
+        // Print the progress indicator to attribute the possible fetching
+        // progress.
+        //
+        if ((verb && !o.no_progress ()) || o.progress ())
+          text << "checking out "
+               << package_string (ap->id.name, ap->version) << db;
+
         git_checkout (o, dir, *rl.fragment ());
 
         if (exists (dir / path (".gitmodules")))
         {
-          // Print the progress indicator to attribute the possible fetching
-          // progress.
-          //
-          if ((verb && !o.no_progress ()) || o.progress ())
-            text << "checking out "
-                 << package_string (ap->id.name, ap->version) << db;
-
           if (!git_checkout_submodules (o, offline, rl, dir))
             return false;
         }
