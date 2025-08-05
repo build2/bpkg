@@ -1172,7 +1172,7 @@ namespace bpkg
       // don't need to re-run apt_cache_policy().
       //
       bool requery;
-      if ((requery = fetch_ && !fetched_))
+      if ((requery = fetch_ && !offline_ && !fetched_))
       {
         apt_get_update ();
         fetched_ = true;
@@ -1443,6 +1443,12 @@ namespace bpkg
       // version, expecting the candidate version to be installed.
       //
       bool fi (ps.status == package_status::installed);
+
+      if (!fi && offline_)
+        fail << "unable to install " << os_release.name_id << " package "
+             << ps.system_name << ' ' << ps.system_version
+             << " in offline mode" <<
+          info << "consider turning offline mode off";
 
       for (const package_policy& pp: ps.package_policies)
       {

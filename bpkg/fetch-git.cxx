@@ -12,6 +12,7 @@
 #include <libbutl/standard-version.hxx> // parse_standard_version()
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 
 using namespace std;
 using namespace butl;
@@ -605,7 +606,8 @@ namespace bpkg
   using capabilities = git_protocol_capabilities;
 
   static capabilities
-  sense_capabilities (const common_options& co, bool offline,
+  sense_capabilities (const common_options& co,
+                      fetch_cache& cache,
                       const repository_url& repo_url)
   {
     assert (repo_url.path);
@@ -627,7 +629,7 @@ namespace bpkg
     case repository_protocol::https: break; // Ask the server (see below).
     }
 
-    if (offline)
+    if (cache.offline ())
       fail << "unable to fetch repository " << repo_url
            << " in offline mode" <<
         info << "consider turning offline mode off";
@@ -655,6 +657,20 @@ namespace bpkg
     // the dumb server.
     //
     ifdstream is (ifdstream::badbit);
+
+    if (cache.enabled ()) cache.start_gc ();
+
+    // Always stop the garbage collection explicitly, even on failures. Note
+    // that after failed is thrown, the cache may potentially still be used
+    // (save_git_*() can be called, etc; see rep-fetch and pkg-checkout for
+    // details).
+    //
+    auto g (
+      make_guard (
+        [&cache] ()
+        {
+          if (cache.enabled ()) cache.stop_gc ();
+        }));
 
     // Note that for the sensing request we specify the version 2 of the git
     // wire protocol as preferable, regardless if the client supports it or
@@ -1102,7 +1118,8 @@ namespace bpkg
   using probe_function = void ();
 
   static const refs&
-  load_refs (const common_options& co, bool offline,
+  load_refs (const common_options& co,
+             fetch_cache& cache,
              const repository_url& url,
              const path& ls_remote,
              const function<probe_function>& probe = nullptr)
@@ -1133,7 +1150,7 @@ namespace bpkg
 
     // Run git-ls-remote, unless in the offline mode.
     //
-    if (offline)
+    if (cache.offline ())
       fail << "unable to fetch repository " << url << " in offline mode" <<
         info << "consider turning offline mode off";
 
@@ -1148,6 +1165,18 @@ namespace bpkg
     for (;;) // Breakout loop.
     {
       fdpipe pipe (open_pipe ());
+
+      if (cache.enabled ()) cache.start_gc ();
+
+      // Always stop the garbage collection explicitly, even on failures (see
+      // sense_capabilities() for the reasoning).
+      //
+      auto g (
+        make_guard (
+          [&cache] ()
+          {
+            if (cache.enabled ()) cache.stop_gc ();
+          }));
 
       // Note: ls-remote doesn't print anything to stderr, so no progress
       // suppression is required.
@@ -1215,12 +1244,14 @@ namespace bpkg
   // assumed that sense_capabilities() function was already called for the URL.
   //
   static bool
-  commit_advertized (const common_options& co, bool offline,
+  commit_advertized (const common_options& co,
+                     fetch_cache& cache,
                      const repository_url& url,
                      const string& commit,
                      const path& ls_remote)
   {
-    return load_refs (co, offline,
+    return load_refs (co,
+                      cache,
                       url,
                       ls_remote).find_commit (commit) != nullptr;
   }
@@ -1287,7 +1318,8 @@ namespace bpkg
   // Return true if the shallow fetch is possible for the reference.
   //
   static bool
-  shallow_fetch (const common_options& co, bool offline,
+  shallow_fetch (const common_options& co,
+                 fetch_cache& cache,
                  const repository_url& url,
                  capabilities cap,
                  const git_ref_filter& rf,
@@ -1302,7 +1334,7 @@ namespace bpkg
     case capabilities::smart:
       {
         return !rf.commit ||
-               commit_advertized (co, offline, url, *rf.commit, ls_remote);
+               commit_advertized (co, cache, url, *rf.commit, ls_remote);
       }
     case capabilities::unadv:
       {
@@ -1321,7 +1353,8 @@ namespace bpkg
   // interaction needs to be performed.
   //
   static vector<git_fragment>
-  fetch (const common_options& co, bool offline,
+  fetch (const common_options& co,
+         fetch_cache& cache,
          const dir_path& dir,
          const dir_path& submodule,  // Used only for diagnostics.
          const git_ref_filters& rfs,
@@ -1345,7 +1378,7 @@ namespace bpkg
       return ou;
     };
 
-    auto caps = [&co, offline, &url, &cap] () -> capabilities
+    auto caps = [&co, &cache, &url, &cap] () -> capabilities
     {
       // Note that url() runs `git config --get remote.origin.url` command on
       // the first call, and so git version get assigned (and checked).
@@ -1368,7 +1401,7 @@ namespace bpkg
         }
 
         if (!cap)
-          cap = sense_capabilities (co, offline, u);
+          cap = sense_capabilities (co, cache, u);
       }
 
       return *cap;
@@ -1376,14 +1409,14 @@ namespace bpkg
 
     function<probe_function> probe ([&caps] () {caps ();});
 
-    auto references = [&co, offline, &url, &ls_remote, &probe]
+    auto references = [&co, &cache, &url, &ls_remote, &probe]
                       (const string& refname, bool abbr_commit)
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
-      return load_refs (co, offline,
+      return load_refs (co, cache,
                         url (),
                         ls_remote,
                         probe).search_names (refname, abbr_commit);
@@ -1391,7 +1424,7 @@ namespace bpkg
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&co, offline, &url, &ls_remote, &probe] ()
+    auto default_references = [&co, &cache, &url, &ls_remote, &probe] ()
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
@@ -1400,7 +1433,7 @@ namespace bpkg
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
 
-      for (const ref& rf: load_refs (co, offline, url (), ls_remote, probe))
+      for (const ref& rf: load_refs (co, cache, url (), ls_remote, probe))
       {
         if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
         {
@@ -1519,11 +1552,11 @@ namespace bpkg
       // scenarios we may do without it.
       //
       optional<bool> sh;
-      auto shallow = [&co, offline, &url, &caps, &rf, &sh, &ls_remote] ()
+      auto shallow = [&co, &cache, &url, &caps, &rf, &sh, &ls_remote] ()
         -> bool
       {
         if (!sh)
-          sh = shallow_fetch (co, offline, url (), caps (), rf, ls_remote);
+          sh = shallow_fetch (co, cache, url (), caps (), rf, ls_remote);
 
         return *sh;
       };
@@ -1548,7 +1581,7 @@ namespace bpkg
           // the above default_references() or references() call.
           //
           const string& c (
-            load_refs (co, offline, url (), ls_remote).peel (r).commit);
+            load_refs (co, cache, url (), ls_remote).peel (r).commit);
 
           if (!rf.exclusion)
           {
@@ -1627,7 +1660,7 @@ namespace bpkg
         // Fetch deep in both cases.
         //
         add_spec (c,
-                  (commit_advertized (co, offline, url (), c, ls_remote)
+                  (commit_advertized (co, cache, url (), c, ls_remote)
                    ? strings ({c})
                    : strings ()));
       }
@@ -1721,14 +1754,14 @@ namespace bpkg
     if (!fetch_repo && scs.empty () && dcs.empty ())
       return sort (move (r));
 
-    if (offline)
+    if (cache.offline ())
       fail << "unable to fetch repository " << url () << " in offline mode" <<
         info << "consider turning offline mode off";
 
     // Fetch the refspecs. If no refspecs are specified, then fetch the
     // whole repository history.
     //
-    auto fetch = [&co, offline, &url, &ls_remote, &dir, &caps, &started_fetching]
+    auto fetch = [&co, &cache, &url, &ls_remote, &dir, &caps, &started_fetching]
                  (const strings& refspecs, bool shallow)
     {
       // We don't shallow fetch the whole repository.
@@ -1756,7 +1789,7 @@ namespace bpkg
         for (const string& c: refspecs)
         {
           const ref* r (
-            load_refs (co, offline, url (), ls_remote).find_commit (c));
+            load_refs (co, cache, url (), ls_remote).find_commit (c));
 
           assert (r != nullptr); // Otherwise we would fail earlier.
 
@@ -1820,6 +1853,18 @@ namespace bpkg
       }
       else if (verb > 3)
         v.push_back ("-v");
+
+      if (cache.enabled ()) cache.start_gc ();
+
+      // Always stop the garbage collection explicitly, even on failures (see
+      // sense_capabilities() for the reasoning).
+      //
+      auto g (
+        make_guard (
+          [&cache] ()
+          {
+            if (cache.enabled ()) cache.stop_gc ();
+          }));
 
       // Note that passing --no-tags is not just an optimization. Not doing so
       // we may end up with the "would clobber existing tag" git error for a
@@ -2262,7 +2307,8 @@ namespace bpkg
   // submodules (started_fetching argument).
   //
   static void
-  checkout_submodules (const common_options& co, bool offline,
+  checkout_submodules (const common_options& co,
+                       fetch_cache& cache,
                        const dir_path& dir,
                        const dir_path& git_dir,
                        const dir_path& prefix,
@@ -2438,7 +2484,8 @@ namespace bpkg
       git_ref_filters rfs {
         git_ref_filter {nullopt, sm.commit, false /* exclusion */}};
 
-      fetch (co, offline,
+      fetch (co,
+             cache,
              fsdir,
              psdir,
              rfs,
@@ -2456,7 +2503,7 @@ namespace bpkg
 
       // Check out the submodule submodules, recursively.
       //
-      checkout_submodules (co, offline, fsdir, gdir, psdir, started_fetching);
+      checkout_submodules (co, cache, fsdir, gdir, psdir, started_fetching);
     }
   }
 
@@ -2509,7 +2556,8 @@ namespace bpkg
   }
 
   optional<vector<git_fragment>>
-  git_fetch (const common_options& co, bool offline,
+  git_fetch (const common_options& co,
+             fetch_cache& cache,
              const repository_location& rl,
              const dir_path& dir,
              const path& ls_remote)
@@ -2537,7 +2585,8 @@ namespace bpkg
 
     try
     {
-      return fetch (co, offline,
+      return fetch (co,
+                    cache,
                     dir,
                     dir_path () /* submodule */,
                     rfs,
@@ -2554,7 +2603,8 @@ namespace bpkg
   }
 
   bool
-  git_checkout_submodules (const common_options& co, bool offline,
+  git_checkout_submodules (const common_options& co,
+                           fetch_cache& cache,
                            const repository_location& rl,
                            const dir_path& dir)
   {
@@ -2573,7 +2623,8 @@ namespace bpkg
 
     try
     {
-      checkout_submodules (co, offline,
+      checkout_submodules (co,
+                           cache,
                            dir,
                            dir / dir_path (".git"),
                            dir_path () /* prefix */,

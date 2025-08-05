@@ -847,11 +847,11 @@ namespace bpkg
   //
   static optional<pair<rep_fetch_data, size_t>>
   rep_fetch_git (const common_options& co,
+                 fetch_cache& cache,
                  const repository_location& rl,
                  const dir_path& rd,
                  bool init,
                  const path& ls_remote,
-                 bool offline,
                  bool iu,
                  bool it,
                  bool ev,
@@ -865,7 +865,7 @@ namespace bpkg
     // Fetch the repository in the specified directory.
     //
     optional<vector<git_fragment>> frags (
-      git_fetch (co, offline, rl, rd, ls_remote));
+      git_fetch (co, cache, rl, rd, ls_remote));
 
     if (!frags)
       return nullopt;
@@ -923,12 +923,12 @@ namespace bpkg
       // Checkout submodules on the first call.
       //
       bool cs (true);
-      auto checkout_submodules = [&co, &rl, &rd, &cs, offline] ()
+      auto checkout_submodules = [&co, &cache, &rl, &rd, &cs] ()
       {
         if (cs)
         {
           cs = false;
-          return git_checkout_submodules (co, offline, rl, rd);
+          return git_checkout_submodules (co, cache, rl, rd);
         }
 
         return true;
@@ -1179,11 +1179,11 @@ namespace bpkg
       // entry.
       //
       r = rep_fetch_git (co,
+                         cache,
                          rl,
                          td,
                          !repo_cached /* initialize */,
                          crs.ls_remote,
-                         cache.offline (),
                          iu,
                          it,
                          ev,
@@ -1248,11 +1248,11 @@ namespace bpkg
       // remove the temporary state.
       //
       r = rep_fetch_git (co,
+                         cache,
                          rl,
                          td,
                          !config_repo_exists /* initialize */,
                          path () /* ls_remote */,
-                         false /* offline */,
                          iu,
                          it,
                          ev,

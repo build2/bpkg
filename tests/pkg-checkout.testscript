@@ -75,6 +75,7 @@ else
     $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v
 
     $* "style-basic/$v" 2>>~"%EOE%"
+      checking out style-basic/$v
       verifying symlinks...
       %fixing up symlinks...%?
       distributing style-basic/$v

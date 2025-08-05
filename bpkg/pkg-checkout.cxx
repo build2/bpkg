@@ -30,11 +30,11 @@ namespace bpkg
   //
   static bool
   checkout (const common_options& o,
+            fetch_cache& cache,
             const repository_location& rl,
             const dir_path& dir,
             const shared_ptr<available_package>& ap,
-            database& db,
-            bool offline)
+            database& db)
   {
     switch (rl.type ())
     {
@@ -53,7 +53,7 @@ namespace bpkg
 
         if (exists (dir / path (".gitmodules")))
         {
-          if (!git_checkout_submodules (o, offline, rl, dir))
+          if (!git_checkout_submodules (o, cache, rl, dir))
             return false;
         }
 
@@ -98,9 +98,9 @@ namespace bpkg
   // Return the selected package object which may replace the existing one.
   //
   static shared_ptr<selected_package>
-  pkg_checkout (bpkg::fetch_cache& fetch_cache,
+  pkg_checkout (const common_options& o,
+                bpkg::fetch_cache& fetch_cache,
                 pkg_checkout_cache& checkout_cache,
-                const common_options& o,
                 database& pdb,
                 database& rdb,
                 transaction& t,
@@ -333,7 +333,7 @@ namespace bpkg
           //
           s.valid = false; // Make invalid not to save fetch entry on failure.
 
-          if (!checkout (o, rl, td, ap, pdb, fetch_cache.offline ()))
+          if (!checkout (o, fetch_cache, rl, td, ap, pdb))
           {
             s.valid = true;  // Save the fetch entry since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.
@@ -345,12 +345,10 @@ namespace bpkg
       }
       else
       {
-        bool offline (fetch_cache.offline ());
-
         // Note that an existing configuration repository may contain all
         // we need.
         //
-        if (offline && !config_repo_exists)
+        if (fetch_cache.offline () && !config_repo_exists)
           fail << "no way to obtain state for repository " << rl.url ()
                << " in offline mode with fetch cache disabled" <<
             info << "consider enabling fetch cache or turning offline mode off";
@@ -434,7 +432,7 @@ namespace bpkg
           //
           s.valid = false; // Make invalid not to restore on failure.
 
-          if (!checkout (o, rl, td, ap, pdb, offline))
+          if (!checkout (o, fetch_cache, rl, td, ap, pdb))
           {
             s.valid = true;  // Restore the repository since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.
@@ -603,9 +601,9 @@ namespace bpkg
                 bool purge,
                 bool simulate)
   {
-    return pkg_checkout (fetch_cache,
+    return pkg_checkout (o,
+                         fetch_cache,
                          checkout_cache,
-                         o,
                          pdb,
                          rdb,
                          t,
@@ -629,9 +627,9 @@ namespace bpkg
                 bool replace,
                 bool simulate)
   {
-    return pkg_checkout (fetch_cache,
+    return pkg_checkout (o,
+                         fetch_cache,
                          checkout_cache,
-                         o,
                          pdb,
                          rdb,
                          t,

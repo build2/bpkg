@@ -9,6 +9,7 @@
 #include <libbpkg/manifest.hxx>
 
 #include <bpkg/types.hxx>
+#include <bpkg/forward.hxx> // fetch_cache
 #include <bpkg/utility.hxx>
 
 #include <bpkg/common-options.hxx>
@@ -85,7 +86,10 @@ namespace bpkg
   // throwing failed the caller may, for example, do something useful with the
   // repository (return it to its permanent location, etc).
   //
-  // Note that submodules are not fetched.
+  // Note that the fetch cache is only used to run garbage collection during
+  // network operations.
+  //
+  // Also note that submodules are not fetched.
   //
   struct git_fragment
   {
@@ -98,7 +102,8 @@ namespace bpkg
   };
 
   optional<vector<git_fragment>>
-  git_fetch (const common_options&, bool offline,
+  git_fetch (const common_options&,
+             fetch_cache&,
              const repository_location&,
              const dir_path&,
              const path& ls_remote = {});
@@ -129,8 +134,12 @@ namespace bpkg
   // do something useful with the repository (return it to its permanent
   // location, etc).
   //
+  // Note that the fetch cache is only used to run garbage collection during
+  // network operations.
+  //
   bool
-  git_checkout_submodules (const common_options&, bool offline,
+  git_checkout_submodules (const common_options&,
+                           fetch_cache&,
                            const repository_location&,
                            const dir_path&);
 

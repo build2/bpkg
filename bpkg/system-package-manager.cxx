@@ -13,6 +13,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 
 #include <bpkg/pkg-bindist-options.hxx>
 
@@ -76,6 +77,8 @@ namespace bpkg
                                     ? co.fetch_timeout ()
                                     : optional<size_t> ());
 
+    bool offline (fetch_cache::offline (co));
+
     unique_ptr<system_package_manager> r;
 
     if (optional<os_release> oos = host_release (host))
@@ -99,7 +102,8 @@ namespace bpkg
 
           r.reset (new system_package_manager_debian (
                      move (os), host, arch,
-                     progress, fetch_timeout, install, fetch, yes, sudo));
+                     progress, fetch_timeout, install, fetch, yes, sudo,
+                     offline));
         }
         else if (is_or_like (os, "fedora") ||
                  is_or_like (os, "rhel")   ||
@@ -119,7 +123,8 @@ namespace bpkg
 
           r.reset (new system_package_manager_fedora (
                      move (os), host, arch,
-                     progress, fetch_timeout, install, fetch, yes, sudo));
+                     progress, fetch_timeout, install, fetch, yes, sudo,
+                     offline));
         }
         // NOTE: remember to update the --sys-distribution pkg-build option
         //       documentation if adding support for another package manager.

@@ -98,7 +98,8 @@ namespace bpkg
                                        false   /* install */,
                                        false   /* fetch */,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       m.apt_cache_policy (pps);
@@ -127,7 +128,8 @@ namespace bpkg
                                        false   /* install */,
                                        false   /* fetch */,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       cout << m.apt_cache_show (key.first, key.second) << '\n';
@@ -325,7 +327,8 @@ namespace bpkg
                                        install,
                                        fetch,
                                        false   /* yes */,
-                                       "sudo");
+                                       "sudo",
+                                       false   /* offline */);
       m.simulate_ = &s;
 
       // Query each package.

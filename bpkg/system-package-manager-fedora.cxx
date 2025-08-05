@@ -1796,7 +1796,7 @@ namespace bpkg
       // don't need to re-run dnf_list().
       //
       bool requery;
-      if ((requery = fetch_ && !fetched_))
+      if ((requery = fetch_ && !offline_ && !fetched_))
       {
         dnf_makecache (true /* modify_system */);
         fetched_ = true;
@@ -2128,7 +2128,15 @@ namespace bpkg
       bool fi (ps.status == package_status::installed);
 
       if (!fi)
+      {
+        if (offline_)
+          fail << "unable to install " << os_release.name_id << " package "
+               << ps.system_name << ' ' << ps.system_version
+               << " in offline mode" <<
+            info << "consider turning offline mode off";
+
         install = true;
+      }
 
       for (const package_info& pi: ps.package_infos)
       {
