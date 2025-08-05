@@ -106,55 +106,8 @@ namespace bpkg
       std::chrono::duration_cast<butl::timestamp::duration> ( \
         std::chrono::nanoseconds (?))))
 
-  // @@ TMP
-  //
-  // @@ On Windows we end up with the following warning for the line
-  //    'query<pkg_repository_auth>::end_date < since_epoch_ns (now)',
-  //    where end_date is defined as optional_timestamp:
-  //
-  //    fetch-cache.cxx(802): warning C4244: 'argument': conversion from '_Rep' to 'const T', possible loss of data
-  //      with
-  //      [
-  //          _Rep=__int64
-  //      ]
-  //      and
-  //      [
-  //          T=unsigned long
-  //      ]
-  //
-  //    Looks like this is because of the strangely ODB-generated code:
-  //
-  //    // end_date
-  //    //
-  //    typedef
-  //    sqlite::query_column<
-  //      sqlite::value_traits<
-  //        long unsigned int,
-  //        sqlite::id_integer >::query_type,
-  //      sqlite::id_integer >
-  //    end_date_type_;
-  //
-  //    Why 'long unsigned int' rather than uint64_t? Note that for
-  //    non-optional timestamp there is no warning since the generated
-  //    code is as follows:
-  //
-  //    // access_time
-  //    //
-  //    typedef
-  //    sqlite::query_column<
-  //      sqlite::value_traits<
-  //        ::uint64_t,
-  //        sqlite::id_integer >::query_type,
-  //      sqlite::id_integer >
-  //    access_time_type_;
-  //
-  //
-  using optional_timestamp = optional<timestamp>;
-#if 0
   using optional_uint64_t = optional<uint64_t>;   // Preserve uint64_t alias.
-#else
-  using optional_uint64_t = optional<unsigned long long>;
-#endif
+  using optional_timestamp = optional<timestamp>;
 
   #pragma db map type(optional_timestamp) as(bpkg::optional_uint64_t) \
     to((?)                                                            \
