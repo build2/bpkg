@@ -58,6 +58,8 @@ namespace odb
 
   // Workaround for unstable std::uint64_t name (no hint).
   //
+  // @@ TMP: can drop once upgraded past ODB 2.5.0.
+  //
   using wrapper_traits_for_optional_uint64_t =
     wrapper_traits<butl::optional<std::uint64_t>>;
 
