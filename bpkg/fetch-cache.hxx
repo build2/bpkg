@@ -195,6 +195,15 @@ namespace bpkg
     void
     stop_gc (bool ignore_errors = false);
 
+    // Return true if garbage collection has been started but hasn't yet
+    // been stopped.
+    //
+    bool
+    active_gc () const
+    {
+      return gc_thread_.joinable ();
+    }
+
     // Trusted (authenticated) pkg repository certificates cache API.
     //
     // Note that the load_*() and save_*() functions should be called without

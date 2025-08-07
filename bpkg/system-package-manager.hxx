@@ -429,7 +429,7 @@ namespace bpkg
     bool yes_;
     string sudo_;
 
-    // The --offline option, etc (see fetch cache for details).
+    // The offline mode, etc (--offline, etc., see fetch cache for details).
     //
     bool offline_;
   };

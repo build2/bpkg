@@ -658,19 +658,20 @@ namespace bpkg
     //
     ifdstream is (ifdstream::badbit);
 
-    if (cache.enabled ()) cache.start_gc ();
+    if (cache.enabled () && cache.is_open ())
+      cache.start_gc ();
 
     // Always stop the garbage collection explicitly, even on failures. Note
     // that after failed is thrown, the cache may potentially still be used
     // (save_git_*() can be called, etc; see rep-fetch and pkg-checkout for
     // details).
     //
-    auto g (
-      make_guard (
-        [&cache] ()
-        {
-          if (cache.enabled ()) cache.stop_gc ();
-        }));
+    auto fcg = make_guard (
+      [&cache] ()
+      {
+        if (cache.enabled () && cache.is_open () && cache.active_gc ())
+          cache.stop_gc (true /* ignore_errors */);
+      }));
 
     // Note that for the sensing request we specify the version 2 of the git
     // wire protocol as preferable, regardless if the client supports it or
@@ -744,6 +745,9 @@ namespace bpkg
         // fits into the pipe buffer.
         //
         is.close ();
+
+        if (cache.enabled () && cache.is_open ())
+          cache.stop_gc ();
 
         return capabilities::smart;
       }
@@ -869,7 +873,14 @@ namespace bpkg
       dump_stderr ();
 
       if (pr.wait ())
+      {
+        // Print GC error only if there are no other errors.
+        //
+        if (cache.enabled () && cache.is_open ())
+          cache.stop_gc ();
+
         return r;
+      }
 
       // Fall through.
     }
@@ -1166,17 +1177,18 @@ namespace bpkg
     {
       fdpipe pipe (open_pipe ());
 
-      if (cache.enabled ()) cache.start_gc ();
+      if (cache.enabled () && cache.is_open ())
+        cache.start_gc ();
 
       // Always stop the garbage collection explicitly, even on failures (see
       // sense_capabilities() for the reasoning).
       //
-      auto g (
-        make_guard (
-          [&cache] ()
-          {
-            if (cache.enabled ()) cache.stop_gc ();
-          }));
+      auto fcg = make_guard (
+        [&cache] ()
+        {
+          if (cache.enabled () && cache.is_open () && cache.active_gc ())
+            cache.stop_gc (true /* ignore_errors */);
+        }));
 
       // Note: ls-remote doesn't print anything to stderr, so no progress
       // suppression is required.
@@ -1199,7 +1211,14 @@ namespace bpkg
         is.close ();
 
         if (pr.wait ())
+        {
+          // Print GC error only if there are no other errors.
+          //
+          if (cache.enabled () && cache.is_open ())
+            cache.stop_gc ();
+
           break;
+        }
 
         // Fall through.
       }
@@ -1854,17 +1873,18 @@ namespace bpkg
       else if (verb > 3)
         v.push_back ("-v");
 
-      if (cache.enabled ()) cache.start_gc ();
+      if (cache.enabled () && cache.is_open ())
+        cache.start_gc ();
 
       // Always stop the garbage collection explicitly, even on failures (see
       // sense_capabilities() for the reasoning).
       //
-      auto g (
-        make_guard (
-          [&cache] ()
-          {
-            if (cache.enabled ()) cache.stop_gc ();
-          }));
+      auto fcg = make_guard (
+        [&cache] ()
+        {
+          if (cache.enabled () && cache.is_open () && cache.active_gc ())
+            cache.stop_gc (true /* ignore_errors */);
+        }));
 
       // Note that passing --no-tags is not just an optimization. Not doing so
       // we may end up with the "would clobber existing tag" git error for a
@@ -1905,6 +1925,11 @@ namespace bpkg
       //
       if (shallow && !shallow_repo ())
         fail << "unable to test if " << dir << " is shallow" << endg;
+
+      // Print GC error only if there are no other errors.
+      //
+      if (cache.enabled () && cache.is_open ())
+        cache.stop_gc ();
     };
 
     bool fetch_deep (fetch_repo || !dcs.empty ());
