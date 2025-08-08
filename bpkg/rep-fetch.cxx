@@ -162,16 +162,16 @@ namespace bpkg
         // @@ FC Progress telling that the metainfo comes from the fetch cache
         //    for this repository URL.
         //
-        // if ((verb && !co.no_progress ()) || co.progress ())
-        //   text << rl.url () << " is cached";
+        //if ((verb && !co.no_progress ()) || co.progress ())
+        //  text << rl.url () << " is cached";
       }
       else
       {
         // @@ FC Note that we will be querying at least the signature manifest
         //       file, but potentially all of the manifest file.
         //
-        if ((verb && !co.no_progress ()) || co.progress ())
-          text << "querying " << rl.url ();
+        //if ((verb && !co.no_progress ()) || co.progress ())
+        //  text << "querying " << rl.url ();
 
         cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
@@ -211,8 +211,8 @@ namespace bpkg
     {
       // @@ FC Note that we will be querying all the manifest files.
       //
-      if ((verb && !co.no_progress ()) || co.progress ())
-        text << "querying " << rl.url ();
+      //if ((verb && !co.no_progress ()) || co.progress ())
+      //  text << "querying " << rl.url ();
     }
 
     rep_fetch_data::fragment fr;

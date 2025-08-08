@@ -270,6 +270,32 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
+    // For the specified package version try to retrieve the archive file
+    // from the fetch cache, if enabled. In the offline mode fail if unable
+    // to do so (cache is disabled or there is no cached entry for the
+    // package version).
+    //
+    optional<fetch_cache::loaded_pkg_repository_package> crp;
+
+    if (!simulate)
+    {
+      if (cache.enabled ())
+      {
+        assert (cache.is_open ());
+
+        crp = cache.load_pkg_repository_package (pid);
+
+        if (cache.offline () && !crp)
+          fail << "no archive in fetch cache for package " << n << ' ' << v
+               << " in offline mode" <<
+            info << "consider turning offline mode off";
+      }
+      else if (cache.offline ())
+        fail << "no way to obtain package " << n << ' ' << v
+             << " in offline mode with fetch cache disabled" <<
+          info << "consider enabling fetch cache or turning offline mode off";
+    }
+
     // @@ FC Currently, we don't know at this point if the cached archive will
     //    be used. However, it seems that we can move the cache-querying code
     //    up here (only execute in non-simulating mode).
@@ -277,11 +303,13 @@ namespace bpkg
     if (verb > 1 && !simulate)
     {
       text << "fetching " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name << pdb;
+           << "from " << pl->repository_fragment->name << pdb
+           << (crp ? " (cached)" : "");
     }
     else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
     {
-      text << "fetching " << package_string (ap->id.name, ap->version) << pdb;
+      text << "fetching " << package_string (ap->id.name, ap->version) << pdb
+           << (crp ? " (cached)" : "");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
@@ -407,29 +435,6 @@ namespace bpkg
                << link << ": " << e;
         }
       };
-
-      // For the specified package version try to retrieve the archive file
-      // from the fetch cache, if enabled. In the offline mode fail if unable
-      // to do so (cache is disabled or there is no cached entry for the
-      // package version).
-      //
-      optional<fetch_cache::loaded_pkg_repository_package> crp;
-
-      if (cache.enabled ())
-      {
-        assert (cache.is_open ());
-
-        crp = cache.load_pkg_repository_package (pid);
-
-        if (cache.offline () && !crp)
-          fail << "no archive in fetch cache for package " << n << ' ' << v
-               << " in offline mode" <<
-            info << "consider turning offline mode off";
-      }
-      else if (cache.offline ())
-        fail << "no way to obtain package " << n << ' ' << v
-             << " in offline mode with fetch cache disabled" <<
-          info << "consider enabling fetch cache or turning offline mode off";
 
       // Add the package archive file to the configuration, by either using
       // its cached version in place or fetching it from the repository.

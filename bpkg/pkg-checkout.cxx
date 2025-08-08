@@ -167,21 +167,64 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from a version control-based repository";
 
+    // True if the globally cached repository needs to be used.
+    //
+    bool cached;
+
+    // True if the configuration-specific repository directory exists. In this
+    // case use that regardless of whether the fetch cache is enabled or
+    // not. The switchover only happens on rep-fetch.
+    //
+    bool config_repo_exists;
+
+    dir_path sd; // Repository state directory name.
+    dir_path rd; // Repository state directory path.
+
+    pkg_checkout_cache::state_map& cm (checkout_cache.map_);
+
+    const repository_location& rl (pl->repository_fragment->location);
+
+    if (!simulate)
+    {
+      sd = repository_state (rl);
+      rd = rdb.config_orig / repos_dir / sd;
+
+      // Convert the 12 characters checksum abbreviation to 16 characters for
+      // the repository directory names.
+      //
+      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
+      //
+      {
+        const string& s (rd.string ());
+        dir_path d (s, s.size () - 4);
+
+        if (exists (d))
+          mv (d, rd);
+      }
+
+      // Check if the configuration-specific repository directory exists. Note
+      // that it can already be in the checkout cache, so check there first.
+      //
+      config_repo_exists = (cm.find (rd) != cm.end () || exists (rd));
+
+      cached = !config_repo_exists && fetch_cache.enabled ();
+    }
+
     if (verb > 1 && !simulate)
     {
       text << "checking out " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name << pdb;
+           << "from " << pl->repository_fragment->name << pdb
+           << (cached ? " (cached)" : "");
     }
     else if (((verb && !o.no_progress ()) || o.progress ()) && !simulate)
     {
       text << "checking out "
-           << package_string (ap->id.name, ap->version) << pdb;
+           << package_string (ap->id.name, ap->version) << pdb
+           << (cached ? " (cached)" : "");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});
-
-    const repository_location& rl (pl->repository_fragment->location);
 
     auto_rmdir rmd;
     const dir_path& ord (output_root ? *output_root : c);
@@ -199,27 +242,6 @@ namespace bpkg
       if (exists (d))
         fail << "package directory " << d << " already exists";
 
-      // Check that the repository directory exists, which may not be the case
-      // if the previous checkout have failed or been interrupted.
-      //
-      dir_path sd (repository_state (rl));
-      dir_path rd (rdb.config_orig / repos_dir / sd);
-
-      // Convert the 12 characters checksum abbreviation to 16 characters for
-      // the repository directory names.
-      //
-      // @@ TMP Remove this some time after the toolchain 0.18.0 is released.
-      //
-      {
-        const string& s (rd.string ());
-        dir_path d (s, s.size () - 4);
-
-        if (exists (d))
-          mv (d, rd);
-      }
-
-      bool config_repo_exists (exists (rd));
-
       // Use the temporary directory from the repository information source
       // configuration, so that we can always move the repository into and out
       // of it (note that if they appear on different filesystems that won't
@@ -231,17 +253,12 @@ namespace bpkg
 
       using state = pkg_checkout_cache::state;
 
-      pkg_checkout_cache::state_map& cm (checkout_cache.map_);
       pkg_checkout_cache::state_map::iterator i;
 
       // NOTE: keep the subsequent checkout logic of using fetch cache and
       //       configuration-specific repository cache parallel.
 
-      // If the configuration-specific repository directory exists, then use
-      // that regardless of whether the fetch cache is enabled or not. The
-      // switchover only happens on rep-fetch.
-      //
-      if (!config_repo_exists && fetch_cache.enabled ())
+      if (cached)
       {
         assert (fetch_cache.is_open ());
 
