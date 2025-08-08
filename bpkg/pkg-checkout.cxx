@@ -32,22 +32,13 @@ namespace bpkg
   checkout (const common_options& o,
             fetch_cache& cache,
             const repository_location& rl,
-            const dir_path& dir,
-            const shared_ptr<available_package>& ap,
-            database& db)
+            const dir_path& dir)
   {
     switch (rl.type ())
     {
     case repository_type::git:
       {
         assert (rl.fragment ());
-
-        // Print the progress indicator to attribute the possible fetching
-        // progress.
-        //
-        if ((verb && !o.no_progress ()) || o.progress ())
-          text << "checking out "
-               << package_string (ap->id.name, ap->version) << db;
 
         git_checkout (o, dir, *rl.fragment ());
 
@@ -177,8 +168,15 @@ namespace bpkg
            << " is not available from a version control-based repository";
 
     if (verb > 1 && !simulate)
+    {
       text << "checking out " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name;
+           << "from " << pl->repository_fragment->name << pdb;
+    }
+    else if (((verb && !o.no_progress ()) || o.progress ()) && !simulate)
+    {
+      text << "checking out "
+           << package_string (ap->id.name, ap->version) << pdb;
+    }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});
@@ -333,7 +331,7 @@ namespace bpkg
           //
           s.valid = false; // Make invalid not to save fetch entry on failure.
 
-          if (!checkout (o, fetch_cache, rl, td, ap, pdb))
+          if (!checkout (o, fetch_cache, rl, td))
           {
             s.valid = true;  // Save the fetch entry since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.
@@ -432,7 +430,7 @@ namespace bpkg
           //
           s.valid = false; // Make invalid not to restore on failure.
 
-          if (!checkout (o, fetch_cache, rl, td, ap, pdb))
+          if (!checkout (o, fetch_cache, rl, td))
           {
             s.valid = true;  // Restore the repository since not spoiled.
             throw failed (); // Note: the diagnostics has already been issued.

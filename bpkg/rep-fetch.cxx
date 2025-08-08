@@ -148,15 +148,31 @@ namespace bpkg
     optional<signature_manifest> sm;
     optional<pair<pkg_package_manifests, string /* checksum */>> pmc;
 
+    // @@ FC Note that that there may or may not be the 'fetching ...' line
+    //    printed already (see rep-info (never) and rep-fetch (sometimes) for
+    //    details).
+
     if (crm)
     {
       if (crm->repositories_checksum.empty ())
       {
         cached_repositories_path = move (crm->repositories_path);
         cached_packages_path = move (crm->packages_path);
+
+        // @@ FC Progress telling that the metainfo comes from the fetch cache
+        //    for this repository URL.
+        //
+        // if ((verb && !co.no_progress ()) || co.progress ())
+        //   text << rl.url () << " is cached";
       }
       else
       {
+        // @@ FC Note that we will be querying at least the signature manifest
+        //       file, but potentially all of the manifest file.
+        //
+        if ((verb && !co.no_progress ()) || co.progress ())
+          text << "querying " << rl.url ();
+
         cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
         cache.stop_gc ();
@@ -190,6 +206,13 @@ namespace bpkg
             cached_repositories_path = move (crm->repositories_path);
         }
       }
+    }
+    else
+    {
+      // @@ FC Note that we will be querying all the manifest files.
+      //
+      if ((verb && !co.no_progress ()) || co.progress ())
+        text << "querying " << rl.url ();
     }
 
     rep_fetch_data::fragment fr;

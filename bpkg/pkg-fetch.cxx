@@ -270,7 +270,9 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from an archive-based repository";
 
-    // @@ Need to make consistent pkg-fetch & pkg-checkout.
+    // @@ FC Currently, we don't know at this point if the cached archive will
+    //    be used. However, it seems that we can move the cache-querying code
+    //    up here (only execute in non-simulating mode).
     //
     if (verb > 1 && !simulate)
     {

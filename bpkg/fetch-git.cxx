@@ -634,6 +634,13 @@ namespace bpkg
            << " in offline mode" <<
         info << "consider turning offline mode off";
 
+    // @@ FC This progress line would normally follow 'querying ...' or
+    //    'fetching from ...' progress (maybe sometimes it would preceed the
+    //    latter one). So we can probably omit it.
+    //
+    // if ((verb && !co.no_progress ()) || co.progress ())
+    //   text << "sensing " << url;
+
     // Craft the URL for sensing the capabilities.
     //
     repository_url url (repo_url);
@@ -671,7 +678,7 @@ namespace bpkg
       {
         if (cache.enabled () && cache.is_open () && cache.active_gc ())
           cache.stop_gc (true /* ignore_errors */);
-      }));
+      });
 
     // Note that for the sensing request we specify the version 2 of the git
     // wire protocol as preferable, regardless if the client supports it or
@@ -1141,11 +1148,25 @@ namespace bpkg
     if (i != repository_refs.end ())
       return i->second;
 
+    // @@ FC Note that progress lines in this function can be followed by
+    //    multiple 'fetching from ...' and/or '... is cached' progress lines,
+    //    if there are multiple git repo URLs which only differ in fragment
+    //    component. Note that the url argument never contains the fragment.
+    //
+    //    Also note that that there may or may not be the 'fetching
+    //    ...#<fragment>' line printed already (see rep-info (never) and
+    //    rep-fetch (sometimes) for details).
+
     // Use the cached git-ls-remote output, if present.
     //
     if (!ls_remote.empty () && exists (ls_remote))
     try
     {
+      // @@ FC Progress when we take ls-remote from the fetch cache.
+      //
+      //if ((verb && !co.no_progress ()) || co.progress ())
+      //  text << url << " is up to date";
+
       // Do not throw when failbit is set (getline() failed to extract any
       // character).
       //
@@ -1188,7 +1209,7 @@ namespace bpkg
         {
           if (cache.enabled () && cache.is_open () && cache.active_gc ())
             cache.stop_gc (true /* ignore_errors */);
-        }));
+        });
 
       // Note: ls-remote doesn't print anything to stderr, so no progress
       // suppression is required.
@@ -1771,7 +1792,16 @@ namespace bpkg
     // Bail out if all commits are already fetched.
     //
     if (!fetch_repo && scs.empty () && dcs.empty ())
+    {
+      // @@ FC Progress telling that all the requested commits come from the
+      //    global or configuration-specific cache for this repository
+      //    URL. Note that the URL never contains the fragment.
+      //
+      // if ((verb && !co.no_progress ()) || co.progress ())
+      //   text << url () << " is cached";
+
       return sort (move (r));
+    }
 
     if (cache.offline ())
       fail << "unable to fetch repository " << url () << " in offline mode" <<
@@ -1884,7 +1914,7 @@ namespace bpkg
         {
           if (cache.enabled () && cache.is_open () && cache.active_gc ())
             cache.stop_gc (true /* ignore_errors */);
-        }));
+        });
 
       // Note that passing --no-tags is not just an optimization. Not doing so
       // we may end up with the "would clobber existing tag" git error for a
