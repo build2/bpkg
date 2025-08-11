@@ -634,12 +634,15 @@ namespace bpkg
            << " in offline mode" <<
         info << "consider turning offline mode off";
 
-    // @@ FC This progress line would normally follow 'querying ...' or
-    //    'fetching from ...' progress and sometimes it would preceed the
-    //    latter one.
+#if 0
+    // This progress line would normally follow 'querying ...' or 'fetching
+    // from ...' progress and sometimes it would preceed the latter one.
     //
-    // if ((verb && !co.no_progress ()) || co.progress ())
-    //   text << "sensing " << url;
+    // Let's omit it for now, feels like noise.
+    //
+    if ((verb && !co.no_progress ()) || co.progress ())
+      text << "sensing " << url;
+#endif
 
     // Craft the URL for sensing the capabilities.
     //
@@ -1133,6 +1136,8 @@ namespace bpkg
   // function was already called for this URL, etc). In the offline mode fail
   // if any network interaction needs to be performed.
   //
+  // Note: always prints "querying ..." progress.
+  //
   using probe_function = void ();
 
   static const refs&
@@ -1140,43 +1145,64 @@ namespace bpkg
              fetch_cache& cache,
              const repository_url& url,
              const path& ls_remote,
-             const function<probe_function>& probe = nullptr)
+             const function<probe_function>& probe)
   {
     string u (url.string ());
     auto i (repository_refs.find (u));
 
-    if (i != repository_refs.end ())
-      return i->second;
+    // Note that that there always be the 'fetching ...#<fragment>' line
+    // printed already.
 
-    // @@ FC Note that progress lines in this function can be followed by
-    //    multiple 'fetching from ...' and/or '... is cached' progress lines,
-    //    if there are multiple git repo URLs which only differ in fragment
-    //    component. Note that the url argument never contains the fragment.
-    //
-    //    Also note that that there always be the 'fetching ...#<fragment>'
-    //    line printed already.
+    if (i != repository_refs.end ())
+    {
+      if ((verb && !co.no_progress ()) || co.progress ())
+        text << "skipped validating " << url << " (already done)";
+
+      return i->second;
+    }
 
     // Use the cached git-ls-remote output, if present.
     //
-    if (!ls_remote.empty () && exists (ls_remote))
-    try
+    if (!ls_remote.empty ())
     {
-      // @@ FC Progress when we take ls-remote from the fetch cache.
-      //
-      //if ((verb && !co.no_progress ()) || co.progress ())
-      //  text << url << " is up to date";
+      if (exists (ls_remote))
+      {
+        // Valid cached ls-remote output.
+        //
+        if ((verb && !co.no_progress ()) || co.progress ())
+        {
+          text << "skipped validating cached " << url << " (" << r << ')';
+        }
 
-      // Do not throw when failbit is set (getline() failed to extract any
-      // character).
-      //
-      ifdstream ifs (ls_remote, ifdstream::badbit);
-      refs rs (load_refs (ifs, ls_remote.string ()));
-      ifs.close ();
-      return repository_refs.emplace (move (u), move (rs)).first->second;
+        try
+        {
+          // Do not throw when failbit is set (getline() failed to extract any
+          // character).
+          //
+          ifdstream ifs (ls_remote, ifdstream::badbit);
+          refs rs (load_refs (ifs, ls_remote.string ()));
+          ifs.close ();
+          return repository_refs.emplace (move (u), move (rs)).first->second;
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read references from " << ls_remote << ": " << e;
+        }
+      }
+      else
+      {
+        // Cached ls-remote output to be validated.
+        //
+        if ((verb && !co.no_progress ()) || co.progress ())
+          text << "validating cached " << rl.url ();
+      }
     }
-    catch (const io_error& e)
+    else
     {
-      fail << "unable to read references from " << ls_remote << ": " << e;
+      // Fetch cache disabled.
+      //
+      if ((verb && !co.no_progress ()) || co.progress ())
+        text << "querying " << url;
     }
 
     // Run git-ls-remote, unless in the offline mode.
@@ -1184,9 +1210,6 @@ namespace bpkg
     if (cache.offline ())
       fail << "unable to fetch repository " << url << " in offline mode" <<
         info << "consider turning offline mode off";
-
-    if ((verb && !co.no_progress ()) || co.progress ())
-      text << "querying " << url;
 
     if (probe)
       probe ();
@@ -1282,6 +1305,8 @@ namespace bpkg
   // Return true if a commit is advertised by the remote repository. It is
   // assumed that sense_capabilities() function was already called for the URL.
   //
+  // @@ make lamba, capture and set qprog.
+  //
   static bool
   commit_advertized (const common_options& co,
                      fetch_cache& cache,
@@ -1292,7 +1317,8 @@ namespace bpkg
     return load_refs (co,
                       cache,
                       url,
-                      ls_remote).find_commit (commit) != nullptr;
+                      ls_remote,
+                      nullptr).find_commit (commit) != nullptr;
   }
 
   bool
@@ -1356,6 +1382,8 @@ namespace bpkg
 
   // Return true if the shallow fetch is possible for the reference.
   //
+  // @@ make lamba, capture and set qprog.
+  //
   static bool
   shallow_fetch (const common_options& co,
                  fetch_cache& cache,
@@ -1401,6 +1429,7 @@ namespace bpkg
          bool& started_fetching)
   {
     assert (!rfs.empty ());
+    assert (submodule.empty () || ls_remote.empty ());
 
     // We will delay calculating the remote origin URL and/or sensing
     // capabilities until we really need them. Under some plausible scenarios
@@ -1416,6 +1445,21 @@ namespace bpkg
 
       return ou;
     };
+
+    // True if "querying ..." progress has been printed for url().
+    //
+    // Note that we always print a "querying ..." or equivalent line but
+    // this happens in three different places:
+    //
+    // 1. In load_refs() when we need ls-remote output.
+    //
+    // 2. Below when we don't need ls-remote and bailing out before fetching
+    //    anything because all the commits are fetched.
+    //
+    // 3. Below when we are fetching some missing commits (we print this line
+    //    regardless of whether we needed ls-remote or not).
+    //
+    bool qprog (false);
 
     auto caps = [&co, &cache, &url, &cap] () -> capabilities
     {
@@ -1452,6 +1496,8 @@ namespace bpkg
                       (const string& refname, bool abbr_commit)
       -> refs::search_result
     {
+      // @@ Set qprog.
+
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
@@ -1471,6 +1517,8 @@ namespace bpkg
       //
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
+
+      // @@ set qprog.
 
       for (const ref& rf: load_refs (co, cache, url (), ls_remote, probe))
       {
@@ -1618,6 +1666,8 @@ namespace bpkg
           //
           // Note that it is assumed that the URL has already been probed by
           // the above default_references() or references() call.
+          //
+          // @@ set qprog
           //
           const string& c (
             load_refs (co, cache, url (), ls_remote).peel (r).commit);
@@ -1792,12 +1842,14 @@ namespace bpkg
     //
     if (!fetch_repo && scs.empty () && dcs.empty ())
     {
-      // @@ FC Progress telling that all the requested commits come from the
-      //    global or configuration-specific cache for this repository
-      //    URL. Note that the URL never contains the fragment.
-      //
-      // if ((verb && !co.no_progress ()) || co.progress ())
-      //   text << url () << " is cached";
+      if (!qprog)
+      {
+        if ((verb && !co.no_progress ()) || co.progress ())
+        {
+          text << "nothing to fetch from "
+               << (ls_remote.empty () ? "" : "cached ") << url;
+        }
+      }
 
       return sort (move (r));
     }
@@ -1983,10 +2035,12 @@ namespace bpkg
         diag_record dr (text);
         dr << "fetching ";
 
-        if (!submodule.empty ())
-          dr << "submodule '" << submodule.posix_string () << "' ";
+        if (submodule.empty ())
+          dr << (ls_remote.empty ? "" : "cached ")
+        else
+          dr << "submodule '" << submodule.posix_string () << "' from ";
 
-        dr << "from " << url ();
+        dr << url ();
 
         if (verb >= 2)
           dr << " in '" << dir.string () << "'"; // Used by tests.

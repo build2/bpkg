@@ -148,9 +148,6 @@ namespace bpkg
     optional<signature_manifest> sm;
     optional<pair<pkg_package_manifests, string /* checksum */>> pmc;
 
-    // @@ FC Note that that there always be the 'fetching ...' line printed
-    //    already.
-
     if (crm)
     {
       if (crm->repositories_checksum.empty ())
@@ -158,19 +155,30 @@ namespace bpkg
         cached_repositories_path = move (crm->repositories_path);
         cached_packages_path = move (crm->packages_path);
 
-        // @@ FC Progress telling that the metainfo comes from the fetch cache
-        //    for this repository URL.
+        // Valid cache.
         //
-        //if ((verb && !co.no_progress ()) || co.progress ())
-        //  text << rl.url () << " is cached";
+        if ((verb && !co.no_progress ()) || co.progress ())
+        {
+          const char* r (nullptr);
+          switch (crm->valid_reason)
+          {
+          case fetch_cache::loaded_pkg_repository_metadata::session:
+            r = "session";
+            break;
+          case fetch_cache::loaded_pkg_repository_metadata::offline:
+            r = "offline";
+            break;
+          }
+
+          text << "skipped validating cached " << rl.url () << " (" << r << ')';
+        }
       }
       else
       {
-        // @@ FC Note that we will be querying at least the signature manifest
-        //       file, but potentially all of the manifest file.
+        // Cache to be validated.
         //
-        //if ((verb && !co.no_progress ()) || co.progress ())
-        //  text << "querying " << rl.url ();
+        if ((verb && !co.no_progress ()) || co.progress ())
+          text << "validating cached " << rl.url ();
 
         cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
@@ -208,10 +216,10 @@ namespace bpkg
     }
     else
     {
-      // @@ FC Note that we will be querying all the manifest files.
+      // Nothing in the cache, full fetch.
       //
-      //if ((verb && !co.no_progress ()) || co.progress ())
-      //  text << "querying " << rl.url ();
+      if ((verb && !co.no_progress ()) || co.progress ())
+        text << "querying " << rl.url ();
     }
 
     rep_fetch_data::fragment fr;
