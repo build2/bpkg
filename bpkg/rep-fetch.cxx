@@ -159,18 +159,8 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          const char* r (nullptr);
-          switch (crm->valid_reason)
-          {
-          case fetch_cache::loaded_pkg_repository_metadata::session:
-            r = "session";
-            break;
-          case fetch_cache::loaded_pkg_repository_metadata::offline:
-            r = "offline";
-            break;
-          }
-
-          text << "skipped validating cached " << rl.url () << " (" << r << ')';
+          text << "skipped validating cached " << rl.url ()
+               << (cache.offline () ? " (offline)" : " (session)");
         }
       }
       else

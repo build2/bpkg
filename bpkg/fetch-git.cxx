@@ -1087,9 +1087,9 @@ namespace bpkg
   // through the io_error exception on the stream error.
   //
   static refs
-  load_refs (ifdstream& is, const string& name)
+  load_references (ifdstream& is, const string& name)
   {
-    tracer trace ("load_refs");
+    tracer trace ("load_references");
 
     refs r;
     for (string l; !eof (getline (is, l)); )
@@ -1141,11 +1141,11 @@ namespace bpkg
   using probe_function = void ();
 
   static const refs&
-  load_refs (const common_options& co,
-             fetch_cache& cache,
-             const repository_url& url,
-             const path& ls_remote,
-             const function<probe_function>& probe)
+  load_references (const common_options& co,
+                   fetch_cache& cache,
+                   const repository_url& url,
+                   const path& ls_remote,
+                   const function<probe_function>& probe)
   {
     string u (url.string ());
     auto i (repository_refs.find (u));
@@ -1156,7 +1156,7 @@ namespace bpkg
     if (i != repository_refs.end ())
     {
       if ((verb && !co.no_progress ()) || co.progress ())
-        text << "skipped validating " << url << " (already done)";
+        text << "skipped validating " << u << " (already done)";
 
       return i->second;
     }
@@ -1171,7 +1171,8 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped validating cached " << url << " (" << r << ')';
+          text << "skipped validating cached " << u
+               << (cache.offline () ? " (offline)" : " (session)");
         }
 
         try
@@ -1180,7 +1181,7 @@ namespace bpkg
           // character).
           //
           ifdstream ifs (ls_remote, ifdstream::badbit);
-          refs rs (load_refs (ifs, ls_remote.string ()));
+          refs rs (load_references (ifs, ls_remote.string ()));
           ifs.close ();
           return repository_refs.emplace (move (u), move (rs)).first->second;
         }
@@ -1194,7 +1195,7 @@ namespace bpkg
         // Cached ls-remote output to be validated.
         //
         if ((verb && !co.no_progress ()) || co.progress ())
-          text << "validating cached " << rl.url ();
+          text << "validating cached " << u;
       }
     }
     else
@@ -1202,13 +1203,13 @@ namespace bpkg
       // Fetch cache disabled.
       //
       if ((verb && !co.no_progress ()) || co.progress ())
-        text << "querying " << url;
+        text << "querying " << u;
     }
 
     // Run git-ls-remote, unless in the offline mode.
     //
     if (cache.offline ())
-      fail << "unable to fetch repository " << url << " in offline mode" <<
+      fail << "unable to fetch repository " << u << " in offline mode" <<
         info << "consider turning offline mode off";
 
     if (probe)
@@ -1250,7 +1251,7 @@ namespace bpkg
       try
       {
         ifdstream is (move (pipe.in), fdstream_mode::skip, ifdstream::badbit);
-        rs = load_refs (is, url.string ());
+        rs = load_references (is, u);
         is.close ();
 
         if (pr.wait ())
@@ -1268,7 +1269,7 @@ namespace bpkg
       catch (const io_error&)
       {
         if (pr.wait ())
-          fail << "unable to read references for " << url << endg;
+          fail << "unable to read references for " << u << endg;
 
         // Fall through.
       }
@@ -1277,7 +1278,7 @@ namespace bpkg
       //
       assert (!pr.wait ());
 
-      fail << "unable to list references for " << url << endg;
+      fail << "unable to list references for " << u << endg;
     }
 
     // Cache the git-ls-remote output, if requested.
@@ -1300,25 +1301,6 @@ namespace bpkg
     }
 
     return repository_refs.emplace (move (u), move (rs)).first->second;
-  }
-
-  // Return true if a commit is advertised by the remote repository. It is
-  // assumed that sense_capabilities() function was already called for the URL.
-  //
-  // @@ make lamba, capture and set qprog.
-  //
-  static bool
-  commit_advertized (const common_options& co,
-                     fetch_cache& cache,
-                     const repository_url& url,
-                     const string& commit,
-                     const path& ls_remote)
-  {
-    return load_refs (co,
-                      cache,
-                      url,
-                      ls_remote,
-                      nullptr).find_commit (commit) != nullptr;
   }
 
   bool
@@ -1380,39 +1362,6 @@ namespace bpkg
                 "+refs/heads/*:refs/remotes/origin/*");
   }
 
-  // Return true if the shallow fetch is possible for the reference.
-  //
-  // @@ make lamba, capture and set qprog.
-  //
-  static bool
-  shallow_fetch (const common_options& co,
-                 fetch_cache& cache,
-                 const repository_url& url,
-                 capabilities cap,
-                 const git_ref_filter& rf,
-                 const path& ls_remote)
-  {
-    switch (cap)
-    {
-    case capabilities::dumb:
-      {
-        return false;
-      }
-    case capabilities::smart:
-      {
-        return !rf.commit ||
-               commit_advertized (co, cache, url, *rf.commit, ls_remote);
-      }
-    case capabilities::unadv:
-      {
-        return true;
-      }
-    }
-
-    assert (false); // Can't be here.
-    return false;
-  }
-
   // Fetch and return repository fragments resolved using the specified
   // repository reference filters. Regardless whether the function has failed
   // or not, return an indication if git-fetch has been called
@@ -1451,7 +1400,7 @@ namespace bpkg
     // Note that we always print a "querying ..." or equivalent line but
     // this happens in three different places:
     //
-    // 1. In load_refs() when we need ls-remote output.
+    // 1. In load_references() when we need ls-remote output.
     //
     // 2. Below when we don't need ls-remote and bailing out before fetching
     //    anything because all the commits are fetched.
@@ -1459,7 +1408,21 @@ namespace bpkg
     // 3. Below when we are fetching some missing commits (we print this line
     //    regardless of whether we needed ls-remote or not).
     //
+    // Also note that we need to make sure that load_references() is called
+    // only once, since it prints the progress on every call, even when the
+    // advertized refs/commits are already cached in the memory.
+    //
     bool qprog (false);
+
+    const refs* lrs (nullptr);
+    auto load_refs = [&co, &cache, &url, &ls_remote, &lrs]
+                     (const function<probe_function>& probe) -> const refs&
+    {
+      if (lrs == nullptr)
+        lrs = &load_references (co, cache, url (), ls_remote, probe);
+
+      return *lrs;
+    };
 
     auto caps = [&co, &cache, &url, &cap] () -> capabilities
     {
@@ -1492,24 +1455,21 @@ namespace bpkg
 
     function<probe_function> probe ([&caps] () {caps ();});
 
-    auto references = [&co, &cache, &url, &ls_remote, &probe]
-                      (const string& refname, bool abbr_commit)
+    auto references = [&probe, &qprog, &load_refs] (const string& refname,
+                                                    bool abbr_commit)
       -> refs::search_result
     {
-      // @@ Set qprog.
+      qprog = true;
 
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
-      return load_refs (co, cache,
-                        url (),
-                        ls_remote,
-                        probe).search_names (refname, abbr_commit);
+      return load_refs (probe).search_names (refname, abbr_commit);
     };
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&co, &cache, &url, &ls_remote, &probe] ()
+    auto default_references = [&probe, &qprog, &load_refs] ()
       -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
@@ -1518,9 +1478,9 @@ namespace bpkg
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
 
-      // @@ set qprog.
+      qprog = true;
 
-      for (const ref& rf: load_refs (co, cache, url (), ls_remote, probe))
+      for (const ref& rf: load_refs (probe))
       {
         if (!rf.peeled && rf.name.compare (0, 11, "refs/tags/v") == 0)
         {
@@ -1634,16 +1594,49 @@ namespace bpkg
           fspecs.erase (i);
       };
 
+      // Return true if a commit is advertised by the remote repository. It is
+      // assumed that sense_capabilities() function was already called for the
+      // URL.
+      //
+      auto commit_advertized = [&qprog, &load_refs] (const string& commit)
+      {
+        qprog = true;
+
+        return load_refs (nullptr /* probe */).find_commit (commit) != nullptr;
+      };
+
       // Evaluate if the commit can be obtained with the shallow fetch. We will
       // delay this evaluation until we really need it. Under some plausible
       // scenarios we may do without it.
       //
+      // Note: calls sense_capabilities() function.
+      //
       optional<bool> sh;
-      auto shallow = [&co, &cache, &url, &caps, &rf, &sh, &ls_remote] ()
-        -> bool
+      auto shallow = [&caps, &rf, &commit_advertized, &sh] ()
       {
         if (!sh)
-          sh = shallow_fetch (co, cache, url (), caps (), rf, ls_remote);
+        {
+          switch (caps ())
+          {
+          case capabilities::dumb:
+            {
+              sh = false;
+              break;
+            }
+          case capabilities::smart:
+            {
+              sh = (!rf.commit || commit_advertized (*rf.commit));
+              break;
+            }
+          case capabilities::unadv:
+            {
+              sh = true;
+              break;
+            }
+          }
+
+          assert (sh);
+        }
 
         return *sh;
       };
@@ -1667,10 +1660,9 @@ namespace bpkg
           // Note that it is assumed that the URL has already been probed by
           // the above default_references() or references() call.
           //
-          // @@ set qprog
-          //
-          const string& c (
-            load_refs (co, cache, url (), ls_remote).peel (r).commit);
+          qprog = true;
+
+          const string& c (load_refs (nullptr /* probe */).peel (r).commit);
 
           if (!rf.exclusion)
           {
@@ -1748,10 +1740,10 @@ namespace bpkg
 
         // Fetch deep in both cases.
         //
-        add_spec (c,
-                  (commit_advertized (co, cache, url (), c, ls_remote)
-                   ? strings ({c})
-                   : strings ()));
+        // Note that it is assumed that the URL has already been probed by
+        // the above shallow() call.
+        //
+        add_spec (c, commit_advertized (c) ? strings ({c}) : strings ());
       }
     }
 
@@ -1847,7 +1839,7 @@ namespace bpkg
         if ((verb && !co.no_progress ()) || co.progress ())
         {
           text << "nothing to fetch from "
-               << (ls_remote.empty () ? "" : "cached ") << url;
+               << (ls_remote.empty () ? "" : "cached ") << url ();
         }
       }
 
@@ -1861,7 +1853,7 @@ namespace bpkg
     // Fetch the refspecs. If no refspecs are specified, then fetch the
     // whole repository history.
     //
-    auto fetch = [&co, &cache, &url, &ls_remote, &dir, &caps, &started_fetching]
+    auto fetch = [&co, &cache, &url, &dir, &caps, &load_refs, &started_fetching]
                  (const strings& refspecs, bool shallow)
     {
       // We don't shallow fetch the whole repository.
@@ -1888,8 +1880,10 @@ namespace bpkg
 
         for (const string& c: refspecs)
         {
-          const ref* r (
-            load_refs (co, cache, url (), ls_remote).find_commit (c));
+          // Note that it is assumed that the URL has already been probed by
+          // the above default_references(), references(), or shallow() call.
+          //
+          const ref* r (load_refs (nullptr /* probe */).find_commit (c));
 
           assert (r != nullptr); // Otherwise we would fail earlier.
 
@@ -2036,7 +2030,7 @@ namespace bpkg
         dr << "fetching ";
 
         if (submodule.empty ())
-          dr << (ls_remote.empty ? "" : "cached ")
+          dr << (ls_remote.empty () ? "" : "cached ");
         else
           dr << "submodule '" << submodule.posix_string () << "' from ";
 

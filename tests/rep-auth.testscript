@@ -155,6 +155,7 @@ sc = " " # Space character to append to here-document line when required.
 
     $rep_fetch 2>>/~%EOE%
       %fetching .+/no-auth/signed%
+      %querying .+signed%
       1 package(s) in 1 repository(s)
       EOE
   }
@@ -179,8 +180,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch 2>>"EOE" != 0
+      $rep_fetch 2>>~"%EOE%" != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         warning: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         certificate is for build2.org, "Code Synthesis" <info@build2.org>
         certificate SHA256 fingerprint:
@@ -239,8 +241,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0
+      $rep_fetch --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         error: authenticity of the certificate for repository pkg:build2.org/rep-auth/signed cannot be established
         EOE
 
@@ -252,8 +255,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-yes --trust-no 2>>EOE != 0
+      $rep_fetch --trust-yes --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/signed
+        %querying .+signed%
         error: --trust-yes and --trust-no are mutually exclusive
         EOE
 
@@ -368,8 +372,9 @@ sc = " " # Space character to append to here-document line when required.
           mkdir -p $r
           cp -r $rep/self-match $r
 
-          $rep_info $r/self-match 2>>EOE != 0
+          $rep_info $r/self-match 2>>~%EOE% != 0
             fetching pkg:b.a.build2.org/self-match
+            %querying .+self-match%
             error: certificate name mismatch for repository pkg:b.a.build2.org/self-match
               info: certificate name is *build2.org
             EOE
@@ -442,8 +447,9 @@ sc = " " # Space character to append to here-document line when required.
           mkdir -p $r
           cp -r $rep/subdomain-match $r
 
-          $rep_info $r/subdomain-match 2>>EOE != 0
+          $rep_info $r/subdomain-match 2>>~%EOE% != 0
             fetching pkg:b.a.build2.org/subdomain-match
+            %querying .+subdomain-match%
             error: certificate name mismatch for repository pkg:b.a.build2.org/subdomain-match
               info: certificate name is *.build2.org
             EOE
@@ -469,6 +475,7 @@ sc = " " # Space character to append to here-document line when required.
 
       $rep_fetch 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/unsigned1
+        %querying .+unsigned1%
         warning: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         %continue without authenticating repositories at .+\? \[y/n\] %
         error: unable to read y/n answer from stdin
@@ -496,8 +503,9 @@ sc = " " # Space character to append to here-document line when required.
     {
       $clone_cfg
 
-      $rep_fetch --trust-no 2>>EOE != 0
+      $rep_fetch --trust-no 2>>~%EOE% != 0
         fetching pkg:build2.org/rep-auth/unsigned1
+        %querying .+unsigned1%
         error: repository pkg:build2.org/rep-auth/unsigned1 is unsigned
         EOE
 
