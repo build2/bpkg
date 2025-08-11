@@ -128,6 +128,7 @@
 pkg_status += -d cfg
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg
+rep_info   += 2>!
 
 # Check if rep-fetch command was successfull or not.
 #
@@ -368,6 +369,7 @@ sc = " " # Space character to append to here-document line when required.
           cp -r $rep/self-match $r
 
           $rep_info $r/self-match 2>>EOE != 0
+            fetching pkg:b.a.build2.org/self-match
             error: certificate name mismatch for repository pkg:b.a.build2.org/self-match
               info: certificate name is *build2.org
             EOE
@@ -441,6 +443,7 @@ sc = " " # Space character to append to here-document line when required.
           cp -r $rep/subdomain-match $r
 
           $rep_info $r/subdomain-match 2>>EOE != 0
+            fetching pkg:b.a.build2.org/subdomain-match
             error: certificate name mismatch for repository pkg:b.a.build2.org/subdomain-match
               info: certificate name is *.build2.org
             EOE

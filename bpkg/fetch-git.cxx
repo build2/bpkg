@@ -635,8 +635,8 @@ namespace bpkg
         info << "consider turning offline mode off";
 
     // @@ FC This progress line would normally follow 'querying ...' or
-    //    'fetching from ...' progress (maybe sometimes it would preceed the
-    //    latter one). So we can probably omit it.
+    //    'fetching from ...' progress and sometimes it would preceed the
+    //    latter one.
     //
     // if ((verb && !co.no_progress ()) || co.progress ())
     //   text << "sensing " << url;
@@ -1153,9 +1153,8 @@ namespace bpkg
     //    if there are multiple git repo URLs which only differ in fragment
     //    component. Note that the url argument never contains the fragment.
     //
-    //    Also note that that there may or may not be the 'fetching
-    //    ...#<fragment>' line printed already (see rep-info (never) and
-    //    rep-fetch (sometimes) for details).
+    //    Also note that that there always be the 'fetching ...#<fragment>'
+    //    line printed already.
 
     // Use the cached git-ls-remote output, if present.
     //

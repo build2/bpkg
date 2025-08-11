@@ -3618,11 +3618,7 @@ namespace bpkg
       // the main database will be used.
       //
       for (const auto& l: locations)
-        rep_fetch (o,
-                   l.first,
-                   l.second,
-                   o.fetch_shallow (),
-                   string () /* reason for "fetching ..." */);
+        rep_fetch (o, l.first, l.second, o.fetch_shallow ());
     }
 
     // Now, as repo_configs is filled and the repositories are fetched mask

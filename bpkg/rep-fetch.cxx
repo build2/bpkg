@@ -148,9 +148,8 @@ namespace bpkg
     optional<signature_manifest> sm;
     optional<pair<pkg_package_manifests, string /* checksum */>> pmc;
 
-    // @@ FC Note that that there may or may not be the 'fetching ...' line
-    //    printed already (see rep-info (never) and rep-fetch (sometimes) for
-    //    details).
+    // @@ FC Note that that there always be the 'fetching ...' line printed
+    //    already.
 
     if (crm)
     {
@@ -1334,8 +1333,19 @@ namespace bpkg
              bool iu,
              bool it,
              bool ev,
-             bool lb)
+             bool lb,
+             const string& reason,
+             bool no_dir_progress)
   {
+    if (verb && (!no_dir_progress || !rl.directory_based ()))
+    {
+      diag_record dr (text);
+      dr << "fetching " << rl.canonical_name ();
+
+      if (!reason.empty ())
+        dr << " (" << reason << ")";
+    }
+
     switch (rl.type ())
     {
     case repository_type::pkg:
@@ -1373,7 +1383,9 @@ namespace bpkg
                       iu,
                       it,
                       ev,
-                      lb);
+                      lb,
+                      "" /* reason */,
+                      false /* no_dir_progress */);
   }
 
   // Return an existing repository fragment or create a new one. Update the
@@ -1749,8 +1761,6 @@ namespace bpkg
 
   using repositories = set<shared_ptr<repository>>;
 
-  // If reason is absent, then don't print the "fetching ..." progress line.
-  //
   static void
   rep_fetch (const common_options& co,
              database& db,
@@ -1763,7 +1773,8 @@ namespace bpkg
              repository_fragments& removed_fragments,
              bool shallow,
              bool full_fetch,
-             const optional<string>& reason)
+             const string& reason,
+             bool no_dir_progress)
   {
     tracer trace ("rep_fetch(rep)");
 
@@ -1806,19 +1817,6 @@ namespace bpkg
     // for reachability of the repository being removed.
     //
     removed_repositories.erase (r);
-
-    // The fetch_*() functions below will be quiet at level 1, which can be
-    // quite confusing if the download hangs.
-    //
-    if (verb && reason)
-    {
-      diag_record dr (text);
-
-      dr << "fetching " << r->name;
-
-      if (!reason->empty ())
-        dr << " (" << *reason << ")";
-    }
 
     // Save the current complements and prerequisites to later check if the
     // shallow repository fetch is possible and to register them for removal
@@ -1871,7 +1869,9 @@ namespace bpkg
                  true /* ignore_unknow */,
                  true /* ignore_toolchain */,
                  false /* expand_values */,
-                 true /* load_buildfiles */));
+                 true /* load_buildfiles */,
+                 reason,
+                 no_dir_progress));
 
     // Save for subsequent certificate authentication for repository use by
     // its dependents.
@@ -1989,7 +1989,8 @@ namespace bpkg
                    removed_fragments,
                    false /* shallow */,
                    full_fetch,
-                   what + rl.canonical_name ());
+                   what + rl.canonical_name (),
+                   false /* no_dir_progress */);
       };
 
       // Fetch complements and prerequisites.
@@ -2019,7 +2020,8 @@ namespace bpkg
              const vector<lazy_shared_ptr<repository>>& repos,
              bool shallow,
              bool full_fetch,
-             const optional<string>& reason)
+             const string& reason,
+             bool no_dir_progress)
   {
     tracer trace ("rep_fetch(repos)");
 
@@ -2060,7 +2062,8 @@ namespace bpkg
                    removed_fragments,
                    shallow,
                    full_fetch,
-                   reason);
+                   reason,
+                   no_dir_progress);
 
       // Remove dangling repositories.
       //
@@ -2374,8 +2377,7 @@ namespace bpkg
   rep_fetch (const common_options& o,
              database& db,
              const vector<repository_location>& rls,
-             bool shallow,
-             const optional<string>& reason)
+             bool shallow)
   {
     assert (session::has_current ());
 
@@ -2407,7 +2409,14 @@ namespace bpkg
       repos.emplace_back (r);
     }
 
-    rep_fetch (o, db, t, repos, shallow, false /* full_fetch */, reason);
+    rep_fetch (o,
+               db,
+               t,
+               repos,
+               shallow,
+               false /* full_fetch */,
+               "" /* reason */,
+               false /* no_dir_progress */);
 
     t.commit ();
   }
@@ -2438,7 +2447,6 @@ namespace bpkg
     //
     repository_fragment::dependencies& ua (root->complements);
 
-    optional<string> reason;
     bool full_fetch (!args.more ());
 
     if (full_fetch)
@@ -2449,11 +2457,6 @@ namespace bpkg
 
       for (const lazy_weak_ptr<repository>& r: ua)
         repos.push_back (lazy_shared_ptr<repository> (r));
-
-      // Always print "fetching ..." for complements of the root, even if
-      // there is only one.
-      //
-      reason = "";
 
       // Cleanup the available packages in advance to avoid sha256sum mismatch
       // for packages being fetched and the old available packages, that are
@@ -2497,35 +2500,16 @@ namespace bpkg
 
         repos.emplace_back (move (r));
       }
-
-      // If the user specified a single repository, then don't insult them
-      // with a pointless "fetching ..." line for this repository, unless this
-      // is a remote archive-based repository for which we will print the
-      // packages.manifest fetch progress.
-      //
-      assert (!repos.empty ());
-
-      const repository_location& rl (repos[0].load ()->location);
-
-      if (repos.size () > 1 || (rl.remote () && rl.archive_based ()))
-      {
-        // Also, as a special case (or hack, if you will), suppress these
-        // lines if all the repositories are directory-based. For such
-        // repositories there will never be any fetch progress nor can
-        // they hang.
-        //
-        for (lazy_shared_ptr<repository> r: repos)
-        {
-          if (!r.load ()->location.directory_based ())
-          {
-            reason = "";
-            break;
-          }
-        }
-      }
     }
 
-    rep_fetch (o, db, t, repos, o.shallow (), full_fetch, reason);
+    rep_fetch (o,
+               db,
+               t,
+               repos,
+               o.shallow (),
+               full_fetch,
+               "" /* reason */,
+               o.no_dir_progress ());
 
     size_t rcount (0), pcount (0);
     if (verb)

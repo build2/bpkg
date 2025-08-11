@@ -142,7 +142,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)" 2>!
         #
         tar ($posix ? : --force-local) -xf $src/git/libbar.tar &state0/***
 
-        $* --type dir "state0/libbar.git" >>~%EOO%d
+        $* --type dir "state0/libbar.git" >>~%EOO%d 2>!
           : 1
           name: libbar
           version: 1.0.0+1
@@ -170,6 +170,7 @@ $* --name $rep/testing >"pkg:build2.org/rep-info/testing ($rep/testing)" 2>!
         rm state0/libbar.git/libbar/README
 
         $* --type dir "state0/libbar.git" 2>>/~%EOE% != 0
+          %fetching .+libbar.git%
           %error: unable to read from libbar/README referenced by description-file manifest value in libbar/manifest: .+%
           %  info: repository .+%
           EOE
