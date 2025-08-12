@@ -159,8 +159,8 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped validating cached " << rl.url ()
-               << (cache.offline () ? " (offline)" : " (session)");
+          text << "skipped validating " << rl.url () << " (cache, "
+               << (cache.offline () ? "offline)" : "session)");
         }
       }
       else
@@ -168,7 +168,7 @@ namespace bpkg
         // Cache to be validated.
         //
         if ((verb && !co.no_progress ()) || co.progress ())
-          text << "validating cached " << rl.url ();
+          text << "validating " << rl.url () << " (cache)";
 
         cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);

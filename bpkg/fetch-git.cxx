@@ -1156,7 +1156,7 @@ namespace bpkg
     if (i != repository_refs.end ())
     {
       if ((verb && !co.no_progress ()) || co.progress ())
-        text << "skipped validating " << u << " (already done)";
+        text << "skipped validating " << u << " (memory cache)";
 
       return i->second;
     }
@@ -1171,8 +1171,8 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped validating cached " << u
-               << (cache.offline () ? " (offline)" : " (session)");
+          text << "skipped validating " << u << " (cache, "
+               << (cache.offline () ? "offline)" : "session)");
         }
 
         try
@@ -1195,7 +1195,7 @@ namespace bpkg
         // Cached ls-remote output to be validated.
         //
         if ((verb && !co.no_progress ()) || co.progress ())
-          text << "validating cached " << u;
+          text << "validating " << u << " (cache)";
       }
     }
     else
@@ -1838,8 +1838,8 @@ namespace bpkg
       {
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "nothing to fetch from "
-               << (ls_remote.empty () ? "" : "cached ") << url ();
+          text << "skipped fetching " << url ()
+               << (ls_remote.empty () ? " (local cache)" : " (cache)") ;
         }
       }
 
@@ -2027,17 +2027,15 @@ namespace bpkg
       //
       {
         diag_record dr (text);
-        dr << "fetching ";
-
-        if (submodule.empty ())
-          dr << (ls_remote.empty () ? "" : "cached ");
-        else
-          dr << "submodule '" << submodule.posix_string () << "' from ";
-
-        dr << url ();
+        dr << "fetching " << url ();
 
         if (verb >= 2)
           dr << " in '" << dir.string () << "'"; // Used by tests.
+
+        if (submodule.empty ())
+          dr << (ls_remote.empty () ? "" : " (cache)");
+        else
+          dr << " for submodule '" << submodule.posix_string () << "'";
       }
 
       // Print information messages prior to the deep fetching.
@@ -3054,7 +3052,7 @@ namespace bpkg
   git_verify_symlinks (const common_options& co, const dir_path& dir)
   {
     if ((verb && !co.no_progress ()) || co.progress ())
-      text << "verifying symlinks...";
+      text << "verifying symlinks";
 
     verify_symlinks (co, dir, dir_path () /* prefix */);
   }
@@ -3368,7 +3366,7 @@ namespace bpkg
                       bool fail)
   {
     if (!revert && ((verb && !co.no_progress ()) || co.progress ()))
-      text << "fixing up symlinks...";
+      text << "fixing up symlinks";
 
     try
     {

@@ -300,12 +300,12 @@ namespace bpkg
     {
       text << "fetching " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
-           << (crp ? " (cached)" : "");
+           << (crp ? " (cache)" : "");
     }
     else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
     {
       text << "fetching " << package_string (ap->id.name, ap->version) << pdb
-           << (crp ? " (cached)" : "");
+           << (crp ? " (cache)" : "");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
