@@ -210,6 +210,49 @@ namespace bpkg
     //
     #pragma db member(access_time) index
   };
+
+#if 0
+  // Cache entry for shared package source directory.
+  //
+  #pragma db object pointer(unique_ptr)
+  class shared_source_directory
+  {
+  public:
+    // Note that currently we don't really need the original version, but
+    // let's keep it if that changes in the future and for debuggability.
+    //
+    package_id id;
+    original_version version;
+
+    // Timestamp of the last time this cached entry was accessed.
+    //
+    timestamp access_time;
+
+    // Directory for this package inside the src/ directory.
+    //
+    dir_path directory;
+
+    // The origin of this package. For package archive the origin id is its
+    // SHA256 checksum as recorded in the packages.manifest file (which should
+    // match the actual contents checksum). For a git repository checkout it
+    // is the commit id. These are kept primarily for debuggability.
+    //
+    repository_url repository;
+    string         origin_id;
+
+    // @@ FC whether usage accurately tracked.
+
+    // Database mapping.
+    //
+    #pragma db member(id) id column("")
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
+    #pragma db member(directory) unique
+
+    // Speed-up queries with filtering by the access time.
+    //
+    #pragma db member(access_time) index
+  };
+#endif
 }
 
 #endif // BPKG_FETCH_CACHE_DATA_HXX

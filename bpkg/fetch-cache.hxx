@@ -52,8 +52,9 @@ namespace bpkg
   //
   // ~/.build2/cache/
   // |
-  // `-- src/  -- package source directories unpacked from archives or checked
-  //              out (and distributed) from git repositories
+  // |-- src/  -- package source directories unpacked from archives or checked
+  // |            out (and distributed) from git repositories
+  // `-- tmp/  -- temporary directory for intermediate results
   //
   // The pkg/ subdirectory has the following structure:
   //
@@ -72,6 +73,11 @@ namespace bpkg
   //     |-- repository/
   //     |   `-- .git/
   //     `-- ls-remote.txt
+  //
+  // The src/ subdirectory has the following structure:
+  //
+  // src/
+  // `-- libfoo-1.2.3/
   //
   // The directories inside metadata/ are abbreviated SHA256 hashes of
   // repository URLs. Note that the signature.manifest files are not stored:
@@ -288,9 +294,14 @@ namespace bpkg
     // is expected to use the "place to temporary and atomically move into
     // place" technique.
     //
+    // @@ FC Won't it be cleaner to just pass the path to the file and save*()
+    //    does all the moving, etc? Maybe we don't keep the archive in the
+    //    configuration if shared src is enable? Could probably pass a flag
+    //    whether to move or copy/link...
+    //
     path
     save_pkg_repository_package (package_id,
-                                 version,
+                                 version orig_version,
                                  path file,
                                  string checksum,
                                  repository_url);
@@ -355,6 +366,37 @@ namespace bpkg
     //
     dir_path
     git_repository_state_dir (repository_url) const;
+
+#if 0
+    // Shared package source directory cache API.
+    //
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between.
+    //
+  public:
+    // If the cache entry is present, then return the permanent source
+    // directory path. Otherwise return the temporary directory path which
+    // does not exist (but its containing directory does).
+    //
+    struct loaded_shared_source_directory_state
+    {
+      bool present;
+      dir_path directory;
+    };
+
+    loaded_shared_source_directory_state
+    load_shared_source_directory (const package_id&);
+
+    // Given the filled temporary directory path, add the cache entry and
+    // return the permanent source directory path.
+    //
+    dir_path
+    save_shared_source_directory (package_id,
+                                  version orig_version,
+                                  dir_path tmp_directory,
+                                  repository_url,
+                                  string origin_id);
+#endif
 
     // Implementation details (also used by cfg_create()).
     //
