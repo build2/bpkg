@@ -1384,10 +1384,8 @@ namespace bpkg
     // capabilities until we really need them. Under some plausible scenarios
     // we may do without them.
     //
-    repository_url ou;
-    optional<capabilities> cap;
-
-    auto url = [&co, &dir, &ou] () -> const repository_url&
+    auto url = [&co, &dir, ou = repository_url ()] () mutable
+      -> const repository_url&
     {
       if (ou.empty ())
         ou = origin_url (co, dir);
@@ -1395,36 +1393,8 @@ namespace bpkg
       return ou;
     };
 
-    // True if "querying ..." progress has been printed for url().
-    //
-    // Note that we always print a "querying ..." or equivalent line but
-    // this happens in three different places:
-    //
-    // 1. In load_references() when we need ls-remote output.
-    //
-    // 2. Below when we don't need ls-remote and bailing out before fetching
-    //    anything because all the commits are fetched.
-    //
-    // 3. Below when we are fetching some missing commits (we print this line
-    //    regardless of whether we needed ls-remote or not).
-    //
-    // Also note that we need to make sure that load_references() is called
-    // only once, since it prints the progress on every call, even when the
-    // advertized refs/commits are already cached in the memory.
-    //
-    bool qprog (false);
-
-    const refs* lrs (nullptr);
-    auto load_refs = [&co, &cache, &url, &ls_remote, &lrs]
-                     (const function<probe_function>& probe) -> const refs&
-    {
-      if (lrs == nullptr)
-        lrs = &load_references (co, cache, url (), ls_remote, probe);
-
-      return *lrs;
-    };
-
-    auto caps = [&co, &cache, &url, &cap] () -> capabilities
+    auto caps = [&co, &cache, &url, cap = optional<capabilities> ()] () mutable
+      -> capabilities
     {
       // Note that url() runs `git config --get remote.origin.url` command on
       // the first call, and so git version get assigned (and checked).
@@ -1455,12 +1425,46 @@ namespace bpkg
 
     function<probe_function> probe ([&caps] () {caps ();});
 
-    auto references = [&probe, &qprog, &load_refs] (const string& refname,
-                                                    bool abbr_commit)
-      -> refs::search_result
+    // True if "querying ..." progress has been printed for url().
+    //
+    // Note that we always print a "querying ..." or equivalent line but
+    // this happens in three different places:
+    //
+    // 1. In load_references() when we need ls-remote output.
+    //
+    // 2. Below when we don't need ls-remote and bailing out before fetching
+    //    anything because all the commits are fetched.
+    //
+    // 3. Below when we are fetching some missing commits (we print this line
+    //    regardless of whether we needed ls-remote or not).
+    //
+    // Also note that we need to make sure that load_references() is called
+    // only once, since it prints the progress on every call, even when the
+    // advertized refs/commits are already cached in the memory.
+    //
+    bool qprog (false);
+
+    auto load_refs = [&co,
+                      &cache,
+                      &url,
+                      &ls_remote,
+                      &qprog,
+                      lrs = static_cast<const refs*> (nullptr)]
+                     (const function<probe_function>& probe) mutable
+      -> const refs&
     {
       qprog = true;
 
+      if (lrs == nullptr)
+        lrs = &load_references (co, cache, url (), ls_remote, probe);
+
+      return *lrs;
+    };
+
+    auto references = [&probe, &load_refs] (const string& refname,
+                                            bool abbr_commit)
+      -> refs::search_result
+    {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
@@ -1469,16 +1473,13 @@ namespace bpkg
 
     // Return the default reference set (see repository-types(1) for details).
     //
-    auto default_references = [&probe, &qprog, &load_refs] ()
-      -> refs::search_result
+    auto default_references = [&probe, &load_refs] () -> refs::search_result
     {
       // Make sure the URL is probed before running git-ls-remote (see
       // load_refs() for details).
       //
       refs::search_result r;
       vector<standard_version> vs; // Parallel to search_result.
-
-      qprog = true;
 
       for (const ref& rf: load_refs (probe))
       {
@@ -1598,10 +1599,8 @@ namespace bpkg
       // assumed that sense_capabilities() function was already called for the
       // URL.
       //
-      auto commit_advertized = [&qprog, &load_refs] (const string& commit)
+      auto commit_advertized = [&load_refs] (const string& commit)
       {
-        qprog = true;
-
         return load_refs (nullptr /* probe */).find_commit (commit) != nullptr;
       };
 
@@ -1611,8 +1610,10 @@ namespace bpkg
       //
       // Note: calls sense_capabilities() function.
       //
-      optional<bool> sh;
-      auto shallow = [&caps, &rf, &commit_advertized, &sh] ()
+      auto shallow = [&caps,
+                      &rf,
+                      &commit_advertized,
+                      sh = optional<bool> ()] () mutable
       {
         if (!sh)
         {
@@ -1660,8 +1661,6 @@ namespace bpkg
           // Note that it is assumed that the URL has already been probed by
           // the above default_references() or references() call.
           //
-          qprog = true;
-
           const string& c (load_refs (nullptr /* probe */).peel (r).commit);
 
           if (!rf.exclusion)
@@ -1838,8 +1837,13 @@ namespace bpkg
       {
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped fetching " << url ()
-               << (ls_remote.empty () ? " (local cache)" : " (cache)") ;
+          diag_record dr (text);
+          dr << "skipped fetching " << url ();
+
+          if (submodule.empty ())
+            dr << (ls_remote.empty () ? " (local cache)" : " (cache)");
+          else
+            dr << " for submodule '" << submodule.posix_string () << "'";
         }
       }
 

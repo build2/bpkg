@@ -79,25 +79,25 @@
     }
 
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%"
-      checking out libfoo/1.0.0
+      checking out libfoo/1.0.0 \(local cache\)
       %querying .+style\.git%?
-      %fetching submodule 'doc/style' from .+style\.git%
+      %fetching .+style\.git for submodule 'doc/style'%
       $info1
       %submodule path 'doc/style': checked out .+%
       %querying .+style-basic\.git%?
-      %fetching submodule 'doc/style/basic' from .+style-basic\.git%
+      %fetching .+style-basic\.git for submodule 'doc/style/basic'%
       $info2
       %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbar\.git%?
-      %fetching submodule 'libbar' from .+libbar\.git%
+      %fetching .+libbar\.git for submodule 'libbar'%
       $info3
       %submodule path 'libbar': checked out .+%
-      %skipped validating .+style-basic.git .already done.%?
-      %fetching submodule 'libbar/extras' from .+style-basic\.git+%
+      %skipped validating .+style-basic.git .memory cache.%?
+      %fetching .+style-basic\.git+ for submodule 'libbar/extras'%
       $info4
       %submodule path 'libbar/extras': checked out .+%
-      verifying symlinks...
-      %fixing up symlinks...%?
+      verifying symlinks
+      %fixing up symlinks%?
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
       EOE
@@ -142,19 +142,19 @@
     }
 
     $pkg_checkout libfoo/1.0.0 2>>~"%EOE%"
-      checking out libfoo/1.0.0
+      checking out libfoo/1.0.0 \(local cache\)
       %querying .+style\.git%?
-      %fetching submodule 'doc/style' from .+style\.git%
+      %fetching .+style\.git for submodule 'doc/style'%
       $info1
       %submodule path 'doc/style': checked out .+%
-      %nothing to fetch from .+style-basic.git%
+      %skipped fetching .+style-basic\.git for submodule 'doc/style/basic'%
       %submodule path 'doc/style/basic': checked out .+%
       %querying .+libbaz\.git%?
-      %fetching submodule 'libbaz' from .+libbaz\.git%
+      %fetching .+libbaz\.git for submodule 'libbaz'%
       $info2
       %submodule path 'libbaz': checked out .+%
-      verifying symlinks...
-      %fixing up symlinks...%?
+      verifying symlinks
+      %fixing up symlinks%?
       distributing libfoo/1.0.0
       checked out libfoo/1.0.0
       EOE

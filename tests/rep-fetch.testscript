@@ -887,11 +887,11 @@ else
       %fetching .+libfox\.git%
       %info: .+%{0,2}
       %querying .+libbar\.git%?
-      %fetching submodule 'libbar' from .+libbar\.git%
+      %fetching .+libbar\.git for submodule 'libbar'%
       %info: .+%{0,2}
       %submodule path 'libbar': checked out '.+'%
       %querying .+style-basic\.git%?
-      %fetching submodule 'libbar/extras' from .+style-basic\.git%
+      %fetching .+style-basic\.git for submodule 'libbar/extras'%
       %info: .+%{0,2}
       %submodule path 'libbar/extras': checked out '.+'%
       2 package(s) in 1 repository(s)
@@ -1278,9 +1278,9 @@ else
       sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >~/.+/
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
 
-      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'    <$out >~/.+/
-      sed -n -e 's%^(validating cached .*libfoo.git)$%\1%p'  <$out >~/.+/
-      sed -n -e 's%^(fetching cached .*libfoo.git .*)$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'          <$out >~/.+/
+      sed -n -e 's%^(validating .*libfoo.git \(cache\))$%\1%p'     <$out >~/.+/
+      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p' <$out >~/.+/
 
       # Verify that the fetched filesystem entries are cached.
       #
@@ -1303,8 +1303,8 @@ else
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
 
       sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'                       <$out >~/.+/
-      sed -n -e 's%^(skipped validating cached .*libfoo.git \(session\))$%\1%p' <$out >~/.+/
-      sed -n -e 's%^(fetching cached .*libfoo.git .*)$%\1%p'                    <$out >:''
+      sed -n -e 's%^(skipped validating .*libfoo.git \(cache, session\))$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p'              <$out >:''
 
       $rep_list >~'%git:.+libfoo#master.+%'
       $pkg_status libfoo >'libfoo available 1.0.0'

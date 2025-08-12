@@ -56,7 +56,7 @@ else
     $rep_fetch
 
     $* libmbar/1.0.0 2>>~%EOE%
-      checking out libmbar/1.0.0
+      checking out libmbar/1.0.0 (local cache)
       %.+
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
@@ -75,9 +75,9 @@ else
     $pkg_status style-basic | sed -n -e 's/style-basic available \[.+\] ([^ ]+)/\1/p' | set v
 
     $* "style-basic/$v" 2>>~"%EOE%"
-      checking out style-basic/$v
-      verifying symlinks...
-      %fixing up symlinks...%?
+      checking out style-basic/$v \(local cache\)
+      verifying symlinks
+      %fixing up symlinks%?
       distributing style-basic/$v
       checked out style-basic/$v
       EOE
@@ -85,7 +85,7 @@ else
     $pkg_configure style-basic
 
     $* libmbar/1.0.0 2>>~%EOE%
-      checking out libmbar/1.0.0
+      checking out libmbar/1.0.0 (local cache)
       %.+
       distributing libmbar/1.0.0
       checked out libmbar/1.0.0
@@ -155,10 +155,10 @@ else
     $rep_fetch "$rep/links.git#v0.0.1"
 
     $* links/0.0.1 2>>~%EOE%
-      checking out links/0.0.1
+      checking out links/0.0.1 (local cache)
       %.*
-      verifying symlinks...
-      %fixing up symlinks...%?
+      verifying symlinks
+      %fixing up symlinks%?
       distributing links/0.0.1
       checked out links/0.0.1
       EOE
@@ -185,19 +185,19 @@ else
     #
     if $posix
       $* links/1.0.1 2>>~%EOE% != 0
-        checking out links/1.0.1
+        checking out links/1.0.1 (local cache)
         %.*
-        verifying symlinks...
-        %fixing up symlinks...%?
+        verifying symlinks
+        %fixing up symlinks%?
         distributing links/1.0.1
         %warning: skipping dangling symlink .+%
         %error: unable to stat .+%
         EOE
     else
       $* links/1.0.1 2>>~%EOE% != 0
-        checking out links/1.0.1
-        verifying symlinks...
-        %fixing up symlinks...%?
+        checking out links/1.0.1 (local cache)
+        verifying symlinks
+        %fixing up symlinks%?
         error: target 'bl' for symlink 'lc' does not exist
           info: re-run with -v for more information
         warning: repository state is now broken
@@ -215,7 +215,7 @@ else
         EOE
     else
       $* links/1.0.2 2>>~%EOE% != 0
-        checking out links/1.0.2
+        checking out links/1.0.2 (local cache)
         %.*
         %error: target '..' for symlink '..' does not exist%
           info: re-run with -v for more information
@@ -235,7 +235,7 @@ else
       $rep_fetch
 
       $* --output-root $~ libmbar/1.0.0 &libmbar-1.0.0/*** 2>>~%EOE%
-        checking out libmbar/1.0.0
+        checking out libmbar/1.0.0 (local cache)
         %.+
         distributing libmbar/1.0.0
         checked out libmbar/1.0.0
@@ -257,7 +257,7 @@ else
       $rep_fetch
 
       $* --output-root $~ libmbar/1.0.0 --output-purge 2>>~%EOE%
-        checking out libmbar/1.0.0
+        checking out libmbar/1.0.0 (local cache)
         %.+
         distributing libmbar/1.0.0
         checked out libmbar/1.0.0
@@ -293,7 +293,7 @@ else
       $* -v libbar/1.0.0+1 2>&1 | set out
 
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
-      sed -n -e 's%^(fetching submodule .extras. from .+style-basic.git .+)$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >~/.+/
 
       rm -r cfg
 
@@ -307,7 +307,7 @@ else
       $* -v libbar/1.0.0+1 2>&1 | set out
 
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
-      sed -n -e 's%^(fetching submodule .extras. from .+style-basic.git .+)$%\1%p' <$out >:''
+      sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >:''
 
       $pkg_status libbar >'libbar unpacked 1.0.0+1'
 

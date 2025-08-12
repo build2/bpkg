@@ -666,3 +666,89 @@ sc = " " # Space character to append to here-document line when required.
     }
   }}
 }}
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export -u BPKG_FETCH_CACHE
+  rep_fetch += --fetch-cache-path cache
+
+  rep_fetch += --auth all
+
+  : signed
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/signed
+
+    $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/signed
+      %querying .+signed%
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cfg cache/pkg/metadata
+
+    $clone_root_cfg && $rep_add $rep/signed
+
+    # Make sure we print the 'trusting certificate...' progress.
+    #
+    $rep_fetch &cfg/.bpkg/certs/* 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/signed
+      %querying .+signed%
+      trusting certificate for repository pkg:build2.org/rep-auth/signed (cache)
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cache/pkg/metadata
+
+    # Make sure we don't print the 'trusting certificate...' progress since
+    # the certificate comes from the configuration.
+    #
+    $rep_fetch 2>&1 | set out
+
+    sed -n -e 's%^(trusting certificate for repository .+)$%\1%p' <$out >:''
+  }
+
+  : unsigned
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/unsigned1
+
+    $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/unsigned1
+      %querying .+unsigned1%
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cfg cache/pkg/metadata
+
+    $clone_root_cfg && $rep_add $rep/unsigned1
+
+    # Make sure we print the 'trusting unsigned...' progress.
+    #
+    $rep_fetch 2>>~%EOE%
+      fetching pkg:build2.org/rep-auth/unsigned1
+      %querying .+unsigned1%
+      trusting unsigned repository pkg:build2.org/rep-auth/unsigned1 (cache)
+      %.*
+      1 package(s) in 1 repository(s)
+      EOE
+
+    rm -r cache/pkg/metadata
+
+    # Make sure we don't print the 'trusting unsigned...' progress since the
+    # dummy certificate comes from the configuration.
+    #
+    $rep_fetch 2>&1 | set out
+
+    sed -n -e 's%^(trusting unsigned repository .+)$%\1%p' <$out >:''
+  }
+}}

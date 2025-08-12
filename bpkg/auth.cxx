@@ -200,6 +200,12 @@ namespace bpkg
     if (cached)
     {
       l4 ([&]{trace << "cached cert: " << *cert;});
+
+      if ((verb && !co.no_progress ()) || co.progress ())
+      {
+        text << "trusting unsigned repository " << rl.canonical_name ()
+             << " (cache)";
+      }
     }
     else
     {
@@ -208,8 +214,8 @@ namespace bpkg
       if (co.trust_yes ())
       {
         if (verb >= 2)
-          info << "unsigned repository " << rl.canonical_name () <<
-            " trusted by command line";
+          info << "unsigned repository " << rl.canonical_name ()
+               << " trusted by command line";
       }
       else
       {
@@ -688,6 +694,12 @@ namespace bpkg
     if (cached)
     {
       l4 ([&]{trace << "cached cert: " << *cert;});
+
+      if ((verb && !co.no_progress ()) || co.progress ())
+      {
+        text << "trusting certificate for repository " << rl.canonical_name ()
+             << " (cache)";
+      }
     }
     else
     {
@@ -707,15 +719,15 @@ namespace bpkg
       if (trust)
       {
         if (verb >= 2)
-          info << "certificate for repository " << rl.canonical_name () <<
-            " authenticated by command line";
+          info << "certificate for repository " << rl.canonical_name ()
+               << " authenticated by command line";
       }
       else if (dependent_trust &&
                icasecmp (*dependent_trust, cert->fingerprint) == 0)
       {
         if (verb >= 2)
-          info << "certificate for repository " << rl.canonical_name () <<
-            " authenticated by dependent trust";
+          info << "certificate for repository " << rl.canonical_name ()
+               << " authenticated by dependent trust";
 
         user = false;
       }
