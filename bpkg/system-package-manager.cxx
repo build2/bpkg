@@ -768,7 +768,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "determining filesystem entries that would be installed...";
+        text << "determining filesystem entries that would be installed";
 
       // Redirect stdout to a pipe.
       //

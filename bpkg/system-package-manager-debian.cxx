@@ -790,7 +790,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "updating " << os_release.name_id << " package index...";
+        text << "updating " << os_release.name_id << " package index";
 
       process pr;
       if (!simulate_)
@@ -857,7 +857,7 @@ namespace bpkg
       if (verb >= 2)
         print_process (args);
       else if (verb == 1)
-        text << "installing " << os_release.name_id << " packages...";
+        text << "installing " << os_release.name_id << " packages";
 
       process pr;
       if (!simulate_)
