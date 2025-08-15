@@ -12,6 +12,7 @@
 #include <bpkg/checksum.hxx>
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
@@ -364,6 +365,7 @@ namespace bpkg
 
   shared_ptr<selected_package>
   pkg_unpack (const common_options& co,
+              fetch_cache& cache,
               database& db,
               transaction& t,
               const package_name& name,
@@ -387,53 +389,116 @@ namespace bpkg
 
     assert (p->archive); // Should have archive in the fetched state.
 
-    // Extract the package directory.
+    // If the package archive is not used in place, the fetch cache is
+    // enabled, and sharing of source directories is not disabled, then check
+    // if the shared directory is already present in the cache. If that's the
+    // case, use that. Otherwise, extract the package directory and, if
+    // required, save it into the cache.
     //
-    // Also, since we must have verified the archive during fetch,
-    // here we can just assume what the resulting directory will be.
+    // Also, in the latter case, since we must have verified the archive
+    // during fetch, here we can just assume what the resulting directory will
+    // be.
     //
     const package_name& n (p->name);
     const version& v (p->version);
 
-    dir_path d (c / dir_path (n.string () + '-' + v.string ()));
+    dir_path dn (n.string () + '-' + v.string ());
 
     auto_rmdir arm;
 
     if (!simulate)
     {
-      if (exists (d))
-        fail << "package directory " << d << " already exists";
+      package_id pid;
+      optional<fetch_cache::loaded_shared_source_directory_state> ssd;
 
-      // If the archive path is not absolute, then it must be relative
-      // to the configuration.
-      //
-      path a (p->effective_archive (c));
+      const repository_location& rl (p->repository_fragment);
 
-      l4 ([&]{trace << "archive: " << a;});
-
-      // What should we do if tar or something after it fails? Cleaning
-      // up the package directory sounds like the right thing to do.
-      //
-      arm = auto_rmdir (d);
-
-      try
+      if (!rl.empty () && cache.cache_src ())
       {
-        pair<process, process> pr (start_extract (co, a, c));
+        assert (cache.is_open ());
 
-        // While it is reasonable to assuming the child process issued
-        // diagnostics, tar, specifically, doesn't mention the archive name.
-        //
-        if (!pr.second.wait () || !pr.first.wait ())
-          fail << "unable to extract " << a << " to " << c;
+        pid = package_id (n, v);
+        ssd = cache.load_shared_source_directory (pid, v);
       }
-      catch (const process_error& e)
+
+      // @@ FC Should we somehow indicate that we are using shared source
+      //    directory? Any progress similar to pkg-fetch?
+
+      if (ssd && ssd->present)
       {
-        fail << "unable to extract " << a << " to " << c << ": " << e;
+        // Make the source directory path absolute and normalized.
+        //
+        p->src_root = move (normalize (ssd->directory,
+                                       "shared source directory"));
+
+        p->purge_src = false;
+      }
+      else
+      {
+        dir_path d (ssd ? move (ssd->directory) : c / dn);
+
+        if (exists (d))
+          fail << "package directory " << d << " already exists";
+
+        // If the archive path is not absolute, then it must be relative
+        // to the configuration.
+        //
+        path a (p->effective_archive (c));
+
+        l4 ([&]{trace << "archive: " << a;});
+
+        // What should we do if tar or something after it fails? Cleaning
+        // up the package directory sounds like the right thing to do.
+        //
+        arm = auto_rmdir (d);
+
+        dir_path pd (d.directory ());
+
+        try
+        {
+          pair<process, process> pr (start_extract (co, a, pd));
+
+          // While it is reasonable to assuming the child process issued
+          // diagnostics, tar, specifically, doesn't mention the archive name.
+          //
+          if (!pr.second.wait () || !pr.first.wait ())
+            fail << "unable to extract " << a << " to " << pd;
+        }
+        catch (const process_error& e)
+        {
+          fail << "unable to extract " << a << " to " << pd << ": " << e;
+        }
+
+        if (ssd)
+        {
+          // Note that the archive file checksum, as it comes from
+          // packages.manifest file, is not available at this point. Thus, we
+          // just recalculate it.
+          //
+          d = cache.save_shared_source_directory (move (pid),
+                                                  v,
+                                                  move (d),
+                                                  rl.url (),
+                                                  sha256sum (co, a));
+
+          // Make the source directory path absolute and normalized.
+          //
+          p->src_root = move (normalize (d, "shared source directory"));
+
+          p->purge_src = false;
+        }
+        else
+        {
+          p->src_root = move (dn);
+          p->purge_src = true;
+        }
       }
     }
-
-    p->src_root = d.leaf (); // For now assuming to be in configuration.
-    p->purge_src = true;
+    else
+    {
+      p->src_root = move (dn); // For now assuming to be in configuration.
+      p->purge_src = true;
+    }
 
     p->state = package_state::unpacked;
 
@@ -496,20 +561,38 @@ namespace bpkg
       // already be fetched and so unpack it from the archive. Otherwise, we
       // "unpack" it from the directory-based repository.
       //
-      p = v.empty ()
-        ? pkg_unpack (o,
-                      db /* pdb */,
-                      t,
-                      n,
-                      false /* simulate */)
-        : pkg_unpack (o,
-                      db /* pdb */,
-                      db /* rdb */,
-                      t,
-                      move (n),
-                      move (v),
-                      o.replace (),
-                      false /* simulate */);
+      if (v.empty ())
+      {
+        // Note that opening of the fetch cache can be redundant, if the
+        // package archive is used in place. Let's, however, keep things
+        // simple for now.
+        //
+        fetch_cache cache (o, &db);
+
+        if (cache.cache_src ())
+          cache.open (trace);
+
+        p = pkg_unpack (o,
+                        cache,
+                        db,
+                        t,
+                        n,
+                        false /* simulate */);
+
+        if (cache.cache_src ())
+          cache.close ();
+      }
+      else
+      {
+        p = pkg_unpack (o,
+                        db /* pdb */,
+                        db /* rdb */,
+                        t,
+                        move (n),
+                        move (v),
+                        o.replace (),
+                        false /* simulate */);
+      }
     }
 
     if (verb && !o.no_result ())

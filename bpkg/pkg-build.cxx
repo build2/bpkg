@@ -8002,10 +8002,11 @@ namespace bpkg
     //
     // Note that pkg_checkout() may reuse the same fetch cache entry for
     // multiple packages (see pkg_checkout_cache for details). Thus, we use a
-    // single fetch cache object for all the pkg_checkout() and pkg_fetch()
-    // calls in the loop, opening (locking) the cache on demand, and only
-    // closing it when the loop is finished. Note that save_git_*() is called
-    // for the respective fetch cache entries only when the loop is finished.
+    // single fetch cache object for all the pkg_checkout(), pkg_fetch(), and
+    // pkg_unpack() calls in the loop, opening (locking) the cache on demand,
+    // and only closing it when the loop is finished. Note that save_git_*()
+    // is called for the respective fetch cache entries only when the loop is
+    // finished.
     //
     bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
@@ -8268,11 +8269,19 @@ namespace bpkg
         {
           if (sp != nullptr)
           {
+            if (!simulate && !sp->repository_fragment.empty ())
+            {
+              fetch_cache.mode (o, &pdb);
+
+              if (fetch_cache.cache_src () && !fetch_cache.is_open ())
+                fetch_cache.open (trace);
+            }
+
             transaction t (pdb, !simulate /* start */);
 
             // Commits the transaction.
             //
-            sp = pkg_unpack (o, pdb, t, ap->id.name, simulate);
+            sp = pkg_unpack (o, fetch_cache, pdb, t, ap->id.name, simulate);
 
             if (result)
               text << "unpacked " << *sp << pdb;

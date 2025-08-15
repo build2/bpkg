@@ -209,9 +209,10 @@ $* libfoo/1.0.0 2>>/EOE != 0
   +echo '--no-default-options' >=$options_guard/bpkg.options
   +export BPKG_FETCH_CACHE=src
   rep_fetch    += --fetch-cache-path cache
+  pkg_unpack   += --fetch-cache-path cache
   test.options += --fetch-cache-path cache -v
 
-  : signed-repository
+  : basics
   :
   {
     $clone_root_cfg && $rep_add $rep/hello

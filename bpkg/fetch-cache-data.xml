@@ -71,5 +71,33 @@
         <column name="access_time"/>
       </index>
     </table>
+    <table name="shared_source_directory" kind="object">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_release" type="TEXT" null="true"/>
+      <column name="access_time" type="INTEGER" null="true"/>
+      <column name="directory" type="TEXT" null="true"/>
+      <column name="repository" type="TEXT" null="true"/>
+      <column name="origin_id" type="TEXT" null="true"/>
+      <primary-key>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </primary-key>
+      <index name="shared_source_directory_directory_i" type="UNIQUE">
+        <column name="directory"/>
+      </index>
+      <index name="shared_source_directory_access_time_i">
+        <column name="access_time"/>
+      </index>
+    </table>
   </model>
 </changelog>

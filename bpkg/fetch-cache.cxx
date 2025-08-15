@@ -94,14 +94,25 @@ namespace bpkg
 
   static optional<optional<bool>> ops_enabled_;
   static optional<cache_mode> ops_mode_;
-  static dir_path np_directory_; // Non-precious  (~/.cache/build2/).
-  static dir_path sp_directory_; // Semi-precious (~/.build2/cache/).
   static string session_;
 
+  // Non-precious.
+  //
+  static dir_path np_directory_;                      // ~/.cache/build2/
+  static dir_path np_tmp_directory_;                  // ~/.cache/build2/tmp
+  static dir_path pkg_repository_directory_;          // ~/.cache/build2/pkg
   static dir_path pkg_repository_metadata_directory_; // ~/.cache/build2/pkg/metadata
   static dir_path pkg_repository_package_directory_;  // ~/.cache/build2/pkg/packages
   static dir_path git_repository_state_directory_;    // ~/.cache/build2/git
-  static dir_path tmp_directory_;                     // ~/.cache/build2/tmp
+
+  // Semi-precious.
+  //
+  // Note: the shared source directory is non-precious if sp_directory_ is
+  // empty (--fetch-cache-path option is specified, etc).
+  //
+  static dir_path sp_directory_;                      // ~/.build2/cache/
+  static dir_path sp_tmp_directory_;                  // ~/.build2/cache/tmp
+  static dir_path shared_source_directory_;           // ~/.build2/cache/src
 
   // If true, then print progress indicators while waiting for cache database
   // lock.
@@ -306,14 +317,31 @@ namespace bpkg
           sp_directory_ /= "cache";
         }
 
+        // While at it, calculate all the data directory paths.
+        //
+        pkg_repository_directory_ = (dir_path (np_directory_) /= "pkg");
+
         pkg_repository_metadata_directory_ =
-          ((dir_path (np_directory_) /= "pkg") /= "metadata");
+          (dir_path (pkg_repository_directory_) /= "metadata");
 
         pkg_repository_package_directory_ =
-          ((dir_path (np_directory_) /= "pkg") /= "packages");
+          (dir_path (pkg_repository_directory_) /= "packages");
 
         git_repository_state_directory_ = (dir_path (np_directory_) /= "git");
-        tmp_directory_ = (dir_path (np_directory_) /= "tmp");
+
+        np_tmp_directory_ = (dir_path (np_directory_) /= "tmp");
+
+        // If semi-precious directory is not used (--fetch-cache-path option
+        // is specified, etc), then assume the shared source directory
+        // non-precious and leave sp_tmp_directory_ empty.
+        //
+        if (!sp_directory_.empty ())
+        {
+          shared_source_directory_= (dir_path (sp_directory_) /= "src");
+          sp_tmp_directory_ = (dir_path (sp_directory_) /= "tmp");
+        }
+        else
+          shared_source_directory_= (dir_path (np_directory_) /= "src");
       }
       catch (const invalid_path& e)
       {
@@ -474,7 +502,7 @@ namespace bpkg
               {
                 // Clean up the sp_directory_ data subdirectories.
                 //
-                cleanup (dir_path (sp_directory_) /= "src");
+                cleanup (shared_source_directory_);
 
                 mk_p (sp_directory_);
 
@@ -503,13 +531,13 @@ namespace bpkg
 
                 // Clean up the sp_directory_ data subdirectories.
                 //
-                cleanup (dir_path (sp_directory_) /= "src");
+                cleanup (shared_source_directory_);
               }
 
               // Clean up the np_directory_ data subdirectories.
               //
-              cleanup (dir_path (np_directory_) /= "pkg");
-              cleanup (dir_path (np_directory_) /= "git");
+              cleanup (pkg_repository_directory_);
+              cleanup (git_repository_state_directory_);
 
               mk_p (sp ? sp_directory_ : np_directory_);
 
@@ -611,11 +639,14 @@ namespace bpkg
       }
     }
 
-    // Clean up the temporary directory. Note: do it only once we have the
+    // Clean up the temporary directories. Note: do it only once we have the
     // lock.
     //
-    if (exists (tmp_directory_))
-      rm_r (tmp_directory_, false /* dir_itself */);
+    if (exists (np_tmp_directory_))
+      rm_r (np_tmp_directory_, false /* dir_itself */);
+
+    if (!sp_tmp_directory_.empty () && exists (sp_tmp_directory_))
+      rm_r (sp_tmp_directory_, false /* dir_itself */);
   }
 
   void fetch_cache::
@@ -733,6 +764,41 @@ namespace bpkg
         {
           if (verb >= 3)
             warn << "unable to remove file " << f << ": " << e;
+
+          continue;
+        }
+
+        db.erase (o);
+
+        if (stop ()) return;
+      }
+
+      // Remove the unused shared source directories which have not been
+      // unpacked or checked out in the last 3 months.
+      //
+      if (stop ()) return;
+      for (shared_source_directory& o:
+             db.query<shared_source_directory> (
+               query<shared_source_directory>::access_time < three_months_ago))
+      {
+        if (stop ()) return;
+
+        dir_path d (shared_source_directory_ / o.directory);
+
+        // @@ FC Skip the entry if the shared source directory is still used.
+
+        if (verb >= 3)
+          text << "rm -r " << d;
+
+        try
+        {
+          if (dir_exists (d))
+            rmdir_r (d, true /* dir */);
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to remove directory " << d << ": " << e;
 
           continue;
         }
@@ -967,8 +1033,8 @@ namespace bpkg
 
         if (!exists (rf) || !exists (pf))
         {
-          // Remove the database entry last, to make sure we are still tracking
-          // the directory if its removal fails for any reason.
+          // Remove the database entry last, to make sure we are still
+          // tracking the directory if its removal fails for any reason.
           //
           if (exists (d))
             rm_r (d);
@@ -1166,22 +1232,23 @@ namespace bpkg
     //
     // 2. Return the path the archive file should be moved to.
 
-    if (!exists (pkg_repository_package_directory_))
-      mk_p (pkg_repository_package_directory_);
-
     path r (pkg_repository_package_directory_ / file);
+
+    // If the archive file already exists, probably as a result of some
+    // previous failure, then remove it. Create the database entry last, to
+    // make sure we are not referring to an invalid file if its removal fails
+    // for any reason.
+    //
+    if (exists (r))
+      rm (r);
+    else if (!exists (pkg_repository_package_directory_))
+      mk_p (pkg_repository_package_directory_);
 
     auto& db (*db_);
 
     try
     {
       transaction t (db);
-
-      // If the archive file already exists, probably as a result of some
-      // previous failure, then remove it.
-      //
-      if (exists (r))
-        rm (r);
 
       pkg_repository_package p {
         move (id),
@@ -1280,7 +1347,7 @@ namespace bpkg
       if (db.find<git_repository_state> (u, s))
       {
         sd = git_repository_state_directory_ / s.directory;
-        td = tmp_directory_ / s.directory;
+        td = np_tmp_directory_ / s.directory;
 
         dir_path rd (sd / repository_dir);
 
@@ -1327,7 +1394,7 @@ namespace bpkg
         dir_path d (git_repository_state_name (u));
 
         sd = git_repository_state_directory_ / d;
-        td = tmp_directory_ / d;
+        td = np_tmp_directory_ / d;
 
         if (exists (sd))
           rm_r (sd);
@@ -1344,8 +1411,8 @@ namespace bpkg
 
     if (exists (td))
       rm_r (td);
-    else if (!exists (tmp_directory_))
-      mk_p (tmp_directory_);
+    else if (!exists (np_tmp_directory_))
+      mk_p (np_tmp_directory_);
 
     if (r.state == loaded_git_repository_state::absent)
       mk (td);
@@ -1386,14 +1453,30 @@ namespace bpkg
       if (db.find<git_repository_state> (u, s))
       {
         sd = git_repository_state_directory_ / s.directory;
-        td = tmp_directory_ / s.directory;
+        td = np_tmp_directory_ / s.directory;
+
+        // If the repository directory already exists, probably as a result of
+        // some previous failure, then remove it. Note that on the removal
+        // failure we may end up referring to a broken repository. Given such
+        // a situation is not very common, let's not complicate things here
+        // and rely on the user to manually fix that on the recurring errors.
+        //
+        if (exists (sd))
+          rm_r (sd);
       }
       else
       {
         dir_path d (git_repository_state_name (u));
 
         sd = git_repository_state_directory_ / d;
-        td = tmp_directory_ / d;
+        td = np_tmp_directory_ / d;
+
+        // If the repository directory already exists, then remove it. Create
+        // the database entry last, to make sure we are not referring to a
+        // broken repository if its removal fails for any reason.
+        //
+        if (exists (sd))
+          rm_r (sd);
 
         git_repository_state rs {
           move (u), move (d), session_, system_clock::now ()};
@@ -1408,9 +1491,7 @@ namespace bpkg
       fail << db.name () << ": " << e.message ();
     }
 
-    if (exists (sd))
-      rm_r (sd);
-    else if (!exists (git_repository_state_directory_))
+    if (!exists (git_repository_state_directory_))
       mk_p (git_repository_state_directory_);
 
     mv (td, sd);
@@ -1427,5 +1508,141 @@ namespace bpkg
 
     u = canonicalize_git_url (move (u));
     return git_repository_state_directory_ / git_repository_state_name (u);
+  }
+
+  fetch_cache::loaded_shared_source_directory_state fetch_cache::
+  load_shared_source_directory (const package_id& id, const version& v)
+  {
+    assert (is_open () && !gc_thread_.joinable ());
+
+    // The overall plan is as follows:
+    //
+    // 1. See if there is an entry for this package id in the database. If
+    //    not, return the temporary directory path.
+    //
+    // 2. Check if the source directory exists for this cache entry. If not,
+    //    remove the entry from the database and return the temporary
+    //    directory path.
+    //
+    // 3. Update entry access_time.
+    //
+    // 4. Return the permanent source directory path.
+
+    loaded_shared_source_directory_state r;
+
+    const dir_path& tmp_dir (!sp_tmp_directory_.empty ()
+                             ? sp_tmp_directory_
+                             : np_tmp_directory_);
+
+    auto& db (*db_);
+
+    try
+    {
+      transaction t (db);
+
+      shared_source_directory sd;
+      if (db.find<shared_source_directory> (id, sd))
+      {
+        dir_path d (shared_source_directory_ / sd.directory);
+
+        if (!exists (d))
+        {
+          db.erase (sd);
+
+          r = loaded_shared_source_directory_state {
+            false /* present */, tmp_dir / sd.directory};
+        }
+        else
+        {
+          sd.access_time = system_clock::now ();
+
+          db.update (sd);
+
+          r = loaded_shared_source_directory_state {
+            true /* present */, move (d)};
+        }
+      }
+      else
+      {
+        r = loaded_shared_source_directory_state {
+          false /* present */,
+          tmp_dir / dir_path (id.name.string () + '-' + v.string ())};
+      }
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    if (!r.present)
+    {
+      if (exists (r.directory))
+        rm_r (r.directory);
+      else if (!exists (tmp_dir))
+        mk_p (tmp_dir);
+    }
+
+    return r;
+  }
+
+  dir_path fetch_cache::
+  save_shared_source_directory (package_id id,
+                                version v,
+                                dir_path tmp_directory,
+                                repository_url repository,
+                                string origin_id)
+  {
+    assert (is_open () && !gc_thread_.joinable ());
+
+    // The overall plan is as follows:
+    //
+    // 1. Create new database entry with current access time. Remove the
+    //    source directory, if exists.
+    //
+    // 2. Move the temporary directory to its permanent location.
+    //
+    // 3. Return the permanent source directory path.
+
+    dir_path n (tmp_directory.leaf ());
+    dir_path r (shared_source_directory_ / n);
+
+    // If the shared source directory already exists, probably as a result of
+    // some previous failure, then remove it. Create the database entry last,
+    // to make sure we are not referring to a broken directory if its removal
+    // fails for any reason.
+    //
+    if (exists (r))
+      rm (r);
+    else if (!exists (shared_source_directory_))
+      mk_p (shared_source_directory_);
+
+    auto& db (*db_);
+
+    try
+    {
+      transaction t (db);
+
+      shared_source_directory d {
+        move (id),
+        move (v),
+        system_clock::now (),
+        move (n),
+        move (repository),
+        move (origin_id)};
+
+      db.persist (d);
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    mv (tmp_directory, r);
+
+    return r;
   }
 }

@@ -172,8 +172,8 @@ namespace bpkg
     bool cached;
 
     // True if the configuration-specific repository directory exists. In this
-    // case use that regardless of whether the fetch cache is enabled or
-    // not. The switchover only happens on rep-fetch.
+    // case use that regardless of whether the fetch cache is enabled or not.
+    // The switchover only happens on rep-fetch.
     //
     bool config_repo_exists;
 
@@ -183,6 +183,15 @@ namespace bpkg
     pkg_checkout_cache::state_map& cm (checkout_cache.map_);
 
     const repository_location& rl (pl->repository_fragment->location);
+
+    // If the fetch cache is being used and sharing of source directories is
+    // not disabled, then check if the shared directory is already present in
+    // the cache. If that's the case, use that. Otherwise, checkout the
+    // package's commit, distribute the project, and, if required, save the
+    // distribution directory into the cache.
+    //
+    package_id pid;
+    optional<fetch_cache::loaded_shared_source_directory_state> ssd;
 
     if (!simulate)
     {
@@ -208,313 +217,348 @@ namespace bpkg
       config_repo_exists = (cm.find (rd) != cm.end () || exists (rd));
 
       cached = !config_repo_exists && fetch_cache.enabled ();
+
+      if (cached && fetch_cache.cache_src ())
+      {
+        assert (fetch_cache.is_open ());
+
+        pid = package_id (n, v);
+        ssd = fetch_cache.load_shared_source_directory (pid, v);
+
+        purge = false;
+      }
     }
 
     if (verb > 1 && !simulate)
     {
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
-           << (cached ? " (cache)" : " (local cache)");
+           << (!cached             ? " (local cache)"          :
+               ssd && ssd->present ? " (cache, shared source)" :
+                                     " (cache)");
     }
     else if (((verb && !o.no_progress ()) || o.progress ()) && !simulate)
     {
       text << "checking out "
            << package_string (ap->id.name, ap->version) << pdb
-           << (cached ? " (cache)" : " (local cache)");
+           << (!cached             ? " (local cache)"          :
+               ssd && ssd->present ? " (cache, shared source)" :
+                                     " (cache)");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});
 
     auto_rmdir rmd;
-    const dir_path& ord (output_root ? *output_root : c);
-    dir_path d (ord / dir_path (n.string () + '-' + v.string ()));
 
-    // An incomplete checkout may result in an unusable repository state
-    // (submodule fetch is interrupted, working tree fix up failed in the
-    // middle, etc.). That's why we will move the repository into the
-    // temporary directory prior to manipulating it. In the case of a failure
-    // (or interruption) the user will need to run bpkg-rep-fetch to restore
-    // the missing repository.
-    //
+    dir_path dn (n.string () + '-' + v.string ());
+    dir_path d;
+
     if (!simulate)
     {
-      if (exists (d))
-        fail << "package directory " << d << " already exists";
-
-      // Use the temporary directory from the repository information source
-      // configuration, so that we can always move the repository into and out
-      // of it (note that if they appear on different filesystems that won't
-      // be possible).
-      //
-      auto ti (tmp_dirs.find (rdb.config_orig));
-      assert (ti != tmp_dirs.end ());
-      const dir_path& tdir (ti->second);
-
-      using state = pkg_checkout_cache::state;
-
-      pkg_checkout_cache::state_map::iterator i;
-
-      // NOTE: keep the subsequent checkout logic of using fetch cache and
-      //       configuration-specific repository cache parallel.
-
-      if (cached)
+      if (ssd && ssd->present)
       {
-        assert (fetch_cache.is_open ());
-
-        repository_url url (rl.url ());
-        url.fragment = nullopt;
-
-        // Use the repository state directory in the fetch cache as a key for
-        // the checkout cache. Note that it's not used for any other purpose.
-        //
-        // Note also that we cache both local and remote URLs since a local
-        // URL could be on a network filesystem or some such.
-        //
-        dir_path crd (fetch_cache.git_repository_state_dir (url));
-
-        // Try to reuse the cached repository (loaded from the fetch cache
-        // with some fragment checked out and fixed up).
-        //
-        i = cm.find (crd);
-
-        if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
-        {
-          // The repository temporary directory.
-          //
-          // Note: only used to hold the repository path (not active).
-          //
-          auto_rmdir rmt;
-
-          // Restore the repository working tree state if some different
-          // fragment is checked out.
-          //
-          if (i != cm.end ())
-          {
-            rmt = checkout_cache.release (i);
-          }
-          else
-          {
-            fetch_cache::loaded_git_repository_state crs (
-              fetch_cache.load_git_repository_state (move (url)));
-
-            if (crs.state == fetch_cache::loaded_git_repository_state::absent)
-            {
-              // Note that this fetch cache entry won't be saved (naturally).
-              //
-              fail << "missing repository state for package " << n << ' '
-                   << v << " in fetch cache" <<
-                info << "repository: " << rl.url () <<
-                info << "run 'bpkg rep-fetch' to repair";
-            }
-
-            rmt = auto_rmdir (move (crs.repository), false /* active */);
-          }
-
-          // Pre-insert the repository entry into the checkout cache before we
-          // finalize it. This way, on failure, the repository get restored in
-          // its permanent location.
-          //
-          i = cm.emplace (crd,
-                          state {move (rmt),
-                                 rl,
-                                 true /* valid */,
-                                 false /* fixedup */,
-                                 &fetch_cache}).first;
-
-          state& s (i->second);
-          const dir_path& td (s.rmt.path);
-
-          assert (rl.fragment ());
-
-          const string& commit (*rl.fragment ());
-
-          if (!git_commit_status (o, td, commit))
-          {
-            // Note that this fetch cache entry will be saved.
-            //
-            fail << "missing commit in repository state for package " << n
-                 << ' ' << v << " in fetch cache" <<
-              info << "repository: " << rl.url () <<
-              info << "commit: " << commit <<
-              info << "run 'bpkg rep-fetch' to repair";
-          }
-
-          // Checkout the repository fragment, fix up the working tree, and
-          // "finalize" it by setting the valid member to true. Don't save the
-          // fetch cache entry if checkout or fixup fails, unless checkout
-          // fails before even starting to fetch submodules (no connectivity,
-          // etc).
-          //
-          s.valid = false; // Make invalid not to save fetch entry on failure.
-
-          if (!checkout (o, fetch_cache, rl, td))
-          {
-            s.valid = true;  // Save the fetch entry since not spoiled.
-            throw failed (); // Note: the diagnostics has already been issued.
-          }
-
-          s.fixedup = *fixup (o, rl, td);
-          s.valid = true;
-        }
+        d = move (ssd->directory);
       }
       else
       {
-        // Note that an existing configuration repository may contain all
-        // we need.
-        //
-        if (fetch_cache.offline () && !config_repo_exists)
-          fail << "no way to obtain state for repository " << rl.url ()
-               << " in offline mode with fetch cache disabled" <<
-            info << "consider enabling fetch cache or turning offline mode off";
+        d = (ssd
+             ? move (ssd->directory)
+             : ((output_root ? *output_root : c) / dn));
 
-        // Try to reuse the cached repository (moved to the temporary
-        // directory with some fragment checked out and fixed up).
-        //
-        i = cm.find (rd);
+        if (exists (d))
+          fail << "package directory " << d << " already exists";
 
-        if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
+        // An incomplete checkout may result in an unusable repository state
+        // (submodule fetch is interrupted, working tree fix up failed in the
+        // middle, etc). That's why we will move the repository into the
+        // temporary directory prior to manipulating it. In the case of a
+        // failure (or interruption) the user will need to run bpkg-rep-fetch
+        // to restore the missing repository.
+        //
+        assert (rl.fragment ());
+
+        const string& commit (*rl.fragment ());
+
+        // Use the temporary directory from the repository information source
+        // configuration, so that we can always move the repository into and
+        // out of it (note that if they appear on different filesystems that
+        // won't be possible).
+        //
+        auto ti (tmp_dirs.find (rdb.config_orig));
+        assert (ti != tmp_dirs.end ());
+        const dir_path& tdir (ti->second);
+
+        using state = pkg_checkout_cache::state;
+
+        pkg_checkout_cache::state_map::iterator i;
+
+        // NOTE: keep the subsequent checkout logic of using fetch cache and
+        //       configuration-specific repository cache parallel.
+
+        if (cached)
         {
-          // The repository temporary directory.
-          //
-          auto_rmdir rmt;
+          assert (fetch_cache.is_open ());
 
-          // Restore the repository working tree state if some different
-          // fragment is checked out.
+          repository_url url (rl.url ());
+          url.fragment = nullopt;
+
+          // Use the repository state directory in the fetch cache as a key
+          // for the checkout cache. Note that it's not used for any other
+          // purpose.
           //
-          if (i != cm.end ())
+          // Note also that we cache both local and remote URLs since a local
+          // URL could be on a network filesystem or some such.
+          //
+          dir_path crd (fetch_cache.git_repository_state_dir (url));
+
+          // Try to reuse the cached repository (loaded from the fetch cache
+          // with some fragment checked out and fixed up).
+          //
+          i = cm.find (crd);
+
+          if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
           {
-            rmt = checkout_cache.release (i);
+            // The repository temporary directory.
+            //
+            // Note: only used to hold the repository path (not active).
+            //
+            auto_rmdir rmt;
+
+            // Restore the repository working tree state if some different
+            // fragment is checked out.
+            //
+            if (i != cm.end ())
+            {
+              rmt = checkout_cache.release (i);
+            }
+            else
+            {
+              fetch_cache::loaded_git_repository_state crs (
+                fetch_cache.load_git_repository_state (move (url)));
+
+              if (crs.state == fetch_cache::loaded_git_repository_state::absent)
+              {
+                // Note that this fetch cache entry won't be saved (naturally).
+                //
+                fail << "missing repository state for package " << n << ' '
+                     << v << " in fetch cache" <<
+                  info << "repository: " << rl.url () <<
+                  info << "run 'bpkg rep-fetch' to repair";
+              }
+
+              rmt = auto_rmdir (move (crs.repository), false /* active */);
+            }
+
+            // Pre-insert the repository entry into the checkout cache before
+            // we finalize it. This way, on failure, the repository get
+            // restored in its permanent location.
+            //
+            i = cm.emplace (crd,
+                            state {move (rmt),
+                                rl,
+                                true /* valid */,
+                                false /* fixedup */,
+                                &fetch_cache}).first;
+
+            state& s (i->second);
+            const dir_path& td (s.rmt.path);
+
+            if (!git_commit_status (o, td, commit))
+            {
+              // Note that this fetch cache entry will be saved.
+              //
+              fail << "missing commit in repository state for package " << n
+                   << ' ' << v << " in fetch cache" <<
+                info << "repository: " << rl.url () <<
+                info << "commit: " << commit <<
+                info << "run 'bpkg rep-fetch' to repair";
+            }
+
+            // Checkout the repository fragment, fix up the working tree, and
+            // "finalize" it by setting the valid member to true. Don't save
+            // the fetch cache entry if checkout or fixup fails, unless
+            // checkout fails before even starting to fetch submodules (no
+            // connectivity, etc).
+            //
+            s.valid = false; // Make invalid not to save fetch entry on failure.
+
+            if (!checkout (o, fetch_cache, rl, td))
+            {
+              s.valid = true;  // Save the fetch entry since not spoiled.
+              throw failed (); // Note: the diagnostics has already been issued.
+            }
+
+            s.fixedup = *fixup (o, rl, td);
+            s.valid = true;
           }
-          else
+        }
+        else
+        {
+          // Note that an existing configuration repository may contain all we
+          // need.
+          //
+          if (fetch_cache.offline () && !config_repo_exists)
+            fail << "no way to obtain state for repository " << rl.url ()
+                 << " in offline mode with fetch cache disabled" <<
+              info << "consider enabling fetch cache or turning offline mode off";
+
+          // Try to reuse the cached repository (moved to the temporary
+          // directory with some fragment checked out and fixed up).
+          //
+          i = cm.find (rd);
+
+          if (i == cm.end () || i->second.rl.fragment () != rl.fragment ())
           {
-            if (!config_repo_exists)
-              fail << "missing repository directory for package " << n << " "
-                   << v << " in its repository information configuration "
+            // The repository temporary directory.
+            //
+            auto_rmdir rmt;
+
+            // Restore the repository working tree state if some different
+            // fragment is checked out.
+            //
+            if (i != cm.end ())
+            {
+              rmt = checkout_cache.release (i);
+            }
+            else
+            {
+              if (!config_repo_exists)
+                fail << "missing repository directory for package " << n << ' '
+                     << v << " in its repository information configuration "
+                     << rdb.config_orig <<
+                  info << "repository: " << rl.url () <<
+                  info << "run 'bpkg rep-fetch' to repair";
+
+              rmt = auto_rmdir (tdir / sd, !keep_tmp);
+
+              // Move the repository to the temporary directory.
+              //
+              const dir_path& td (rmt.path);
+
+              if (exists (td))
+                rm_r (td);
+
+              mv (rd, td);
+            }
+
+            // Pre-insert the repository entry into the checkout cache before
+            // we finalize it. This way, on failure, the repository get
+            // restored in its permanent location.
+            //
+            i = cm.emplace (rd,
+                            state {move (rmt),
+                                rl,
+                                true /* valid */,
+                                false /* fixedup */,
+                                nullptr /* fetch_cache */ }).first;
+
+            // Checkout the repository fragment and fix up the working tree.
+            //
+            state& s (i->second);
+            const dir_path& td (s.rmt.path);
+
+            if (!git_commit_status (o, td, commit))
+            {
+              // Note that the repository will be restored in its permanent
+              // location.
+              //
+              fail << "missing commit in repository directory for package " << n
+                   << ' ' << v << " in its repository information configuration "
                    << rdb.config_orig <<
                 info << "repository: " << rl.url () <<
+                info << "commit: " << commit <<
                 info << "run 'bpkg rep-fetch' to repair";
+            }
 
-            rmt = auto_rmdir (tdir / sd, !keep_tmp);
-
-            // Move the repository to the temporary directory.
+            // Checkout the repository fragment, fix up the working tree, and
+            // "finalize" it by setting the valid member to true. Remove the
+            // repository if checkout or fixup fails, unless checkout fails
+            // before even starting to fetch submodules (no connectivity,
+            // etc).
             //
-            const dir_path& td (rmt.path);
+            s.valid = false; // Make invalid not to restore on failure.
 
-            if (exists (td))
-              rm_r (td);
+            if (!checkout (o, fetch_cache, rl, td))
+            {
+              s.valid = true;  // Restore the repository since not spoiled.
+              throw failed (); // Note: the diagnostics has already been issued.
+            }
 
-            mv (rd, td);
+            s.fixedup = *fixup (o, rl, td);
+            s.valid = true;
           }
+        }
 
-          // Pre-insert the repository entry into the checkout cache before we
-          // finalize it. This way, on failure, the repository get restored in
-          // its permanent location.
-          //
-          i = cm.emplace (rd,
-                          state {move (rmt),
-                                 rl,
-                                 true /* valid */,
-                                 false /* fixedup */,
-                                 nullptr /* fetch_cache */ }).first;
+        // The temporary out of source directory that is required for the dist
+        // meta-operation.
+        //
+        auto_rmdir rmo (tdir / dir_path (n.string ()), !keep_tmp);
+        const dir_path& od (rmo.path);
 
-          // Checkout the repository fragment and fix up the working tree.
-          //
-          state& s (i->second);
-          const dir_path& td (s.rmt.path);
+        if (exists (od))
+          rm_r (od);
 
-          assert (rl.fragment ());
+        // Calculate the package path that points into the checked out
+        // fragment directory.
+        //
+        dir_path pd (i->second.rmt.path / path_cast<dir_path> (pl->location));
 
-          const string& commit (*rl.fragment ());
+        // Form the buildspec.
+        //
+        string bspec ("dist('");
+        bspec += pd.representation ();
+        bspec += "'@'";
+        bspec += od.representation ();
+        bspec += "')";
 
-          if (!git_commit_status (o, td, commit))
-          {
-            // Note that the repository will be restored in its permanent
-            // location.
-            //
-            fail << "missing commit in repository directory for package " << n
-                 << ' ' << v << " in its repository information configuration "
-                 << rdb.config_orig <<
-              info << "repository: " << rl.url () <<
-              info << "commit: " << commit <<
-              info << "run 'bpkg rep-fetch' to repair";
-          }
+        // Remove the resulting package distribution directory on failure.
+        //
+        rmd = auto_rmdir (d);
 
-          // Checkout the repository fragment, fix up the working tree, and
-          // "finalize" it by setting the valid member to true. Remove the
-          // repository if checkout or fixup fails, unless checkout fails
-          // before even starting to fetch submodules (no connectivity, etc).
-          //
-          s.valid = false; // Make invalid not to restore on failure.
+        // Distribute.
+        //
+        // Note that we are using the bootstrap distribution mode (and also
+        // skip bootstrapping external modules) to make sure a package can be
+        // checked out without its dependencies being present.
+        //
+        // Note also that on failure the package stays in the existing
+        // (working) state.
+        //
+        // At first it may seem we have a problem: an existing package with
+        // the same name will cause a conflict since we now have multiple
+        // package locations for the same package name. We are lucky, however:
+        // subprojects are only loaded if used and since we don't support
+        // dependency cycles, the existing project should never be loaded by
+        // any of our dependencies.
+        //
 
-          if (!checkout (o, fetch_cache, rl, td))
-          {
-            s.valid = true;  // Restore the repository since not spoiled.
-            throw failed (); // Note: the diagnostics has already been issued.
-          }
+        // If the verbosity level is less than 2, then we want our (nicer)
+        // progress header but the build system's actual progress.
+        //
+        if ((verb == 1 && !o.no_progress ()) || (verb == 0 && o.progress ()))
+          text << "distributing " << n << '/' << v << pdb;
 
-          s.fixedup = *fixup (o, rl, td);
-          s.valid = true;
+        run_b (o,
+               verb_b::progress,
+               false /* no_progress */,
+               "--no-external-modules",
+               "!config.dist.bootstrap=true",
+               "config.dist.root='" + d.directory ().representation () + '\'',
+               bspec);
+
+        if (ssd)
+        {
+          d = fetch_cache.save_shared_source_directory (move (pid),
+                                                        v,
+                                                        move (d),
+                                                        rl.url (),
+                                                        commit);
         }
       }
-
-      // The temporary out of source directory that is required for the dist
-      // meta-operation.
-      //
-      auto_rmdir rmo (tdir / dir_path (n.string ()), !keep_tmp);
-      const dir_path& od (rmo.path);
-
-      if (exists (od))
-        rm_r (od);
-
-      // Calculate the package path that points into the checked out fragment
-      // directory.
-      //
-      dir_path pd (i->second.rmt.path / path_cast<dir_path> (pl->location));
-
-      // Form the buildspec.
-      //
-      string bspec ("dist('");
-      bspec += pd.representation ();
-      bspec += "'@'";
-      bspec += od.representation ();
-      bspec += "')";
-
-      // Remove the resulting package distribution directory on failure.
-      //
-      rmd = auto_rmdir (d);
-
-      // Distribute.
-      //
-      // Note that we are using the bootstrap distribution mode (and also skip
-      // bootstrapping external modules) to make sure a package can be checked
-      // out without its dependencies being present.
-      //
-      // Note also that on failure the package stays in the existing (working)
-      // state.
-      //
-      // At first it may seem we have a problem: an existing package with the
-      // same name will cause a conflict since we now have multiple package
-      // locations for the same package name. We are lucky, however:
-      // subprojects are only loaded if used and since we don't support
-      // dependency cycles, the existing project should never be loaded by any
-      // of our dependencies.
-      //
-
-      // If the verbosity level is less than 2, then we want our (nicer)
-      // progress header but the build system's actual progress.
-      //
-      if ((verb == 1 && !o.no_progress ()) || (verb == 0 && o.progress ()))
-        text << "distributing " << n << '/' << v << pdb;
-
-      run_b (o,
-             verb_b::progress,
-             false /* no_progress */,
-             "--no-external-modules",
-             "!config.dist.bootstrap=true",
-             "config.dist.root='" + ord.representation () + '\'',
-             bspec);
     }
+    else
+      d = (output_root ? *output_root : c) / dn;
 
     if (p != nullptr)
     {

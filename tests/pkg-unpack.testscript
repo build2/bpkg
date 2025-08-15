@@ -56,6 +56,7 @@ pkg_status    += -d cfg
 rep_add       += -d cfg 2>!
 rep_fetch     += -d cfg --auth all 2>!
 pkg_configure += -d cfg
+pkg_update    += -d cfg
 pkg_disfigure += -d cfg
 
 : replace-with-existing
@@ -300,3 +301,68 @@ $* 2>>EOE != 0
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }
+
+: fetch-cache
+:
+{{
+  # Enable the test-specific fetch caches.
+  #
+  options_guard = $~/.build2
+  +mkdir $options_guard
+  +echo '--no-default-options' >=$options_guard/bpkg.options
+  +export BPKG_FETCH_CACHE=src
+  rep_fetch    += --fetch-cache-path cache
+  pkg_fetch    += --fetch-cache-path cache
+  test.options += --fetch-cache-path cache
+
+  : basics
+  :
+  {
+    $clone_root_cfg && $rep_add $rep/hello
+
+    $rep_fetch --trust $cert_fp &cache/***
+    $pkg_fetch libhello/1.0.0
+
+    $* libhello 2>'unpacked libhello/1.0.0'
+
+    # Verify that the source directory is cached.
+    #
+    test -d cache/src/libhello-1.0.0
+    test -d cfg/libhello-1.0.0 != 0
+
+    # Verify that the unpacked package is buildable.
+    #
+    $pkg_configure libhello 2>'configured libhello/1.0.0'
+    $pkg_update libhello 2>>~%EOE%
+      %(mkdir|c\+\+|ar|ld|updated).+%{9}
+      EOE
+
+    test -d cfg/libhello-1.0.0
+
+    rm -r cfg
+
+    $clone_root_cfg && $rep_add $rep/hello
+
+    $rep_fetch --trust $cert_fp &cache/***
+    $pkg_fetch libhello/1.0.0
+
+    $* libhello 2>'unpacked libhello/1.0.0'
+
+    # Verify that the source directory is cached.
+    #
+    test -d cache/src/libhello-1.0.0
+    test -d cfg/libhello-1.0.0 != 0
+
+    # Verify that the unpacked package is buildable.
+    #
+    $pkg_configure libhello 2>'configured libhello/1.0.0'
+    $pkg_update libhello 2>>~%EOE%
+      %(mkdir|c\+\+|ar|ld|updated).+%{9}
+      EOE
+
+    test -d cfg/libhello-1.0.0
+
+    $pkg_disfigure libhello 2>'disfigured libhello/1.0.0'
+    $pkg_purge     libhello 2>'purged libhello/1.0.0'
+  }
+}}

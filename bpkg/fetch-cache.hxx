@@ -367,7 +367,6 @@ namespace bpkg
     dir_path
     git_repository_state_dir (repository_url) const;
 
-#if 0
     // Shared package source directory cache API.
     //
     // Note that the load_*() and save_*() functions should be called without
@@ -385,7 +384,8 @@ namespace bpkg
     };
 
     loaded_shared_source_directory_state
-    load_shared_source_directory (const package_id&);
+    load_shared_source_directory (const package_id&,
+                                  const version& orig_version);
 
     // Given the filled temporary directory path, add the cache entry and
     // return the permanent source directory path.
@@ -396,7 +396,6 @@ namespace bpkg
                                   dir_path tmp_directory,
                                   repository_url,
                                   string origin_id);
-#endif
 
     // Implementation details (also used by cfg_create()).
     //

@@ -211,7 +211,6 @@ namespace bpkg
     #pragma db member(access_time) index
   };
 
-#if 0
   // Cache entry for shared package source directory.
   //
   #pragma db object pointer(unique_ptr)
@@ -252,7 +251,6 @@ namespace bpkg
     //
     #pragma db member(access_time) index
   };
-#endif
 }
 
 #endif // BPKG_FETCH_CACHE_DATA_HXX

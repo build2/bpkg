@@ -1003,6 +1003,10 @@ namespace bpkg
     // (and thus has all its prerequisites resolved) is not very useful and
     // can only be purged.
     //
+    // Note: empty for package archives and directories used in place, except
+    // for directory-based repositories (see pkg-fetch and pkg-unpack
+    // --existing options for details).
+    //
     repository_location repository_fragment;
 
     // Path to the archive of this package, if any. If not absolute, then it
