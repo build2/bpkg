@@ -45,6 +45,7 @@ rep_list   += -d cfg --prerequisites --complements
 # validation.
 #
 test.options += --no-progress
+pkg_unpack   += --no-progress
 
 : no-archive
 :

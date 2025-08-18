@@ -402,20 +402,17 @@ namespace bpkg
     // during fetch, here we can just assume what the resulting directory will
     // be.
     //
+    package_id pid;
+    optional<fetch_cache::loaded_shared_source_directory_state> ssd;
+
     const package_name& n (p->name);
     const version& v (p->version);
 
     dir_path dn (n.string () + '-' + v.string ());
-
-    auto_rmdir arm;
+    const repository_location& rl (p->repository_fragment);
 
     if (!simulate)
     {
-      package_id pid;
-      optional<fetch_cache::loaded_shared_source_directory_state> ssd;
-
-      const repository_location& rl (p->repository_fragment);
-
       // Note: see also complementary shared src logic in pkg-fetch. Note that
       // it's possible to craft a scenario where we will unpack an archive
       // that doesn't come from the fetch cache. This, however, seems harmless
@@ -428,12 +425,37 @@ namespace bpkg
         pid = package_id (n, v);
         ssd = cache.load_shared_source_directory (pid, v);
 
-        // @@ FC: make sure dn matches returned and issue diagnostics if not.
+        // Note that currently there is no scenario when the shared source
+        // directory name has the form other than '<package>-<version>'.
+        // Let's, however, verify that for good measure.
+        //
+        dir_path cdn (ssd->directory.leaf ());
+        if (cdn != dn)
+        {
+          fail << dn << " name expected for shared source directory instead "
+               << "of " << cdn <<
+            info << "shared source directory: " << ssd->directory;
+        }
       }
+    }
 
-      // @@ FC Should we somehow indicate that we are using shared source
-      //    directory? Any progress similar to pkg-fetch?
+    if (verb > 1 && !simulate)
+    {
+      text << "unpacking " << dn << " from " << p->effective_archive (c) << db
+           << (ssd && ssd->present ? " (cache, shared src)" : "");
+    }
+    else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
+    {
+      text << "unpacking " << *p << db
+           << (ssd && ssd->present ? " (cache, shared src)" : "");
+    }
+    else
+      l4 ([&]{trace << dn << " from " << p->effective_archive (c) << db;});
 
+    auto_rmdir arm;
+
+    if (!simulate)
+    {
       if (ssd && ssd->present)
       {
         // Make the source directory path absolute and normalized.
@@ -479,7 +501,9 @@ namespace bpkg
           fail << "unable to extract " << a << " to " << pd << ": " << e;
         }
 
-        // @@ FC: check directory now exists.
+        if (!exists (d))
+          fail << "package archive " << a << " doesn't contain directory "
+               << dn;
 
         if (ssd)
         {

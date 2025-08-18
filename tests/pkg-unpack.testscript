@@ -145,7 +145,10 @@ $* 2>>EOE != 0
   {
     $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* libfoo 2>'unpacked libfoo/1.0.0'
+    $* libfoo 2>>EOE
+      unpacking libfoo/1.0.0
+      unpacked libfoo/1.0.0
+      EOE
 
     $* -e $src/libfoo-1.1.0 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
@@ -184,7 +187,12 @@ $* 2>>EOE != 0
     $clone_cfg && $pkg_fetch libfoo/1.0.0
 
     $pkg_status libfoo/1.0.0 1>'libfoo fetched 1.0.0'
-    $*          libfoo       2>'unpacked libfoo/1.0.0'
+
+    $* libfoo 2>>EOE
+      unpacking libfoo/1.0.0
+      unpacked libfoo/1.0.0
+      EOE
+
     $pkg_status libfoo/1.0.0 1>'libfoo unpacked 1.0.0'
 
     $pkg_configure libfoo        2>'configured libfoo/1.0.0'
@@ -297,7 +305,10 @@ $* 2>>EOE != 0
   $rep_add $rep/hello && $rep_fetch --trust $cert_fp &cfg/.bpkg/certs/**
   $pkg_fetch libhello/1.0.0
 
-  $* libhello 2>'unpacked libhello/1.0.0'
+  $* libhello 2>>EOE
+    unpacking libhello/1.0.0
+    unpacked libhello/1.0.0
+    EOE
 
   $pkg_purge libhello 2>'purged libhello/1.0.0'
 }
@@ -323,7 +334,10 @@ $* 2>>EOE != 0
     $rep_fetch --trust $cert_fp &cache/***
     $pkg_fetch libhello/1.0.0
 
-    $* libhello 2>'unpacked libhello/1.0.0'
+    $* libhello 2>>EOE
+      unpacking libhello/1.0.0
+      unpacked libhello/1.0.0
+      EOE
 
     # Verify that the source directory is cached.
     #
@@ -346,7 +360,10 @@ $* 2>>EOE != 0
     $rep_fetch --trust $cert_fp &cache/***
     $pkg_fetch libhello/1.0.0
 
-    $* libhello 2>'unpacked libhello/1.0.0'
+    $* libhello 2>>EOE
+      unpacking libhello/1.0.0 (cache, shared src)
+      unpacked libhello/1.0.0
+      EOE
 
     # Verify that the source directory is cached.
     #

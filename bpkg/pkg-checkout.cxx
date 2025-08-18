@@ -183,6 +183,7 @@ namespace bpkg
     pkg_checkout_cache::state_map& cm (checkout_cache.map_);
 
     const repository_location& rl (pl->repository_fragment->location);
+    dir_path dn (n.string () + '-' + v.string ());
 
     // If the fetch cache is being used and sharing of source directories is
     // not disabled, then check if the shared directory is already present in
@@ -225,7 +226,17 @@ namespace bpkg
         pid = package_id (n, v);
         ssd = fetch_cache.load_shared_source_directory (pid, v);
 
-        // @@ FC: make sure dn matches returned and issue diagnostics if not.
+        // Note that currently there is no scenario when the shared source
+        // directory name has the form other than '<package>-<version>'.
+        // Let's, however, verify that for good measure.
+        //
+        dir_path cdn (ssd->directory.leaf ());
+        if (cdn != dn)
+        {
+          fail << dn << " name expected for shared source directory instead "
+               << "of " << cdn <<
+            info << "shared source directory: " << ssd->directory;
+        }
       }
     }
 
@@ -233,7 +244,7 @@ namespace bpkg
     {
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
-           << (!cached             ? " (local cache)"          :
+           << (!cached             ? " (local cache)"       :
                ssd && ssd->present ? " (cache, shared src)" :
                                      " (cache)");
     }
@@ -241,7 +252,7 @@ namespace bpkg
     {
       text << "checking out "
            << package_string (ap->id.name, ap->version) << pdb
-           << (!cached             ? " (local cache)"          :
+           << (!cached             ? " (local cache)"       :
                ssd && ssd->present ? " (cache, shared src)" :
                                      " (cache)");
     }
@@ -250,8 +261,6 @@ namespace bpkg
                     << pl->repository_fragment->name << pdb;});
 
     auto_rmdir rmd;
-
-    dir_path dn (n.string () + '-' + v.string ());
     dir_path d;
 
     if (!simulate)
