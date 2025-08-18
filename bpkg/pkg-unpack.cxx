@@ -334,9 +334,12 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from a directory-based repository";
 
+    // Note: we currently don't print verb=1 progress here since these is no
+    // cache involved and it would spoil bdep diagnostics.
+    //
     if (verb > 1 && !simulate)
       text << "unpacking " << pl->location.leaf () << " "
-           << "from " << pl->repository_fragment->name;
+           << "from " << pl->repository_fragment->name << pdb;
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
                     << pl->repository_fragment->name << pdb;});
@@ -413,12 +416,19 @@ namespace bpkg
 
       const repository_location& rl (p->repository_fragment);
 
+      // Note: see also complementary shared src logic in pkg-fetch. Note that
+      // it's possible to craft a scenario where we will unpack an archive
+      // that doesn't come from the fetch cache. This, however, seems harmless
+      // and so we don't check.
+      //
       if (!rl.empty () && cache.cache_src ())
       {
         assert (cache.is_open ());
 
         pid = package_id (n, v);
         ssd = cache.load_shared_source_directory (pid, v);
+
+        // @@ FC: make sure dn matches returned and issue diagnostics if not.
       }
 
       // @@ FC Should we somehow indicate that we are using shared source
@@ -468,6 +478,8 @@ namespace bpkg
         {
           fail << "unable to extract " << a << " to " << pd << ": " << e;
         }
+
+        // @@ FC: check directory now exists.
 
         if (ssd)
         {

@@ -225,7 +225,7 @@ namespace bpkg
         pid = package_id (n, v);
         ssd = fetch_cache.load_shared_source_directory (pid, v);
 
-        purge = false;
+        // @@ FC: make sure dn matches returned and issue diagnostics if not.
       }
     }
 
@@ -234,7 +234,7 @@ namespace bpkg
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
            << (!cached             ? " (local cache)"          :
-               ssd && ssd->present ? " (cache, shared source)" :
+               ssd && ssd->present ? " (cache, shared src)" :
                                      " (cache)");
     }
     else if (((verb && !o.no_progress ()) || o.progress ()) && !simulate)
@@ -242,7 +242,7 @@ namespace bpkg
       text << "checking out "
            << package_string (ap->id.name, ap->version) << pdb
            << (!cached             ? " (local cache)"          :
-               ssd && ssd->present ? " (cache, shared source)" :
+               ssd && ssd->present ? " (cache, shared src)" :
                                      " (cache)");
     }
     else
@@ -259,6 +259,7 @@ namespace bpkg
       if (ssd && ssd->present)
       {
         d = move (ssd->directory);
+        purge = false;
       }
       else
       {
@@ -554,6 +555,7 @@ namespace bpkg
                                                         move (d),
                                                         rl.url (),
                                                         commit);
+          purge = false;
         }
       }
     }

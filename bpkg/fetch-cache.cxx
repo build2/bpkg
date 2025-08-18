@@ -110,6 +110,9 @@ namespace bpkg
   // Note: the shared source directory is non-precious if sp_directory_ is
   // empty (--fetch-cache-path option is specified, etc).
   //
+  // Note that we have a separate semi-precious tmp subdirectory in case np
+  // and sp end up on different filesystems.
+  //
   static dir_path sp_directory_;                      // ~/.build2/cache/
   static dir_path sp_tmp_directory_;                  // ~/.build2/cache/tmp
   static dir_path shared_source_directory_;           // ~/.build2/cache/src
@@ -1606,6 +1609,8 @@ namespace bpkg
     // 3. Return the permanent source directory path.
 
     dir_path n (tmp_directory.leaf ());
+    assert (n.string () == id.name.string () + '-' + v.string ());
+
     dir_path r (shared_source_directory_ / n);
 
     // If the shared source directory already exists, probably as a result of
