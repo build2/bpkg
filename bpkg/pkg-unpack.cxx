@@ -442,12 +442,12 @@ namespace bpkg
     if (verb > 1 && !simulate)
     {
       text << "unpacking " << dn << " from " << p->effective_archive (c) << db
-           << (ssd && ssd->present ? " (cache, shared src)" : "");
+           << (ssd ? " (cache, shared src)" : "");
     }
     else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
     {
       text << "unpacking " << *p << db
-           << (ssd && ssd->present ? " (cache, shared src)" : "");
+           << (ssd ? " (cache, shared src)" : "");
     }
     else
       l4 ([&]{trace << dn << " from " << p->effective_archive (c) << db;});

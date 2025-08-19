@@ -244,17 +244,17 @@ namespace bpkg
     {
       text << "checking out " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
-           << (!cached             ? " (local cache)"       :
-               ssd && ssd->present ? " (cache, shared src)" :
-                                     " (cache)");
+           << (!cached ? " (local cache)"       :
+               ssd     ? " (cache, shared src)" :
+                         " (cache)");
     }
     else if (((verb && !o.no_progress ()) || o.progress ()) && !simulate)
     {
       text << "checking out "
            << package_string (ap->id.name, ap->version) << pdb
-           << (!cached             ? " (local cache)"       :
-               ssd && ssd->present ? " (cache, shared src)" :
-                                     " (cache)");
+           << (!cached ? " (local cache)"       :
+               ssd     ? " (cache, shared src)" :
+                         " (cache)");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "
