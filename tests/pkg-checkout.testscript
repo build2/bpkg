@@ -330,8 +330,8 @@ else
       #
       $* -v libbar/1.0.0+1 2>&1 | set out
 
-      sed -n -e 's%^(checking out libbar. from .* \(cache\))$%\1%p' <$out >~/.+/
-      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p'              <$out >~/.+/
+      sed -n -e 's%^(checking out libbar. from .* \(cache, shared src\))$%\1%p'      <$out >~/.+/
+      sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p'                               <$out >~/.+/
       sed -n -e 's%^(fetching .+style-basic.git in .+ for submodule .extras.)$%\1%p' <$out >~/.+/
 
       $pkg_status libbar >'libbar unpacked 1.0.0+1'

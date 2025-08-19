@@ -335,7 +335,7 @@ $* 2>>EOE != 0
     $pkg_fetch libhello/1.0.0
 
     $* libhello 2>>EOE
-      unpacking libhello/1.0.0
+      unpacking libhello/1.0.0 (cache, shared src)
       unpacked libhello/1.0.0
       EOE
 
