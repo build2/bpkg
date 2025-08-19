@@ -5,6 +5,7 @@
 #define BPKG_FETCH_CACHE_DATA_HXX
 
 #include <odb/core.hxx>
+#include <odb/section.hxx>
 
 #include <bpkg/types.hxx>
 #include <bpkg/utility.hxx>
@@ -239,13 +240,54 @@ namespace bpkg
     repository_url repository;
     string         origin_id;
 
-    // @@ FC whether usage accurately tracked.
+    // Path to src-root.build[2] file inside the shared source directory.
+    // Keeps track of the shared source directory usage by package
+    // configurations on the same filesystem, as this file's hard link count
+    // (see b-configure hardlink parameter for details).
+    //
+    // Note that this file doesn't exist initially and is only created by
+    // pkg-configure executed in configuration on the same filesystem.
+    //
+    path src_root;
+
+    // List of package configurations, represented by their src-root.build[2]
+    // file paths, located on filesystems other than the one of the shared
+    // source directory they refer to.
+    //
+    // Note that complementing src_root by this list doesn't result in a
+    // bullet-proof use counting (think of configuration renames, etc), but is
+    // probably the best approximation we can get without heroic measures.
+    //
+    paths configurations;
+    odb::section configurations_section;
+
+    shared_source_directory () = default;
+
+    shared_source_directory (package_id i,
+                             original_version v,
+                             timestamp a,
+                             dir_path d,
+                             repository_url r,
+                             string o,
+                             path s)
+        : id (move (i)),
+          version (move (v)),
+          access_time (a),
+          directory (move (d)),
+          repository (move (r)),
+          origin_id (move (o)),
+          src_root (move (s)) {}
 
     // Database mapping.
     //
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
     #pragma db member(directory) unique
+
+    #pragma db member(configurations) id_column("") value_column("src_root") \
+      section(configurations_section)
+
+    #pragma db member(configurations_section) load(lazy) update(always)
 
     // Speed-up queries with filtering by the access time.
     //

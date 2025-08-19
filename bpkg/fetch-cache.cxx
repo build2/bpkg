@@ -10,6 +10,8 @@
 #include <odb/sqlite/database.hxx>
 #include <odb/sqlite/exceptions.hxx>
 
+#include <libbutl/filesystem.hxx> // file_link_count()
+
 #include <bpkg/database.hxx>         // database::fetch_cache_mode
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx> // {repositories,packages}_file
@@ -657,7 +659,7 @@ namespace bpkg
   {
     // Note: may be open even if disabled (see mode()).
 
-    if (gc_thread_.joinable ())
+    if (active_gc ())
       stop_gc (true /* ignore_errors */);
 
     // The tracer could already be destroyed (e.g., if called from the
@@ -788,8 +790,86 @@ namespace bpkg
 
         dir_path d (shared_source_directory_ / o.directory);
 
-        // @@ FC Skip the entry if the shared source directory is still used.
+        // Skip the entry if the shared source directory is still used by some
+        // package configurations.
+        //
 
+        // Skip the entry if the hard-links count for its src-root.build[2]
+        // file is greater than 1.
+        //
+        path p (d / o.src_root);
+
+        try
+        {
+          if (file_link_count (p) > 1)
+            continue;
+        }
+        catch (const system_error& e)
+        {
+          if (verb >= 3)
+            warn << "unable to retrieve hard link count for " << p << ": " << e;
+
+          continue;
+        }
+
+        // Remove non-existing configurations from the list of configurations
+        // located on other filesystems. Skip the entry if any configurations
+        // remain in the list. If the last configuration has been removed,
+        // then update the access time and skip the entry to give it another 3
+        // months of lifetime.
+        //
+        db.load (o, o.configurations_section);
+        paths& cs (o.configurations);
+
+        size_t n (cs.size ());
+
+        for (auto i (cs.begin ()); i != cs.end (); )
+        {
+          const path& p (*i);
+
+          try
+          {
+            // Note that the existing src-root.build[2] file can be
+            // overwritten by now and actually refer to some other source
+            // directory (shared or not). Parsing it to make sure it still
+            // refers to this shared source directory feels too hairy at the
+            // moment. Let's keep it simple for now and assume that if it
+            // exists, then it still refers to this source directory. The only
+            // drawback is that we may keep a source directory in the cache
+            // longer than necessary.
+            //
+            if (!file_exists (p))
+              i = cs.erase (i);
+            else
+              ++i;
+          }
+          catch (const system_error& e)
+          {
+            if (verb >= 3)
+              warn << "unable to stat path " << p << ": " << e;
+
+            ++i;
+          }
+        }
+
+        bool force_skip (false);
+
+        if (cs.size () != n)
+        {
+          if (cs.empty ())
+          {
+            o.access_time = system_clock::now ();
+            force_skip = true;
+          }
+
+          db.update (o);
+        }
+
+        if (!cs.empty () || force_skip)
+          continue;
+
+        // Remove the shared source directory and the database entry.
+        //
         if (verb >= 3)
           text << "rm -r " << d;
 
@@ -907,7 +987,7 @@ namespace bpkg
   void fetch_cache::
   start_gc ()
   {
-    assert (is_open () && !gc_thread_.joinable () && gc_error_.empty ());
+    assert (is_open () && !active_gc () && gc_error_.empty ());
 
     gc_stop_.store (false, memory_order_relaxed);
     gc_thread_ = thread (&fetch_cache::garbage_collector, this);
@@ -916,7 +996,7 @@ namespace bpkg
   void fetch_cache::
   stop_gc (bool ie)
   {
-    assert (is_open () && gc_thread_.joinable ());
+    assert (is_open () && active_gc ());
 
     gc_stop_.store (true, memory_order_release);
     gc_thread_.join ();
@@ -931,7 +1011,7 @@ namespace bpkg
   bool fetch_cache::
   load_pkg_repository_auth (const string& id)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     auto& db (*db_);
 
@@ -958,7 +1038,7 @@ namespace bpkg
                             string name,
                             optional<timestamp> end_date)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     auto& db (*db_);
 
@@ -998,7 +1078,7 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_metadata> fetch_cache::
   load_pkg_repository_metadata (repository_url u)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     u = canonicalize_url (move (u));
 
@@ -1076,7 +1156,7 @@ namespace bpkg
                                 string repositories_checksum,
                                 string packages_checksum)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     u = canonicalize_url (move (u));
 
@@ -1167,7 +1247,7 @@ namespace bpkg
   optional<fetch_cache::loaded_pkg_repository_package> fetch_cache::
   load_pkg_repository_package (const package_id& id)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     // The overall plan is as follows:
     //
@@ -1226,7 +1306,7 @@ namespace bpkg
                                string checksum,
                                repository_url repository)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     // The overall plan is as follows:
     //
@@ -1305,7 +1385,7 @@ namespace bpkg
   fetch_cache::loaded_git_repository_state fetch_cache::
   load_git_repository_state (repository_url u)
   {
-    assert (is_open () && !gc_thread_.joinable () && !u.fragment);
+    assert (is_open () && !active_gc () && !u.fragment);
 
     u = canonicalize_git_url (move (u));
 
@@ -1431,7 +1511,7 @@ namespace bpkg
   void fetch_cache::
   save_git_repository_state (repository_url u)
   {
-    assert (is_open () && !gc_thread_.joinable () && !u.fragment);
+    assert (is_open () && !active_gc () && !u.fragment);
 
     u = canonicalize_git_url (move (u));
 
@@ -1516,7 +1596,7 @@ namespace bpkg
   fetch_cache::loaded_shared_source_directory_state fetch_cache::
   load_shared_source_directory (const package_id& id, const version& v)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     // The overall plan is as follows:
     //
@@ -1597,7 +1677,7 @@ namespace bpkg
                                 repository_url repository,
                                 string origin_id)
   {
-    assert (is_open () && !gc_thread_.joinable ());
+    assert (is_open () && !active_gc ());
 
     // The overall plan is as follows:
     //
@@ -1623,6 +1703,16 @@ namespace bpkg
     else if (!exists (shared_source_directory_))
       mk_p (shared_source_directory_);
 
+    bool alt_naming;
+
+    if (exists (tmp_directory / alt_build_dir))
+      alt_naming = true;
+    else if (exists (tmp_directory / std_build_dir))
+      alt_naming = false;
+    else
+      fail << "no build/ directory in package directory " << tmp_directory
+           << endf;
+
     auto& db (*db_);
 
     try
@@ -1635,7 +1725,8 @@ namespace bpkg
         system_clock::now (),
         move (n),
         move (repository),
-        move (origin_id)};
+        move (origin_id),
+        (alt_naming ? alt_src_root_file : std_src_root_file)};
 
       db.persist (d);
 
@@ -1649,5 +1740,107 @@ namespace bpkg
     mv (tmp_directory, r);
 
     return r;
+  }
+
+  static uint64_t
+  hardlink_count (const path& p)
+  {
+    try
+    {
+      return file_link_count (p);
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to retrieve hard link count for " << p << ": " << e << endf;
+    }
+  }
+
+  optional<fetch_cache::shared_source_directory_usage> fetch_cache::
+  get_shared_source_directory_usage (const package_id& id)
+  {
+    assert (is_open () && !active_gc ());
+
+    optional<shared_source_directory_usage> r;
+
+    auto& db (*db_);
+
+    try
+    {
+      transaction t (db);
+
+      shared_source_directory sd;
+      if (db.find<shared_source_directory> (id, sd))
+      {
+        dir_path d (shared_source_directory_ / sd.directory);
+
+        // Note that this function is not necessarily called right after
+        // load_shared_source_directory() (think of package
+        // re-configurations). Thus, let's check for the shared source
+        // directory existence here as well.
+        //
+        if (exists (d))
+        {
+          size_t hc (hardlink_count (d / sd.src_root));
+          r = shared_source_directory_usage {move (d), hc};
+        }
+        else
+          db.erase (sd);
+      }
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
+
+    return r;
+  }
+
+  void fetch_cache::
+  add_shared_source_directory_usage (const package_id& id,
+                                     const dir_path& configuration,
+                                     uint64_t use_count)
+  {
+    assert (is_open () && !active_gc ());
+    assert (configuration.absolute () && configuration.normalized ());
+
+    auto& db (*db_);
+
+    try
+    {
+      transaction t (db);
+
+      shared_source_directory sd;
+      db.load<shared_source_directory> (id, sd);
+
+      size_t hc (
+        hardlink_count (shared_source_directory_ / sd.directory / sd.src_root));
+
+      // If the hard link count didn't change after creation of the new
+      // configuration, then assume that this configuration is located on a
+      // different filesystem and so add it to the list for tracking.
+      //
+      if (hc == use_count)
+      {
+        path p (configuration / sd.src_root);
+
+        db.load (sd, sd.configurations_section);
+        paths& cs (sd.configurations);
+
+        if (find (cs.begin (), cs.end (), p) == cs.end ())
+          cs.push_back (move (p));
+      }
+
+      sd.access_time = system_clock::now ();
+
+      db.update (sd);
+
+      t.commit ();
+    }
+    catch (const database_exception& e)
+    {
+      fail << db.name () << ": " << e.message ();
+    }
   }
 }

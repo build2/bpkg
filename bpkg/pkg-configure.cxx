@@ -18,6 +18,7 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/database.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/fetch-cache.hxx>
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/package-query.hxx>
 #include <bpkg/manifest-utility.hxx>
@@ -641,6 +642,39 @@ namespace bpkg
     //
     if (!simulate)
     {
+      // If the package is not external, its source directory doesn't belong
+      // to the configuration directory, the fetch cache is enabled, and
+      // sharing of source directories is not disabled, then check if this
+      // source directory is shared. If that's the case, then pass the
+      // hardlink parameter to the b-configure meta-operation and register the
+      // newly created configuration in the fetch cache for the shared source
+      // directory usage tracking.
+      //
+      fetch_cache cache (o, &db);
+
+      package_id pid;
+      optional<fetch_cache::shared_source_directory_usage> sdu;
+
+      if (cache.cache_src () && !p->external ())
+      {
+        dir_path sd (src_root);
+        if (!normalize (sd, "package source").sub (db.config))
+        {
+          cache.open (trace);
+
+          pid = package_id (p->name, p->version);
+          sdu = cache.get_shared_source_directory_usage (pid);
+
+          if (sdu)
+          {
+            // Make sure src_root refers to the shared source directory.
+            //
+            if (sd != normalize (sdu->directory, "shared source directory"))
+              sdu = nullopt;
+          }
+        }
+      }
+
       // Original implementation that runs the standard build system driver.
       //
       // Note that the semantics doesn't match 100%. In particular, in the
@@ -667,13 +701,24 @@ namespace bpkg
       else
         bspec = "configure('" +
           src_root.representation () + "'@'" +
-          out_root.representation () + "')";
+          out_root.representation () + (sdu ? ",hardlink" : "") + "')";
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
       try
       {
         run_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
+
+        if (sdu)
+        {
+          dir_path cd (out_root);
+          normalize (cd, "package configuration");
+
+          cache.add_shared_source_directory_usage (pid, cd, sdu->use_count);
+        }
+
+        if (cache.is_open ())
+          cache.close ();
       }
       catch (const failed&)
       {
@@ -698,7 +743,7 @@ namespace bpkg
         else
           bspec = "configure('" +
             src_root.representation () + "'@'" +
-            out_root.representation () + "')";
+            out_root.representation () + (sdu ? ",hardlink" : "") + "')";
 
         print_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
@@ -842,10 +887,6 @@ namespace bpkg
         const meta_operation_info& mif (config::mo_configure);
         const operation_info& oif (op_default);
 
-        // Skip configure_pre() and configure_operation_pre() calls since we
-        // don't pass any parameteres @@ FC and pass default operation. We
-        // also know that op_default has no pre/post operations, naturally.
-
         // Find the root buildfile. Note that the implied buildfile logic does
         // not apply (our target is the project root directory).
         //
@@ -878,6 +919,18 @@ namespace bpkg
         //
         const path_name bsn ("<buildspec>");
         const location loc (bsn, 0, 0);
+
+        // Skip configure_pre(), unless using a shared source directory, and
+        // configure_operation_pre() calls since we don't pass any parameters
+        // and pass default operation. We also know that op_default has no
+        // pre/post operations, naturally.
+        //
+        if (sdu)
+        {
+          mparams.emplace_back (names ({name ("hardlink")}));
+
+          mif.meta_operation_pre (ctx, mparams, loc);
+        }
 
         // out_root/dir{./}
         //
@@ -932,6 +985,14 @@ namespace bpkg
           if (sp->find (n) == sp->end ())
             sp->emplace (n, out_root.leaf ());
         }
+
+        if (sdu)
+          cache.add_shared_source_directory_usage (pid,
+                                                   out_root, // Note: absolute.
+                                                   sdu->use_count);
+
+        if (cache.is_open ())
+          cache.close ();
       }
       catch (const build2::failed&)
       {

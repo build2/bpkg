@@ -776,6 +776,8 @@ namespace bpkg
   void system_package_manager_debian::
   apt_get_update ()
   {
+    assert (!offline_); // Shouldn't be here otherwise.
+
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
       apt_get_common ("update", args_storage));
@@ -838,6 +840,12 @@ namespace bpkg
   void system_package_manager_debian::
   apt_get_install (const strings& pkgs)
   {
+    // Note that this function may be called for only the fully installed
+    // packages to make sure they are all set to manually installed. Thus, we
+    // we don't assert the offline mode here.
+    //
+    //assert (!offline_);
+
     assert (!pkgs.empty ());
 
     strings args_storage;

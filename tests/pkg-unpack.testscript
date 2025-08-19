@@ -322,9 +322,7 @@ $* 2>>EOE != 0
   +mkdir $options_guard
   +echo '--no-default-options' >=$options_guard/bpkg.options
   +export BPKG_FETCH_CACHE=src
-  rep_fetch    += --fetch-cache-path cache
-  pkg_fetch    += --fetch-cache-path cache
-  test.options += --fetch-cache-path cache
+  +export BPKG_FETCH_CACHE_PATH=cache
 
   : basics
   :

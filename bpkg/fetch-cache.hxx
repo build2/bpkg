@@ -369,8 +369,8 @@ namespace bpkg
 
     // Shared package source directory cache API.
     //
-    // Note that the load_*() and save_*() functions should be called without
-    // unlocking the cache in between.
+    // Note that the load_*() and save_*() as well as get_*() and add_*()
+    // functions should be called without unlocking the cache in between.
     //
   public:
     // If the cache entry is present, then return the permanent source
@@ -396,6 +396,30 @@ namespace bpkg
                                   dir_path tmp_directory,
                                   repository_url,
                                   string origin_id);
+
+    // If the cache entry is present, then return its directory path and use
+    // count.
+    //
+    struct shared_source_directory_usage
+    {
+      dir_path directory;
+      uint64_t use_count;
+    };
+
+    optional<shared_source_directory_usage>
+    get_shared_source_directory_usage (const package_id&);
+
+    // Start tracking the use of a shared source directory by the newly
+    // created package configuration. The configuration directory path is
+    // expected to be absolute and normalized. Pass the use count retrieved on
+    // the previous get_shared_source_directory_usage() function call. Assume
+    // that the package was configured using the b-configure hardlink
+    // parameter.
+    //
+    void
+    add_shared_source_directory_usage (const package_id&,
+                                       const dir_path& configuration,
+                                       uint64_t use_count);
 
     // Implementation details (also used by cfg_create()).
     //

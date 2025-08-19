@@ -1121,7 +1121,7 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_makecache (bool modify_system)
   {
-    // @@ FC Fail in the offline mode (same for Debian).
+    assert (!offline_); // Shouldn't be here otherwise.
 
     // Let's, for good measure, assume that `dnf makecache` can display some
     // prompts. While that seems rather far fetched, who could think that
@@ -1226,7 +1226,7 @@ namespace bpkg
   void system_package_manager_fedora::
   dnf_install (const strings& pkgs)
   {
-    // @@ FC Fail in the offline mode (same for Debian).
+    assert (!offline_); // Shouldn't be here otherwise.
 
     assert (!pkgs.empty ());
 

@@ -84,6 +84,7 @@
       <column name="directory" type="TEXT" null="true"/>
       <column name="repository" type="TEXT" null="true"/>
       <column name="origin_id" type="TEXT" null="true"/>
+      <column name="src_root" type="TEXT" null="true"/>
       <primary-key>
         <column name="name"/>
         <column name="version_epoch"/>
@@ -97,6 +98,43 @@
       </index>
       <index name="shared_source_directory_access_time_i">
         <column name="access_time"/>
+      </index>
+    </table>
+    <table name="shared_source_directory_configurations" kind="container">
+      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="true"/>
+      <column name="version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="index" type="INTEGER" null="true"/>
+      <column name="src_root" type="TEXT" null="true"/>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+        <references table="shared_source_directory">
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+          <column name="version_iteration"/>
+        </references>
+      </foreign-key>
+      <index name="shared_source_directory_configurations_object_id_i">
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <column name="version_iteration"/>
+      </index>
+      <index name="shared_source_directory_configurations_index_i">
+        <column name="index"/>
       </index>
     </table>
   </model>
