@@ -293,21 +293,16 @@ namespace bpkg
     optional<loaded_pkg_repository_package>
     load_pkg_repository_package (const package_id&);
 
-    // Save (insert) package archive with the specified file name for the
-    // specified package name and version. The archive should be placed
-    // (copied, moved, hard-linked) to the returned path. Note that the caller
-    // is expected to use the "place to temporary and atomically move into
-    // place" technique.
-    //
-    // @@ FC Won't it be cleaner to just pass the path to the file and save*()
-    //    does all the moving, etc? Maybe we don't keep the archive in the
-    //    configuration if shared src is enable? Could probably pass a flag
-    //    whether to move or copy/link...
+    // Given the archive path for the specified package name and version, add
+    // the cache entry, move or, if the move argument is false, hard-link/copy
+    // the archive to its permanent location, and return the permanent archive
+    // path.
     //
     path
     save_pkg_repository_package (package_id,
                                  version orig_version,
-                                 path file,
+                                 const path& archive,
+                                 bool move,
                                  string checksum,
                                  repository_url);
 

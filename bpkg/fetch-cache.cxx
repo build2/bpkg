@@ -1305,7 +1305,8 @@ namespace bpkg
   path fetch_cache::
   save_pkg_repository_package (package_id id,
                                version v,
-                               path file,
+                               const path& archive,
+                               bool mv,
                                string checksum,
                                repository_url repository)
   {
@@ -1316,9 +1317,12 @@ namespace bpkg
     // 1. Create new database entry with current access time. Remove the
     //    archive file, if exists.
     //
-    // 2. Return the path the archive file should be moved to.
+    // 2. Move or hard-link/copy the archive to its permanent location.
+    //
+    // 3. Return the permanent archive path.
 
-    path r (pkg_repository_package_directory_ / file);
+    path an (archive.leaf ());
+    path r (pkg_repository_package_directory_ / an);
 
     // If the archive file already exists, probably as a result of some
     // previous failure, then remove it. Create the database entry last, to
@@ -1340,7 +1344,7 @@ namespace bpkg
         move (id),
         move (v),
         system_clock::now (),
-        move (file),
+        move (an),
         move (checksum),
         move (repository)};
 
@@ -1352,6 +1356,25 @@ namespace bpkg
     {
       fail << db.name () << ": " << e.message ();
     }
+
+    if (mv)
+    {
+      using bpkg::mv;
+
+      // Note that the move operation can fallback to copy, if the source and
+      // destination paths belong to different filesystems. Thus, to implement
+      // the "write to temporary and atomically move into place" technique, we
+      // move the archive in two steps: first, to the destination filesystem
+      // under the temporary name and then rename it to the final name.
+      //
+      auto_rmfile rm (r + ".tmp");
+      const path& p (rm.path);
+      mv (archive, p);
+      mv (p, r);
+      rm.cancel ();
+    }
+    else
+      hardlink (archive, r);
 
     return r;
   }

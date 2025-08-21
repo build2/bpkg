@@ -386,52 +386,6 @@ namespace bpkg
         mv (a, earm.path);
       }
 
-      // Try to create a hard link to a file and, if that fails, copy this
-      // file to the link location. In the latter case, use the "write to
-      // temporary and atomically move into place" technique.
-      //
-      auto hardlink = [] (const path& target, const path& link)
-      {
-        // Note that this implementation is inspired by libbutl's mkanylink()
-        // function.
-        //
-        try
-        {
-          mkhardlink (target, link);
-        }
-        catch (const system_error& e)
-        {
-          if (e.code ().category () == generic_category ())
-          {
-            int c (e.code ().value ());
-            if (c == ENOSYS || // Not implemented.
-                c == EPERM  || // Not supported by the filesystem(s).
-                c == EXDEV)    // On different filesystems.
-            {
-              auto_rmfile arm (link + ".tmp");
-              const path& p (arm.path);
-
-              try
-              {
-                cpfile (target, p);
-              }
-              catch (const system_error& e)
-              {
-                fail << "unable to copy file " << target << " to " << p
-                     << ": " << e;
-              }
-
-              mv (p, link);
-              arm.cancel ();
-              return;
-            }
-          }
-
-          fail << "unable to create hard link for " << target << " at "
-               << link << ": " << e;
-        }
-      };
-
       // Add the package archive file to the configuration, by either using
       // its cached version in place or fetching it from the repository.
       //
@@ -522,44 +476,31 @@ namespace bpkg
       //
       if (cache.enabled () && !crp)
       {
-        // Note that the fragment for pkg repository URLs is always nullopt,
-        // so can use the repository URL as is.
-        //
-        // Note also that we cache both local and remote URLs since a local
-        // URL could be on a network filesystem or some such.
-        //
-        path ca (cache.save_pkg_repository_package (move (pid),
-                                                    v,
-                                                    move (an),
-                                                    move (fcs),
-                                                    rl.url ()));
-
         // If sharing of the cached source directories is enabled, then move
         // the package archive to the fetch cache, use it in place (from the
         // cache) in the configuration, and don't remove it when the package
         // is purged (see above for details). Otherwise, hardlink/copy the
         // archive from the configuration directory into the cache.
         //
+        // Note that the fragment for pkg repository URLs is always nullopt,
+        // so can use the repository URL as is.
+        //
+        // Note also that we cache both local and remote URLs since a local
+        // URL could be on a network filesystem or some such.
+        //
+        path ca (
+          cache.save_pkg_repository_package (move (pid),
+                                             v,
+                                             a,
+                                             cache.cache_src () /* move */,
+                                             move (fcs),
+                                             rl.url ()));
+
         if (cache.cache_src ())
         {
-          // Note that the move operation can fallback to copy, if the source
-          // and destination paths belong to different filesystems. Thus, to
-          // implement the "write to temporary and atomically move into place"
-          // technique, we move the archive in two steps: first, to the
-          // destination filesystem under the temporary name and then rename
-          // it to the final name.
-          //
-          auto_rmfile rm (ca + ".tmp");
-          const path& p (rm.path);
-          mv (a, p);
-          mv (p, ca);
-          rm.cancel ();
-
           a = move (ca);
           purge = false;
         }
-        else
-          hardlink (a, ca);
       }
     }
 
