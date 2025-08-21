@@ -411,14 +411,14 @@ namespace bpkg
       uint64_t use_count;
     };
 
-    optional<shared_source_directory_usage>
+    optional<shared_source_directory_tracking>
     load_shared_source_directory_tracking (const package_id&);
 
     // Start tracking the use of the shared source directory for the specified
     // package by the newly configured configuration directory. The
     // configuration directory path is expected to be absolute and
     // normalized. The use count should be as retrieved on the previous
-    // load_shared_source_directory_tracked() call. Assume that the package
+    // load_shared_source_directory_tracking() call. Assume that the package
     // was configured using the configure `hardlink` parameter.
     //
     void

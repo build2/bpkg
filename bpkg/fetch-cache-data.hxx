@@ -254,13 +254,16 @@ namespace bpkg
     path src_root_file;
 
     // List of configuration directories represented as their absolute and
-    // normalized src-root.build/src-root.build2 file paths that are not being
-    // tracked by the above hard link count mechanism (typically because they
-    // are on different filesystems).
+    // normalized src-root.build file paths that are not being tracked by the
+    // above hard link count mechanism (typically because they are on
+    // different filesystems).
     //
     // Note that complementing the hard link count by this list doesn't result
     // in a bullet-proof tracking (think of configuration renames, etc), but
     // it's probably the best we can do without heroic measures.
+    //
+    // Also note that these files always use standard naming (see
+    // implementation for details).
     //
     paths untracked_configurations;
     odb::section untracked_configurations_section;
@@ -280,7 +283,7 @@ namespace bpkg
           directory (move (d)),
           repository (move (r)),
           origin_id (move (o)),
-          src_root (move (s)) {}
+          src_root_file (move (s)) {}
 
     // Database mapping.
     //
@@ -288,13 +291,15 @@ namespace bpkg
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
     #pragma db member(directory) unique
 
-    #pragma db member(configurations)      \
-            unordered                      \
-            id_column("")                  \
-            value_column("src_root_file")  \
-            section(configurations_section)
+    #pragma db member(untracked_configurations)       \
+            unordered                                 \
+            id_column("")                             \
+            value_column("src_root_file")             \
+            section(untracked_configurations_section)
 
-    #pragma db member(configurations_section) load(lazy) update(always)
+    #pragma db member(untracked_configurations_section) \
+            load(lazy)                                  \
+            update(always)
 
     // Speed-up queries with filtering by the access time.
     //

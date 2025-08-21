@@ -12,6 +12,8 @@
 
 #include <libbutl/filesystem.hxx> // file_link_count()
 
+#include <libbuild2/file.hxx> // is_src_root()
+
 #include <bpkg/database.hxx>         // database::fetch_cache_mode
 #include <bpkg/diagnostics.hxx>
 #include <bpkg/manifest-utility.hxx> // {repositories,packages}_file
@@ -797,7 +799,7 @@ namespace bpkg
         // Skip the entry if the hard-links count for its src-root.build file
         // is greater than 1.
         //
-        path p (d / o.src_root);
+        path p (d / o.src_root_file);
 
         try
         {
@@ -819,8 +821,8 @@ namespace bpkg
         // give it another 3 months of lifetime for good measue (configuration
         // renamed, etc).
         //
-        db.load (o, o.configurations_section);
-        paths& cs (o.configurations);
+        db.load (o, o.untracked_configurations_section);
+        paths& cs (o.untracked_configurations);
 
         size_t n (cs.size ());
 
@@ -1704,23 +1706,25 @@ namespace bpkg
     else if (!exists (shared_source_directory_))
       mk_p (shared_source_directory_);
 
-    // @@ FC: let's call build2::is_src_root().
+    optional<bool> alt_naming;
 
-    bool alt_naming;
-
-    if (exists (tmp_directory / alt_build_dir))
-      alt_naming = true;
-    else if (exists (tmp_directory / std_build_dir))
-      alt_naming = false;
-    else
-      fail << "no build/ directory in package directory " << tmp_directory
-           << endf;
+    try
+    {
+      if (!build2::is_src_root (tmp_directory, alt_naming))
+        fail << tmp_directory << " is not a package source directory";
+    }
+    catch (const build2::failed&)
+    {
+      throw failed (); // Assume the diagnostics has already been issued.
+    }
 
     auto& db (*db_);
 
     try
     {
       transaction t (db);
+
+      assert (alt_naming); // Wouldn't be here otherwise.
 
       shared_source_directory d {
         move (id),
@@ -1729,7 +1733,7 @@ namespace bpkg
         move (n),
         move (repository),
         move (origin_id),
-        (alt_naming ? alt_src_root_file : std_src_root_file)};
+        (*alt_naming ? alt_src_root_file : std_src_root_file)};
 
       db.persist (d);
 
@@ -1758,12 +1762,12 @@ namespace bpkg
     }
   }
 
-  optional<fetch_cache::shared_source_directory_usage> fetch_cache::
-  get_shared_source_directory_usage (const package_id& id)
+  optional<fetch_cache::shared_source_directory_tracking> fetch_cache::
+  load_shared_source_directory_tracking (const package_id& id)
   {
     assert (is_open () && !active_gc ());
 
-    optional<shared_source_directory_usage> r;
+    optional<shared_source_directory_tracking> r;
 
     auto& db (*db_);
 
@@ -1783,8 +1787,8 @@ namespace bpkg
         //
         if (exists (d))
         {
-          size_t hc (hardlink_count (d / sd.src_root));
-          r = shared_source_directory_usage {move (d), hc};
+          size_t hc (hardlink_count (d / sd.src_root_file));
+          r = shared_source_directory_tracking {move (d), hc};
         }
         else
           db.erase (sd);
@@ -1801,9 +1805,9 @@ namespace bpkg
   }
 
   void fetch_cache::
-  add_shared_source_directory_usage (const package_id& id,
-                                     const dir_path& conf,
-                                     uint64_t use_count)
+  save_shared_source_directory_tracking (const package_id& id,
+                                         const dir_path& conf,
+                                         uint64_t use_count)
   {
     assert (is_open () && !active_gc ());
     assert (conf.absolute () && conf.normalized ());
@@ -1821,7 +1825,8 @@ namespace bpkg
       db.load<shared_source_directory> (id, sd);
 
       size_t hc (
-        hardlink_count (shared_source_directory_ / sd.directory / sd.src_root));
+        hardlink_count (
+          shared_source_directory_ / sd.directory / sd.src_root_file));
 
       // If the hard link count hasn't changed after creation of the new
       // configuration, then assume that this configuration cannot be tracked
@@ -1833,10 +1838,10 @@ namespace bpkg
         // Absolute and normalized by construction. Note that in the output
         // directories we always use standard naming.
         //
-        path p (conf / sd.src_root); // @@ FC
+        path p (conf / std_src_root_file);
 
-        db.load (sd, sd.configurations_section);
-        paths& cs (sd.configurations);
+        db.load (sd, sd.untracked_configurations_section);
+        paths& cs (sd.untracked_configurations);
 
         if (find (cs.begin (), cs.end (), p) == cs.end ())
           cs.push_back (move (p));

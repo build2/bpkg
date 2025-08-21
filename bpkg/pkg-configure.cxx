@@ -660,7 +660,7 @@ namespace bpkg
       fetch_cache cache (o, nullptr); // Uninitialized.
 
       package_id pid;
-      optional<fetch_cache::shared_source_directory_usage> sdu;
+      optional<fetch_cache::shared_source_directory_tracking> sdt;
 
       if (!p->external ())
       {
@@ -674,18 +674,18 @@ namespace bpkg
             cache.open (trace);
 
             pid = package_id (p->name, p->version);
-            sdu = cache.get_shared_source_directory_usage (pid);
+            sdt = cache.load_shared_source_directory_tracking (pid);
 
-            if (sdu)
+            if (sdt)
             {
               // Make sure src_root refers to the shared source directory
               // (could be some external directory).
               //
-              if (sd != normalize (sdu->directory, "shared source directory"))
-                sdu = nullopt;
+              if (sd != normalize (sdt->directory, "shared source directory"))
+                sdt = nullopt;
             }
 
-            if (!sdu)
+            if (!sdt)
               cache.close ();
           }
         }
@@ -717,7 +717,7 @@ namespace bpkg
       else
         bspec = "configure('" +
           src_root.representation () + "'@'" +
-          out_root.representation () + (sdu ? ",hardlink" : "") + "')";
+          out_root.representation () + (sdt ? ",hardlink" : "") + "')";
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
@@ -725,12 +725,12 @@ namespace bpkg
       {
         run_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
 
-        if (sdu)
+        if (sdt)
         {
           dir_path cd (out_root);
           normalize (cd, "package configuration");
 
-          cache.add_shared_source_directory_usage (pid, cd, sdu->use_count);
+          cache.save_shared_source_directory_tracking (pid, cd, sdt->use_count);
           cache.close ();
         }
       }
@@ -757,7 +757,7 @@ namespace bpkg
         else
           bspec = "configure('" +
             src_root.representation () + "'@'" +
-            out_root.representation () + (sdu ? ",hardlink" : "") + "')";
+            out_root.representation () + (sdt ? ",hardlink" : "") + "')";
 
         print_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
@@ -939,7 +939,7 @@ namespace bpkg
         // and pass default operation. We also know that op_default has no
         // pre/post operations, naturally.
         //
-        if (sdu)
+        if (sdt)
         {
           mparams.emplace_back (names ({name ("hardlink")}));
 
@@ -1005,11 +1005,11 @@ namespace bpkg
             sp->emplace (n, out_root.leaf ());
         }
 
-        if (sdu)
+        if (sdt)
         {
-          cache.add_shared_source_directory_usage (pid,
-                                                   out_root, // Note: absolute.
-                                                   sdu->use_count);
+          cache.save_shared_source_directory_tracking (pid,
+                                                       out_root, // Note: absolute.
+                                                       sdt->use_count);
           cache.close ();
         }
       }
