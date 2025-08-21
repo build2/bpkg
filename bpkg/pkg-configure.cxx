@@ -650,27 +650,43 @@ namespace bpkg
       // newly created configuration in the fetch cache for the shared source
       // directory usage tracking.
       //
-      fetch_cache cache (o, &db);
+      // Note that it's theoretically possible for the shared directory to no
+      // longer exist without any fault of the user. For example, the user
+      // could unpack a package and then delay configuring it until the shared
+      // directory got garbage collected. This, however, if highly unlikely
+      // and so we don't bother with any special diagnostics and just let
+      // things fail naturally.
+      //
+      fetch_cache cache (o, nullptr); // Uninitialized.
 
       package_id pid;
       optional<fetch_cache::shared_source_directory_usage> sdu;
 
-      if (cache.cache_src () && !p->external ())
+      if (!p->external ())
       {
-        dir_path sd (src_root);
-        if (!normalize (sd, "package source").sub (db.config))
+        cache.mode (o, &db); // Initialize.
+
+        if (cache.cache_src ())
         {
-          cache.open (trace);
-
-          pid = package_id (p->name, p->version);
-          sdu = cache.get_shared_source_directory_usage (pid);
-
-          if (sdu)
+          dir_path sd (src_root);
+          if (!normalize (sd, "package source").sub (db.config))
           {
-            // Make sure src_root refers to the shared source directory.
-            //
-            if (sd != normalize (sdu->directory, "shared source directory"))
-              sdu = nullopt;
+            cache.open (trace);
+
+            pid = package_id (p->name, p->version);
+            sdu = cache.get_shared_source_directory_usage (pid);
+
+            if (sdu)
+            {
+              // Make sure src_root refers to the shared source directory
+              // (could be some external directory).
+              //
+              if (sd != normalize (sdu->directory, "shared source directory"))
+                sdu = nullopt;
+            }
+
+            if (!sdu)
+              cache.close ();
           }
         }
       }
@@ -715,10 +731,8 @@ namespace bpkg
           normalize (cd, "package configuration");
 
           cache.add_shared_source_directory_usage (pid, cd, sdu->use_count);
-        }
-
-        if (cache.is_open ())
           cache.close ();
+        }
       }
       catch (const failed&)
       {
@@ -929,7 +943,12 @@ namespace bpkg
         {
           mparams.emplace_back (names ({name ("hardlink")}));
 
+          // Actually, let's always skip meta_operation_pre() since it just
+          // validates the parameters.
+          //
+#if 0
           mif.meta_operation_pre (ctx, mparams, loc);
+#endif
         }
 
         // out_root/dir{./}
@@ -987,12 +1006,12 @@ namespace bpkg
         }
 
         if (sdu)
+        {
           cache.add_shared_source_directory_usage (pid,
                                                    out_root, // Note: absolute.
                                                    sdu->use_count);
-
-        if (cache.is_open ())
           cache.close ();
+        }
       }
       catch (const build2::failed&)
       {

@@ -91,6 +91,8 @@ namespace bpkg
   extern const dir_path certs_dir;          // .bpkg/certs/
   extern const dir_path repos_dir;          // .bpkg/repos/
 
+  // @@ Should we switch to using versions from build2?
+  //
   extern const dir_path std_build_dir;      // build/
   extern const dir_path std_config_dir;     // build/config/
   extern const path     std_bootstrap_file; // build/bootstrap.build

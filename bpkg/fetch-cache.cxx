@@ -794,8 +794,8 @@ namespace bpkg
         // package configurations.
         //
 
-        // Skip the entry if the hard-links count for its src-root.build[2]
-        // file is greater than 1.
+        // Skip the entry if the hard-links count for its src-root.build file
+        // is greater than 1.
         //
         path p (d / o.src_root);
 
@@ -812,11 +812,12 @@ namespace bpkg
           continue;
         }
 
-        // Remove non-existing configurations from the list of configurations
-        // located on other filesystems. Skip the entry if any configurations
-        // remain in the list. If the last configuration has been removed,
-        // then update the access time and skip the entry to give it another 3
-        // months of lifetime.
+        // Remove non-existing configurations from the list of untracked
+        // configurations (i.e., located on other filesystems). Skip the entry
+        // if any configurations remain in the list. If the last configuration
+        // has been removed, then update the access time and skip the entry to
+        // give it another 3 months of lifetime for good measue (configuration
+        // renamed, etc).
         //
         db.load (o, o.configurations_section);
         paths& cs (o.configurations);
@@ -829,10 +830,10 @@ namespace bpkg
 
           try
           {
-            // Note that the existing src-root.build[2] file can be
-            // overwritten by now and actually refer to some other source
-            // directory (shared or not). Parsing it to make sure it still
-            // refers to this shared source directory feels too hairy at the
+            // Note that the existing src-root.build file can be overwritten
+            // by now and actually refer to some other source directory
+            // (shared or not). Parsing it to make sure it still refers to
+            // this shared source directory feels too hairy at the
             // moment. Let's keep it simple for now and assume that if it
             // exists, then it still refers to this source directory. The only
             // drawback is that we may keep a source directory in the cache
@@ -1703,6 +1704,8 @@ namespace bpkg
     else if (!exists (shared_source_directory_))
       mk_p (shared_source_directory_);
 
+    // @@ FC: let's call build2::is_src_root().
+
     bool alt_naming;
 
     if (exists (tmp_directory / alt_build_dir))
@@ -1799,11 +1802,11 @@ namespace bpkg
 
   void fetch_cache::
   add_shared_source_directory_usage (const package_id& id,
-                                     const dir_path& configuration,
+                                     const dir_path& conf,
                                      uint64_t use_count)
   {
     assert (is_open () && !active_gc ());
-    assert (configuration.absolute () && configuration.normalized ());
+    assert (conf.absolute () && conf.normalized ());
 
     auto& db (*db_);
 
@@ -1811,19 +1814,26 @@ namespace bpkg
     {
       transaction t (db);
 
+      // Note that the cache shouldn't have been unlocked and so this object
+      // should be there.
+      //
       shared_source_directory sd;
       db.load<shared_source_directory> (id, sd);
 
       size_t hc (
         hardlink_count (shared_source_directory_ / sd.directory / sd.src_root));
 
-      // If the hard link count didn't change after creation of the new
-      // configuration, then assume that this configuration is located on a
-      // different filesystem and so add it to the list for tracking.
+      // If the hard link count hasn't changed after creation of the new
+      // configuration, then assume that this configuration cannot be tracked
+      // with the hard link count (e.g., located on a different filesystem)
+      // and so add it to the list of untracked ones.
       //
       if (hc == use_count)
       {
-        path p (configuration / sd.src_root);
+        // Absolute and normalized by construction. Note that in the output
+        // directories we always use standard naming.
+        //
+        path p (conf / sd.src_root); // @@ FC
 
         db.load (sd, sd.configurations_section);
         paths& cs (sd.configurations);

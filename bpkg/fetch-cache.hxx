@@ -91,6 +91,9 @@ namespace bpkg
   // if archive checksums don't match. In the future, once we have support for
   // reproducible source archives, we can consider upgrading this to an error.
   //
+  // Note that inside the database we keep relative paths to filesystem
+  // entries inside the cache. This allows the entire cache to be moved.
+  //
   class fetch_cache
   {
     // Construction and open/close.
@@ -128,6 +131,8 @@ namespace bpkg
     void
     open (tracer&);
 
+    // Note: valid to call on an uninitialized instance.
+    //
     bool
     is_open () const
     {
@@ -369,8 +374,8 @@ namespace bpkg
 
     // Shared package source directory cache API.
     //
-    // Note that the load_*() and save_*() as well as get_*() and add_*()
-    // functions should be called without unlocking the cache in between.
+    // Note that the load_*() and save_*() functions should be called without
+    // unlocking the cache in between.
     //
   public:
     // If the cache entry is present, then return the permanent source
@@ -397,29 +402,29 @@ namespace bpkg
                                   repository_url,
                                   string origin_id);
 
-    // If the cache entry is present, then return its directory path and use
-    // count.
+    // If the cache entry is present for the specified package, then return
+    // its directory path and use count.
     //
-    struct shared_source_directory_usage
+    struct shared_source_directory_tracking
     {
       dir_path directory;
       uint64_t use_count;
     };
 
     optional<shared_source_directory_usage>
-    get_shared_source_directory_usage (const package_id&);
+    load_shared_source_directory_tracking (const package_id&);
 
-    // Start tracking the use of a shared source directory by the newly
-    // created package configuration. The configuration directory path is
-    // expected to be absolute and normalized. Pass the use count retrieved on
-    // the previous get_shared_source_directory_usage() function call. Assume
-    // that the package was configured using the b-configure hardlink
-    // parameter.
+    // Start tracking the use of the shared source directory for the specified
+    // package by the newly configured configuration directory. The
+    // configuration directory path is expected to be absolute and
+    // normalized. The use count should be as retrieved on the previous
+    // load_shared_source_directory_tracked() call. Assume that the package
+    // was configured using the configure `hardlink` parameter.
     //
     void
-    add_shared_source_directory_usage (const package_id&,
-                                       const dir_path& configuration,
-                                       uint64_t use_count);
+    save_shared_source_directory_tracking (const package_id&,
+                                           const dir_path& configuration,
+                                           uint64_t use_count);
 
     // Implementation details (also used by cfg_create()).
     //

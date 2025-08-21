@@ -88,7 +88,7 @@ namespace bpkg
     //
     repository_url url;
 
-    // Directory for this repository inside the metadata/ directory.
+    // Directory for this repository relative to the metadata/ directory.
     // Calculated as a 16-character abbreviated SHA256 checksum of the
     // canonicalized repository URL.
     //
@@ -103,14 +103,15 @@ namespace bpkg
     //
     timestamp access_time;
 
-    // The repositories.manifest file path inside the repository directory and
-    // its SHA256 checksum as recorded in the packages.manifest file header.
+    // The repositories.manifest file path relative to the repository
+    // directory and its SHA256 checksum as recorded in the packages.manifest
+    // file header.
     //
     path   repositories_path;
     string repositories_checksum;
 
-    // The packages.manifest file path inside the repository directory and
-    // its SHA256 checksum as recorded in the signature.manifest file.
+    // The packages.manifest file path relative to the repository directory
+    // and its SHA256 checksum as recorded in the signature.manifest file.
     //
     path   packages_path;
     string packages_checksum;
@@ -141,7 +142,7 @@ namespace bpkg
     //
     timestamp access_time;
 
-    // The package archive file path inside the packages/ directory, its
+    // The package archive file path relative to the packages/ directory, its
     // SHA256 checksum as recorded in the packages.manifest file (which should
     // match the actual contents checksum), and its origin repository.
     //
@@ -188,9 +189,9 @@ namespace bpkg
     //
     repository_url url;
 
-    // Directory for this repository inside the git/ directory. Calculated as
-    // a 16-character abbreviated SHA256 checksum of the canonicalized
-    // repository URL.
+    // Directory for this repository relative to the git/ directory.
+    // Calculated as a 16-character abbreviated SHA256 checksum of the
+    // canonicalized repository URL.
     //
     dir_path directory;
 
@@ -228,7 +229,7 @@ namespace bpkg
     //
     timestamp access_time;
 
-    // Directory for this package inside the src/ directory.
+    // Directory for this package relative to the src/ directory.
     //
     dir_path directory;
 
@@ -240,26 +241,29 @@ namespace bpkg
     repository_url repository;
     string         origin_id;
 
-    // Path to src-root.build[2] file inside the shared source directory.
-    // Keeps track of the shared source directory usage by package
-    // configurations on the same filesystem, as this file's hard link count
-    // (see b-configure hardlink parameter for details).
+    // Path to the src-root.build/src-root.build2 file relative to the shared
+    // source directory. Its hard link count is used to keeps track of the
+    // shared source directory usage by package configurations on the same
+    // filesystem (see the configure meta-operation `hardlink` parameter for
+    // details).
     //
     // Note that this file doesn't exist initially and is only created by
-    // pkg-configure executed in configuration on the same filesystem.
+    // pkg-configure executed in a configuration directory on the same
+    // filesystem.
     //
-    path src_root;
+    path src_root_file;
 
-    // List of package configurations, represented by their src-root.build[2]
-    // file paths, located on filesystems other than the one of the shared
-    // source directory they refer to.
+    // List of configuration directories represented as their absolute and
+    // normalized src-root.build/src-root.build2 file paths that are not being
+    // tracked by the above hard link count mechanism (typically because they
+    // are on different filesystems).
     //
-    // Note that complementing src_root by this list doesn't result in a
-    // bullet-proof use counting (think of configuration renames, etc), but is
-    // probably the best approximation we can get without heroic measures.
+    // Note that complementing the hard link count by this list doesn't result
+    // in a bullet-proof tracking (think of configuration renames, etc), but
+    // it's probably the best we can do without heroic measures.
     //
-    paths configurations;
-    odb::section configurations_section;
+    paths untracked_configurations;
+    odb::section untracked_configurations_section;
 
     shared_source_directory () = default;
 
@@ -284,8 +288,11 @@ namespace bpkg
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
     #pragma db member(directory) unique
 
-    #pragma db member(configurations) id_column("") value_column("src_root") \
-      section(configurations_section)
+    #pragma db member(configurations)      \
+            unordered                      \
+            id_column("")                  \
+            value_column("src_root_file")  \
+            section(configurations_section)
 
     #pragma db member(configurations_section) load(lazy) update(always)
 
