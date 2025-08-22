@@ -8138,11 +8138,16 @@ namespace bpkg
             //
             // Also note that if the fetch cache is enabled, then for an
             // archive-based repository the package archive becomes local
-            // after the first fetch and should probably be always preferred
-            // over git repositories.
+            // after the first fetch. So based on this it feels correct to
+            // always prefer archive over git checkout if fetch cache is
+            // enabled.
             //
-            // Thus, we prefer the package repositories in the following
-            // order:
+            // Note also that checking for the archive presence in the cache
+            // is likely a bad idea since it's quite expensive (and we could
+            // be simulating).
+            //
+            // The overall preference order of the package repositories is as
+            // follows:
             //
             // 1: directory-based
             // 2: local archive-based
@@ -8156,7 +8161,7 @@ namespace bpkg
             //   4: archive-based
             //
             auto pref_order = [&fetch_cache, &fetch_cache_mode, &pdb]
-                              (const repository_location& rl)
+                              (const repository_location& rl) -> int
             {
               if (rl.directory_based ())
                 return 1;
@@ -8193,13 +8198,14 @@ namespace bpkg
                 const repository_location& rl (
                   l.repository_fragment.load ()->location);
 
-                if (prl == nullptr || pref_order (rl) < pref_order (*prl))
+                int po (pref_order (rl));
+                if (prl == nullptr || po < pref_order (*prl))
                 {
                   prl = &rl;
 
                   // Bail out if the preference order can't be less.
                   //
-                  if (rl.directory_based ())
+                  if (po == 1)
                     break;
                 }
               }
