@@ -24,7 +24,7 @@
 //
 #define FETCH_CACHE_SCHEMA_VERSION_BASE 1
 
-#pragma db model version(FETCH_CACHE_SCHEMA_VERSION_BASE, 1, open) // @@ TMP: close
+#pragma db model version(FETCH_CACHE_SCHEMA_VERSION_BASE, 1, closed)
 
 namespace bpkg
 {

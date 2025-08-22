@@ -435,8 +435,7 @@ namespace bpkg
             {
               if (!config_repo_exists)
                 fail << "missing repository directory for package " << n << ' '
-                     << v << " in its repository information configuration "
-                     << rdb.config_orig <<
+                     << v << " in configuration " << rdb.config_orig <<
                   info << "repository: " << rl.url () <<
                   info << "run 'bpkg rep-fetch' to repair";
 
@@ -474,8 +473,7 @@ namespace bpkg
               // location.
               //
               fail << "missing commit in repository directory for package " << n
-                   << ' ' << v << " in its repository information configuration "
-                   << rdb.config_orig <<
+                   << ' ' << v << " in configuration " << rdb.config_orig <<
                 info << "repository: " << rl.url () <<
                 info << "commit: " << commit <<
                 info << "run 'bpkg rep-fetch' to repair";

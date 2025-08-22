@@ -788,6 +788,9 @@ namespace bpkg
              db.query<shared_source_directory> (
                query<shared_source_directory>::access_time < three_months_ago))
       {
+        // NOTE: recheck after every long operation (filesystem/database
+        //       access).
+        //
         if (stop ()) return;
 
         dir_path d (shared_source_directory_ / o.directory);
@@ -821,6 +824,7 @@ namespace bpkg
         // give it another 3 months of lifetime for good measue (configuration
         // renamed, etc).
         //
+        if (stop ()) return;
         db.load (o, o.untracked_configurations_section);
         paths& cs (o.untracked_configurations);
 
@@ -828,6 +832,8 @@ namespace bpkg
 
         for (auto i (cs.begin ()); i != cs.end (); )
         {
+          if (stop ()) return;
+
           const path& p (*i);
 
           try
@@ -865,11 +871,13 @@ namespace bpkg
             force_skip = true;
           }
 
-          db.update (o);
+          db.update (o); // Note: mutually exclusive with erase() below.
         }
 
         if (!cs.empty () || force_skip)
           continue;
+
+        if (stop ()) return;
 
         // Remove the shared source directory and the database entry.
         //
@@ -990,7 +998,9 @@ namespace bpkg
   void fetch_cache::
   start_gc ()
   {
-    assert (is_open () && !active_gc () && gc_error_.empty ());
+    // Note: should never be started when offline.
+    //
+    assert (is_open () && !offline () && !active_gc () && gc_error_.empty ());
 
     gc_stop_.store (false, memory_order_relaxed);
     gc_thread_ = thread (&fetch_cache::garbage_collector, this);
