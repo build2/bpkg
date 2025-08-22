@@ -8011,6 +8011,21 @@ namespace bpkg
     bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
 
+    // Set database-specific mode for the fetch cache object, unless it is
+    // already set for this database.
+    //
+    auto fetch_cache_mode = [&fetch_cache,
+                             &o,
+                             pdb = static_cast<const database*> (nullptr)]
+                            (const database& db) mutable
+    {
+      if (&db != pdb)
+      {
+        fetch_cache.mode (o, &db);
+        pdb = &db;
+      }
+    };
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8111,11 +8126,65 @@ namespace bpkg
 
             // Go through package repository fragments to decide if we should
             // fetch, checkout or unpack depending on the available repository
-            // basis. Preferring a local one over the remotes and the dir
-            // repository type over the others seems like a sensible thing to
-            // do.
+            // basis and based on the fact whether the fetch cache is enabled
+            // or not.
             //
-            optional<repository_basis> basis;
+            // Note that for the git repository the package commit is always
+            // already fetched at this point, regardless whether it comes from
+            // the configuration-specific or global fetch cache. However, the
+            // submodules, if present, may not be fetched yet, but will be
+            // fetched on the first checkout (and then the commit data becomes
+            // fully local).
+            //
+            // Also note that if the fetch cache is enabled, then for an
+            // archive-based repository the package archive becomes local
+            // after the first fetch and should probably be always preferred
+            // over git repositories.
+            //
+            // Thus, we prefer the package repositories in the following
+            // order:
+            //
+            // 1: directory-based
+            // 2: local archive-based
+            //
+            // If fetch cache is enabled:
+            //   3: archive-based
+            //   4: version control-based
+            //
+            // Otherwise:
+            //   3: version control-based
+            //   4: archive-based
+            //
+            auto pref_order = [&fetch_cache, &fetch_cache_mode, &pdb]
+                              (const repository_location& rl)
+            {
+              if (rl.directory_based ())
+                return 1;
+
+              if (rl.archive_based () && rl.local ())
+                return 2;
+
+              fetch_cache_mode (pdb);
+
+              if (fetch_cache.enabled ())
+              {
+                if (rl.archive_based ())
+                  return 3;
+
+                assert (rl.version_control_based ());
+              }
+              else
+              {
+                if (rl.version_control_based ())
+                  return 3;
+
+                assert (rl.archive_based ());
+              }
+
+              return 4;
+            };
+
+            const repository_location* prl (nullptr);
 
             for (const package_location& l: ap->locations)
             {
@@ -8124,22 +8193,26 @@ namespace bpkg
                 const repository_location& rl (
                   l.repository_fragment.load ()->location);
 
-                if (!basis || rl.local ()) // First or local?
+                if (prl == nullptr || pref_order (rl) < pref_order (*prl))
                 {
-                  basis = rl.basis ();
+                  prl = &rl;
 
+                  // Bail out if the preference order can't be less.
+                  //
                   if (rl.directory_based ())
                     break;
                 }
               }
             }
 
-            assert (basis); // Shouldn't be here otherwise.
+            assert (prl != nullptr); // Shouldn't be here otherwise.
 
-            if (!simulate && (*basis == repository_basis::archive ||
-                              *basis == repository_basis::version_control))
+            repository_basis basis (prl->basis ());
+
+            if (!simulate && (basis == repository_basis::archive ||
+                              basis == repository_basis::version_control))
             {
-              fetch_cache.mode (o, &pdb);
+              fetch_cache_mode (pdb);
 
               if (fetch_cache.enabled () && !fetch_cache.is_open ())
                 fetch_cache.open (trace);
@@ -8147,7 +8220,7 @@ namespace bpkg
 
             // All calls commit the transaction.
             //
-            switch (*basis)
+            switch (basis)
             {
             case repository_basis::archive:
               {
@@ -8271,7 +8344,7 @@ namespace bpkg
           {
             if (!simulate && !sp->repository_fragment.empty ())
             {
-              fetch_cache.mode (o, &pdb);
+              fetch_cache_mode (pdb);
 
               if (fetch_cache.cache_src () && !fetch_cache.is_open ())
                 fetch_cache.open (trace);
