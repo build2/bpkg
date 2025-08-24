@@ -402,6 +402,10 @@ namespace bpkg
 
       if (!crp)
       {
+        // Otherwise, we would fail earlier (no cache entry in offline mode).
+        //
+        assert (!cache.offline ());
+
         if (cache.enabled ()) cache.start_gc ();
         pkg_fetch_archive (co, rl, pl->location, a);
         if (cache.enabled ()) cache.stop_gc ();

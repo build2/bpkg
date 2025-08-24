@@ -170,6 +170,11 @@ namespace bpkg
         if ((verb && !co.no_progress ()) || co.progress ())
           text << "validating " << rl.url () << " (cache)";
 
+        // Otherwise, load_pkg_repository_metadata() would return the empty
+        // manifest checksums and we wouldn't be here.
+        //
+        assert (!cache.offline ());
+
         cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
         cache.stop_gc ();
@@ -221,6 +226,13 @@ namespace bpkg
 
     if (cached_repositories_path.empty ())
     {
+      // Otherwise, we would fail earlier, if the cache is disabled or there
+      // is no entry, or load_pkg_repository_metadata() would return the empty
+      // manifest checksums, cached_repositories_path wouldn't be empty, and
+      // so we wouldn't be here.
+      //
+      assert (!cache.offline ());
+
       if (cache.enabled ()) cache.start_gc ();
       rmc = pkg_fetch_repositories (co, rl, ignore_unknown);
       if (cache.enabled ()) cache.stop_gc ();
@@ -286,6 +298,13 @@ namespace bpkg
       //
       if (!pmc)
       {
+        // Otherwise, we would fail earlier, if the cache is disabled or there
+        // is no entry, or load_pkg_repository_metadata() would return the
+        // empty manifest checksums, cached_packages_path wouldn't be empty,
+        // and so we wouldn't be here.
+        //
+        assert (!cache.offline ());
+
         if (cache.enabled ()) cache.start_gc ();
         pmc = pkg_fetch_packages (co, conf, rl, ignore_unknown);
         if (cache.enabled ()) cache.stop_gc ();
@@ -316,6 +335,14 @@ namespace bpkg
     {
       if (!sm)
       {
+        // Otherwise, we would fail earlier, if the cache is disabled or there
+        // is no entry, or load_pkg_repository_metadata() would return the
+        // empty manifest checksums, cached_packages_path wouldn't be empty,
+        // the repository authentication wouldn't be necessary, and so we
+        // wouldn't be here.
+        //
+        assert (!cache.offline ());
+
         if (cache.enabled ()) cache.start_gc ();
         sm = pkg_fetch_signature (co, rl, true /* ignore_unknown */);
         if (cache.enabled ()) cache.stop_gc ();

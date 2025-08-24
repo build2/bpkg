@@ -669,7 +669,7 @@ namespace bpkg
     ifdstream is (ifdstream::badbit);
 
     if (cache.enabled () && cache.is_open ())
-      cache.start_gc ();
+      cache.start_gc (); // Note: we may not be offline (see above).
 
     // Always stop the garbage collection explicitly, even on failures. Note
     // that after failed is thrown, the cache may potentially still be used
@@ -1222,7 +1222,7 @@ namespace bpkg
       fdpipe pipe (open_pipe ());
 
       if (cache.enabled () && cache.is_open ())
-        cache.start_gc ();
+        cache.start_gc (); // Note: we may not be offline (see above).
 
       // Always stop the garbage collection explicitly, even on failures (see
       // sense_capabilities() for the reasoning).
@@ -1953,7 +1953,7 @@ namespace bpkg
         v.push_back ("-v");
 
       if (cache.enabled () && cache.is_open ())
-        cache.start_gc ();
+        cache.start_gc (); // Note: we may not be offline (see above).
 
       // Always stop the garbage collection explicitly, even on failures (see
       // sense_capabilities() for the reasoning).
