@@ -680,10 +680,12 @@ sc = " " # Space character to append to here-document line when required.
 
   rep_fetch += --auth all
 
+  +$cfg_create -d cfg 2>- &cfg/***
+
   : signed
   :
   {
-    $clone_root_cfg && $rep_add $rep/signed
+    $clone_cfg && $rep_add $rep/signed
 
     $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
       fetching pkg:build2.org/rep-auth/signed
@@ -694,7 +696,7 @@ sc = " " # Space character to append to here-document line when required.
 
     rm -r cfg cache/pkg/metadata
 
-    $clone_root_cfg && $rep_add $rep/signed
+    $clone_cfg && $rep_add $rep/signed
 
     # Make sure we print the 'trusting certificate...' progress.
     #
@@ -719,7 +721,7 @@ sc = " " # Space character to append to here-document line when required.
   : unsigned
   :
   {
-    $clone_root_cfg && $rep_add $rep/unsigned1
+    $clone_cfg && $rep_add $rep/unsigned1
 
     $rep_fetch --trust-yes &cache/*** 2>>~%EOE%
       fetching pkg:build2.org/rep-auth/unsigned1
@@ -730,7 +732,7 @@ sc = " " # Space character to append to here-document line when required.
 
     rm -r cfg cache/pkg/metadata
 
-    $clone_root_cfg && $rep_add $rep/unsigned1
+    $clone_cfg && $rep_add $rep/unsigned1
 
     # Make sure we print the 'trusting unsigned...' progress.
     #

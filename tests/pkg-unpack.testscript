@@ -324,10 +324,12 @@ $* 2>>EOE != 0
   +export BPKG_FETCH_CACHE=src
   +export BPKG_FETCH_CACHE_PATH=cache
 
+  +$cfg_create -d cfg 2>- &cfg/***
+
   : basics
   :
   {
-    $clone_root_cfg && $rep_add $rep/hello
+    $clone_cfg && $rep_add $rep/hello
 
     $rep_fetch --trust $cert_fp &cache/***
     $pkg_fetch libhello/1.0.0
@@ -353,7 +355,7 @@ $* 2>>EOE != 0
 
     rm -r cfg
 
-    $clone_root_cfg && $rep_add $rep/hello
+    $clone_cfg && $rep_add $rep/hello
 
     $rep_fetch --trust $cert_fp &cache/***
     $pkg_fetch libhello/1.0.0

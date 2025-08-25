@@ -213,10 +213,12 @@ $* libfoo/1.0.0 2>>/EOE != 0
   pkg_unpack   += --fetch-cache-path cache
   test.options += --fetch-cache-path cache -v
 
+  +$cfg_create -d cfg 2>- &cfg/***
+
   : basics
   :
   {
-    $clone_root_cfg && $rep_add $rep/hello
+    $clone_cfg && $rep_add $rep/hello
 
     $rep_fetch --trust $cert_fp &cache/***
 
@@ -236,7 +238,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
 
     rm -r cfg
 
-    $clone_root_cfg && $rep_add $rep/hello
+    $clone_cfg && $rep_add $rep/hello
 
     $rep_fetch
 

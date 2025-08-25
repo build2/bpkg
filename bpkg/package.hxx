@@ -33,7 +33,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 23
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 27, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 28, closed)
 
 namespace bpkg
 {
@@ -95,8 +95,6 @@ namespace bpkg
     #pragma db member(name) unique
     #pragma db member(path) unique
     #pragma db member(expl) column("explicit")
-
-    #pragma db member(fetch_cache_mode) transient // @@ TMP
 
   public:
     // Create the self-link. Generate the UUID, unless specified.

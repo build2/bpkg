@@ -1151,15 +1151,19 @@ else
   +export -u BPKG_FETCH_CACHE
   test.options += --fetch-cache-path cache
 
+  +$cfg_create -d cfg 2>- &cfg/***
+
   : pkg-rep
   :
   {{
     test.options += --auth all -v
 
+    +$clone_cfg
+
     : signed-repository
     :
     {
-      $clone_root_cfg && $rep_add $rep/hello
+      $clone_cfg && $rep_add $rep/hello
 
       # Verify that for the first repository fetch we download all the manifest
       # files and authenticate the certificate.
@@ -1192,7 +1196,7 @@ else
 
       rm -r cfg
 
-      $clone_root_cfg && $rep_add $rep/hello
+      $clone_cfg && $rep_add $rep/hello
 
       # Verify that now, as the metadata and authentication answers are cached,
       # we don't download the repositories and packages manifest files nor
@@ -1224,7 +1228,7 @@ else
     : unsigned-repository
     :
     {
-      $clone_root_cfg && $rep_add $rep/hello-unsigned
+      $clone_cfg && $rep_add $rep/hello-unsigned
 
       # Verify that for the first unsigned repository fetch we trust the
       # repository by command line.
@@ -1235,7 +1239,7 @@ else
 
       rm -r cfg
 
-      $clone_root_cfg && $rep_add $rep/hello-unsigned
+      $clone_cfg && $rep_add $rep/hello-unsigned
 
       # Verify that now, as the authentication answers are cached, the unsigned
       # repository is trusted automatically.
@@ -1257,10 +1261,12 @@ else
   {{
     rep_git = ($remote ? $rep_git_https_smart_unadv : $rep_git_local)
 
+    +$clone_cfg
+
     : basics
     :
     {
-      $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
+      $clone_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
 
       $* --offline &cache/*** 2>>~%EOE% != 0
         %fetching git:.+libfoo#master%
@@ -1292,7 +1298,7 @@ else
 
       rm -r cfg
 
-      $clone_root_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
+      $clone_cfg && $rep_add "$rep_git/state0/libfoo.git#master"
 
       # Verify that now, as the repository is cached, we don't run
       # git-ls-remote nor git-fetch.

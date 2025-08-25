@@ -282,12 +282,14 @@ else
     rep_fetch    += --fetch-cache-path cache
     test.options += --fetch-cache-path cache
 
+    +$cfg_create -d cfg 2>- &cfg/***
+
     : no-src
     :
     {
       export BPKG_FETCH_CACHE=no-src
 
-      $clone_root_cfg
+      $clone_cfg
       $rep_add "$rep/libbar.git#master"
       $rep_fetch &cache/***
 
@@ -300,7 +302,7 @@ else
 
       rm -r cfg
 
-      $clone_root_cfg
+      $clone_cfg
       $rep_add "$rep/libbar.git#master"
       $rep_fetch
 
@@ -322,7 +324,7 @@ else
     {
       pkg_build += -d cfg --yes --no-default-options --fetch-cache-path cache
 
-      $clone_root_cfg
+      $clone_cfg
       $rep_add "$rep/libbar.git#master"
       $rep_fetch &cache/***
 
@@ -352,7 +354,7 @@ else
 
       rm -r cfg
 
-      $clone_root_cfg
+      $clone_cfg
       $rep_add "$rep/libbar.git#master"
       $rep_fetch
 

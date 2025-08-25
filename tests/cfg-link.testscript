@@ -58,11 +58,13 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: main
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
     EOO
 
   $cfg_info -d cfg2 --backlink >>/"EOO"
@@ -70,11 +72,13 @@ sp = ' '
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
     type: target
     name: main
+    mode: fetch-cache=false
     EOO
 
   # While at it, test that an implicit link is unnamed.
@@ -86,6 +90,7 @@ sp = ' '
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
@@ -118,11 +123,13 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: foo
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
     EOO
 }
 
@@ -146,11 +153,13 @@ sp = ' '
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
 
     path: $~/cfg1/
     uuid: $uuid1
     type: target
     name: main
+    mode: fetch-cache=false
     EOO
 
   $cfg_info -d cfg1 >>/"EOO"
@@ -158,11 +167,13 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: main
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
     EOO
 
   # While at it, test that relink attempt is reported.
@@ -263,11 +274,13 @@ sp = ' '
     uuid: $uuid1
     type: target
     name: main
+    mode: fetch-cache=false
 
     path: $~/cfg2/
     uuid: $uuid2
     type: target
     name: shared
+    mode: fetch-cache=false
     EOO
 }
 
