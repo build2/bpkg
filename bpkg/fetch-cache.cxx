@@ -1820,7 +1820,20 @@ namespace bpkg
         //
         if (exists (d))
         {
-          size_t hc (hardlink_count (d / sd.src_root_file));
+          path f (d / sd.src_root_file);
+          size_t hc (hardlink_count (f));
+
+          // This is tricky: to allow moving the cache around, we remove the
+          // (potentially old) src-root.build file if nobody else is using it.
+          // This way it will be recreated by the caller with the correct
+          // path.
+          //
+          if (hc == 1)
+          {
+            rm (f);
+            hc = 0;
+          }
+
           r = shared_source_directory_tracking {move (d), hc};
         }
         else

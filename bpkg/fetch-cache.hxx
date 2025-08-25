@@ -92,7 +92,9 @@ namespace bpkg
   // reproducible source archives, we can consider upgrading this to an error.
   //
   // Note that inside the database we keep relative paths to filesystem
-  // entries inside the cache. This allows the entire cache to be moved.
+  // entries inside the cache. This allows the entire cache to be moved,
+  // provided shared source directories are not used (hard link count is 0 or
+  // 1).
   //
   class fetch_cache
   {
