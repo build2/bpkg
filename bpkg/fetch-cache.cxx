@@ -533,18 +533,13 @@ namespace bpkg
               // Create.
               //
               if (sp)
-              {
                 f = move (sf);
 
-                // Clean up the sp_directory_ data subdirectories.
-                //
-                cleanup (shared_source_directory_);
-              }
-
-              // Clean up the np_directory_ data subdirectories.
+              // Clean up the data subdirectories.
               //
               cleanup (pkg_repository_directory_);
               cleanup (git_repository_state_directory_);
+              cleanup (shared_source_directory_);
 
               mk_p (sp ? sp_directory_ : np_directory_);
 
