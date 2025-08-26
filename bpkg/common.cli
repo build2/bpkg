@@ -299,7 +299,7 @@ namespace bpkg
        \cb{%LOCALAPPDATA%\\build2\\cache\\} on Windows. The semi-precious data
        (shared source directories) is placed into the \cb{.build2/cache/}
        subdirectory of the user's home directory on all platforms. You can
-       safely remove the non-precious data and while you won't loose any
+       safely remove the non-precious data and while you won't lose any
        information if the semi-precious data is removed, you may end up with
        broken builds that will require manual repair.
 

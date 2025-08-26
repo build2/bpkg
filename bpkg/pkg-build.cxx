@@ -8637,7 +8637,7 @@ namespace bpkg
 
           const dependencies& deps (p.skeleton->available->dependencies);
 
-          // @@ Note that on reconfiguration the dependent looses the
+          // @@ Note that on reconfiguration the dependent loses the
           //    potential configuration variables specified by the user on
           //    some previous build, which can be quite surprising. Should we
           //    store this information in the database?
