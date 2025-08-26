@@ -24,6 +24,21 @@
 //
 #define FETCH_CACHE_SCHEMA_VERSION_BASE 1
 
+// NOTE: migrating this database would cause all previous versions of bpkg to
+//       stop working, which would be quite bad: think of someone installing
+//       the staged toolchain to try something and no longer being able to use
+//       the latest released version. Also note that dropping the cache may
+//       not be easy due to the shared source directories still being in use.
+//
+//       So if/when we need to change something in this schema, we will need
+//       to come up with a solution to this problem. One idea is to use the
+//       soft model changes functionality in ODB to effectively support
+//       several versions of the schema at the same time. For example, one
+//       strategy could be to keep using the existing schema version while the
+//       toolchain is staged and only switch to migration once it becomes a
+//       released version. In the future (e.g., post 1.0.0) we may need to
+//       support using several released versions at the same time.
+//
 #pragma db model version(FETCH_CACHE_SCHEMA_VERSION_BASE, 1, closed)
 
 namespace bpkg
