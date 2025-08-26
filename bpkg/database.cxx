@@ -183,13 +183,9 @@ namespace bpkg
           //
           migrate ();
 
-          // Cache the configuration information.
+          // Load the configuration information and cache it.
           //
-          shared_ptr<configuration> c (load<configuration> (0));
-          cache_config (c->uuid,
-                        move (c->name),
-                        move (c->type),
-                        move (c->fetch_cache_mode));
+          cache_config ();
 
           // Load the system repository, if requested.
           //
@@ -200,8 +196,11 @@ namespace bpkg
         // Migrate the pre-linked databases and the database clusters they
         // belong to.
         //
+        // NOTE: make sure no data is loaded from the potentially non yet
+        //       migrated databases.
+        //
         for (const dir_path& d: pre_link)
-          attach (d, false /* sys_rep */).migrate ();
+          attach (d, false /* sys_rep */, false /* cache_config */).migrate ();
 
         t.commit ();
       }
@@ -243,7 +242,8 @@ namespace bpkg
   database (impl* i,
             const dir_path& d,
             std::string schema,
-            bool sys_rep)
+            bool sys_rep,
+            bool cache_conf)
       : sqlite::database (i->conn,
                           cfg_path (d, false /* create */).string (),
                           move (schema)),
@@ -275,13 +275,10 @@ namespace bpkg
     {
       tracer_guard tg (*this, trace);
 
-      // Cache the configuration information.
+      // Load the configuration information and cache it, if requested.
       //
-      shared_ptr<configuration> c (load<configuration> (0));
-      cache_config (c->uuid,
-                    move (c->name),
-                    move (c->type),
-                    move (c->fetch_cache_mode));
+      if (cache_conf)
+        cache_config ();
 
       // Load the system repository, if requested.
       //
@@ -298,6 +295,16 @@ namespace bpkg
     // Set the tracer used by the linked configurations cluster.
     //
     sqlite::database::tracer (mdb.tracer ());
+  }
+
+  void database::
+  cache_config ()
+  {
+    shared_ptr<configuration> c (load<configuration> (0));
+    cache_config (c->uuid,
+                  move (c->name),
+                  move (c->type),
+                  move (c->fetch_cache_mode));
   }
 
   database::
@@ -393,7 +400,10 @@ namespace bpkg
           continue;
         }
 
-        attach (d, false /* sys_rep */).migrate ();
+        // NOTE: make sure no data is loaded from the potentially non yet
+        //       migrated database.
+        //
+        attach (d, false /* sys_rep */, false /* cache_config */).migrate ();
       }
     }
   }
@@ -435,7 +445,7 @@ namespace bpkg
   }
 
   database& database::
-  attach (const dir_path& d, bool sys_rep)
+  attach (const dir_path& d, bool sys_rep, bool cache_config)
   {
     assert (d.absolute () && d.normalized ());
 
@@ -486,8 +496,12 @@ namespace bpkg
         // the database constructor may load/persist to the temporary database
         // object in the session cache.
         //
-        i = am.insert (
-          make_pair (d, database (impl_, d, move (schema), sys_rep))).first;
+        i = am.insert (make_pair (d,
+                                  database (impl_,
+                                            d,
+                                            move (schema),
+                                            sys_rep,
+                                            cache_config))).first;
       }
       catch (odb::timeout&)
       {

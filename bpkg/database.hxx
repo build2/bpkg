@@ -167,13 +167,14 @@ namespace bpkg
     database& operator= (const database&) = delete;
 
     // Attach another (existing) database. The configuration directory should
-    // be absolute and normalized.
+    // be absolute and normalized. By default cache the configuration
+    // information (uuid, name, etc).
     //
     // Note that if the database is already attached, then the existing
     // instance reference is returned and the sys_rep argument is ignored.
     //
     database&
-    attach (const dir_path&, bool sys_rep);
+    attach (const dir_path&, bool sys_rep, bool cache_config = true);
 
     // Attach databases of all the explicitly linked configurations,
     // recursively. Must be called inside the transaction.
@@ -458,7 +459,8 @@ namespace bpkg
     database (impl*,
               const dir_path& cfg,
               std::string schema,
-              bool sys_rep);
+              bool sys_rep,
+              bool cache_config);
 
     // If necessary, migrate this database and all the linked (both explicitly
     // and implicitly) databases, recursively. Leave the linked databases
@@ -480,6 +482,11 @@ namespace bpkg
                   optional<std::string> name,
                   std::string type,
                   optional<std::string> fetch_cache_mode);
+
+    // Load the configuration information from the database and cache it.
+    //
+    void
+    cache_config ();
 
     // Note: must be called inside the transaction.
     //
