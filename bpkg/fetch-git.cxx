@@ -2876,10 +2876,7 @@ namespace bpkg
     {
       // Note that the symlinks may be filesystem-agnostic (see
       // fixup_worktree() for details) and thus we check the types of the
-      // filesystem entries prior to their removal. Also note that the
-      // try_rmsymlink() implementation doesn't actually distinguish between
-      // the directory and file symlinks and thus we always remove them as the
-      // file symlinks.
+      // filesystem entries prior to their removal.
       //
       path p (dir / l.first);
 
@@ -2887,7 +2884,7 @@ namespace bpkg
         path_entry (p, false /* follow_symlink */, true /* ignore_error */));
 
       if (e.first && e.second.type == entry_type::symlink)
-        try_rmsymlink (p, false /* dir */, true /* ignore_error */);
+        try_rmsymlink (p, true /* ignore_error */);
     }
 #else
                 const dir_path&)
