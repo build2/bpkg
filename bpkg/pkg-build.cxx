@@ -8008,6 +8008,8 @@ namespace bpkg
     // is called for the respective fetch cache entries only when the loop is
     // finished.
     //
+    // Note: the order is important.
+    //
     bpkg::fetch_cache fetch_cache (o, nullptr /* db */);
     pkg_checkout_cache checkout_cache (o);
 

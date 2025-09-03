@@ -3205,6 +3205,17 @@ namespace bpkg
 
         try
         {
+          // Note that a git repository may potentially contain some other
+          // filesystem entry with the same path as the symlink's path, if to
+          // compare case-insensitively. While checking out, git may either
+          // fail or overwrite the symlink with such a filesystem entry. In
+          // the latter case, we will fail either here, while trying to read
+          // the entry's content (which may already be removed; see below), or
+          // later, not being able to find the target (since its path is a
+          // content of some random file). There doesn't seem to be an easy
+          // way to diagnose such a situation accurately, so let's keep it
+          // simple and fail naturally.
+          //
           ifdstream fs (lp);
           t = path (fs.read_text ());
         }
