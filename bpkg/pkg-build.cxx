@@ -40,6 +40,8 @@
 
 #include <bpkg/pkg-build-collect.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 using namespace butl;
 
@@ -8028,6 +8030,11 @@ namespace bpkg
       }
     };
 
+    timer fult (0, "fetch-unpack-loop", false /* start */);
+
+    if (!simulate)
+      fult.start ();
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8106,6 +8113,11 @@ namespace bpkg
         // Fetch or checkout if this is a new package or if we are
         // up/down-grading or replacing.
         //
+        timer ft (10, "  fetch-iter", false /* start */);
+
+        if (!simulate)
+          ft.start ();
+
         if (sp == nullptr                         ||
             sp->version != p.available_version () ||
             p.replace ())
@@ -8343,6 +8355,14 @@ namespace bpkg
           }
         }
 
+        if (!simulate)
+          ft.stop ();
+
+        timer ut (20, "  unpack-iter", false /* start */);
+
+        if (!simulate)
+          ut.start ();
+
         // Unpack if required. Note that the package can still be NULL if this
         // is the directory case (see the fetch code above).
         //
@@ -8390,9 +8410,15 @@ namespace bpkg
           assert (sp->state == package_state::unpacked);
         }
 
+        if (!simulate)
+          ut.stop ();
+
         break; // Get out from the breakout loop.
       }
     }
+
+    if (!simulate)
+      fult.stop ();
 
     checkout_cache.clear (); // Save repositories to fetch cache.
 
@@ -8762,6 +8788,11 @@ namespace bpkg
       prog_percent = 100;
     }
 
+    timer clt (100, "configure-loop", false /* start */);
+
+    if (!simulate)
+      clt.start ();
+
     for (configure_package& cp: configure_packages)
     {
       build_package& p (cp.pkg);
@@ -8840,6 +8871,9 @@ namespace bpkg
       }
     }
 
+    if (!simulate)
+      clt.stop ();
+
 #ifndef BPKG_OUTPROC_CONFIGURE
     configure_ctx.reset (); // Free.
 #endif
@@ -8851,6 +8885,9 @@ namespace bpkg
       diag_progress_lock pl;
       diag_progress.clear ();
     }
+
+    if (!simulate)
+      timer::print ();
 
     // Update the hold state.
     //

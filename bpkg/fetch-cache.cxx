@@ -513,15 +513,15 @@ namespace bpkg
 
                 mk_p (sp_directory_);
 
-                // We also have to move the rollback journal, if any. For
+                // We also have to move the write-ahead log, if any. For
                 // background, see: https://www.sqlite.org/tempfiles.html
                 //
                 // Note that we move it first to prevent the above check from
-                // seeing the database without its journal.
+                // seeing the database without its write-ahead log.
                 //
-                path rf (f + "-journal");
+                path rf (f + "-wal");
                 if (exists (rf))
-                  mv (rf, sf + "-journal");
+                  mv (rf, sf + "-wal");
 
                 mv (f, sf);
 
@@ -575,6 +575,8 @@ namespace bpkg
         {
           connection_ptr c (db.connection ());
           c->execute ("PRAGMA locking_mode = EXCLUSIVE");
+          c->execute ("PRAGMA journal_mode = WAL");
+          c->execute ("PRAGMA main.synchronous = NORMAL");
           transaction t (c->begin_exclusive ());
 
           const string& sn (db_schema_name);
@@ -1136,10 +1138,29 @@ namespace bpkg
         {
           bool utd (!offline () && m.session != session_); // Up-to-date check.
 
-          m.session = session_;
-          m.access_time = system_clock::now ();
+          bool update (false);
 
-          db.update (m);
+          if (m.session != session_)
+          {
+            m.session = session_;
+            update = true;
+          }
+
+          timestamp now (system_clock::now ());
+
+          if (update)
+          {
+            m.access_time = now;
+          }
+          else if (now < m.access_time ||
+                   now - m.access_time >= chrono::hours (24))
+          {
+            m.access_time = now;
+            update = true;
+          }
+
+          if (update)
+            db.update (m);
 
           r = loaded_pkg_repository_metadata {
             move (rf),
@@ -1288,9 +1309,15 @@ namespace bpkg
         }
         else
         {
-          p.access_time = system_clock::now ();
+          timestamp now (system_clock::now ());
 
-          db.update (p);
+          if (now < p.access_time ||
+              now - p.access_time >= chrono::hours (24))
+          {
+            p.access_time = now;
+
+            db.update (p);
+          }
 
           r = loaded_pkg_repository_package {
             move (f), move (p.checksum), move (p.repository)};
@@ -1493,10 +1520,36 @@ namespace bpkg
               rm (lf);
           }
 
-          s.session = session_;
-          s.access_time = system_clock::now ();
+          // Only update the database entry if necessary, to keep the
+          // transaction read-only whenever it is possible.
+          //
+          bool update (false);
 
-          db.update (s);
+          if (s.session != session_)
+          {
+            s.session = session_;
+            update = true;
+          }
+
+          // Update the access time if we are updating the database entry
+          // anyway or if the access time has not been updated in the past 24
+          // hours or points to the future for some reason.
+          //
+          timestamp now (system_clock::now ());
+
+          if (update)
+          {
+            s.access_time = now;
+          }
+          else if (now < s.access_time ||
+                   now - s.access_time >= chrono::hours (24))
+          {
+            s.access_time = now;
+            update = true;
+          }
+
+          if (update)
+            db.update (s);
 
           r.state = utd
             ? loaded_git_repository_state::up_to_date
@@ -1668,9 +1721,15 @@ namespace bpkg
         }
         else
         {
-          sd.access_time = system_clock::now ();
+          timestamp now (system_clock::now ());
 
-          db.update (sd);
+          if (now < sd.access_time ||
+              now - sd.access_time >= chrono::hours (24))
+          {
+            sd.access_time = now;
+
+            db.update (sd);
+          }
 
           r = loaded_shared_source_directory_state {
             true /* present */, move (d)};
@@ -1869,6 +1928,8 @@ namespace bpkg
         hardlink_count (
           shared_source_directory_ / sd.directory / sd.src_root_file));
 
+      bool update (false);
+
       // If the hard link count hasn't changed after creation of the new
       // configuration, then assume that this configuration cannot be tracked
       // with the hard link count (e.g., located on a different filesystem)
@@ -1885,12 +1946,27 @@ namespace bpkg
         paths& cs (sd.untracked_configurations);
 
         if (find (cs.begin (), cs.end (), p) == cs.end ())
+        {
           cs.push_back (move (p));
+          update = true;
+        }
       }
 
-      sd.access_time = system_clock::now ();
+      timestamp now (system_clock::now ());
 
-      db.update (sd);
+      if (update)
+      {
+        sd.access_time = now;
+      }
+      else if (now < sd.access_time ||
+               now - sd.access_time >= chrono::hours (24))
+      {
+        sd.access_time = now;
+        update = true;
+      }
+
+      if (update)
+        db.update (sd);
 
       t.commit ();
     }
