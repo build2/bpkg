@@ -1246,6 +1246,8 @@ namespace bpkg
         cache.save_git_repository_state (move (url));
       }
 
+      cache.close ();
+
       // If the cached repository is saved without being fetched, then revert
       // the filesystem_state_changed flag.
       //
