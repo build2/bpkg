@@ -3306,8 +3306,8 @@ namespace bpkg
         {
           assert (!links.empty ());
 
-          failure ("target '" + links[0].first.string () + "' for symlink '" +
-                   links[0].second.string () + "' does not exist");
+          failure ("target '" + links[0].second.string () + "' for symlink '" +
+                   links[0].first.string () + "' does not exist");
         }
       }
     }
