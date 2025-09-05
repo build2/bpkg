@@ -1175,7 +1175,7 @@ namespace bpkg
       cache.open (trace);
 
       // Remove the configuration-specific repository directory, if exists.
-      // Essentially we are switching to the global cached one.
+      // Essentially we are switching to the globally cached one.
       //
       if (config_repo_exists)
       {
