@@ -177,8 +177,8 @@ namespace bpkg
     //
     bool config_repo_exists;
 
-    dir_path sd; // Repository state directory name.
-    dir_path rd; // Repository state directory path.
+    dir_path sd; // Configuration-specific repository state directory name.
+    dir_path rd; // Configuration-specific repository state directory path.
 
     pkg_checkout_cache::state_map& cm (checkout_cache.map_);
 
@@ -364,12 +364,12 @@ namespace bpkg
             // we finalize it. This way, on failure, the repository get
             // restored in its permanent location.
             //
-            i = cm.emplace (crd,
+            i = cm.emplace (move (crd),
                             state {move (rmt),
-                                rl,
-                                true /* valid */,
-                                false /* fixedup */,
-                                &fetch_cache}).first;
+                                   rl,
+                                   true /* valid */,
+                                   false /* fixedup */,
+                                   &fetch_cache}).first;
 
             state& s (i->second);
             const dir_path& td (s.rmt.path);
@@ -457,10 +457,10 @@ namespace bpkg
             //
             i = cm.emplace (rd,
                             state {move (rmt),
-                                rl,
-                                true /* valid */,
-                                false /* fixedup */,
-                                nullptr /* fetch_cache */ }).first;
+                                   rl,
+                                   true /* valid */,
+                                   false /* fixedup */,
+                                   nullptr /* fetch_cache */ }).first;
 
             // Checkout the repository fragment and fix up the working tree.
             //
@@ -823,6 +823,10 @@ namespace bpkg
   {
     state& s (i->second);
 
+    // Auto-removal should never be active for the fetch cache entries.
+    //
+    assert (s.fetch_cache == nullptr || !s.rmt.active);
+
     // Bail out if the entry is invalid.
     //
     if (!s.valid)
@@ -880,6 +884,10 @@ namespace bpkg
   release (state_map::iterator i, bool fail)
   {
     state& s (i->second);
+
+    // Auto-removal should never be active for the fetch cache entries.
+    //
+    assert (s.fetch_cache == nullptr || !s.rmt.active);
 
     // Bail out if the entry is invalid.
     //
