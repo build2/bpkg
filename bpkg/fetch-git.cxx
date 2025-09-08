@@ -2286,7 +2286,8 @@ namespace bpkg
                              "-C", dir,
                              "ls-files",
                              "--stage",
-                             "-z"));
+                             "-z",
+                             "--no-recurse-submodules"));
 
       // Shouldn't throw, unless something is severely damaged.
       //
@@ -2771,7 +2772,8 @@ namespace bpkg
                            "-C", dir,
                            "ls-files",
                            "--stage",
-                           "-z"));
+                           "-z",
+                           "--no-recurse-submodules"));
 
     // Shouldn't throw, unless something is severely damaged.
     //
@@ -2901,11 +2903,17 @@ namespace bpkg
     // if we produce any untracked files in the tree between checkouts down
     // the road.
     //
+    // Note that --[no-]recurse-submodules options are introduced in the git
+    // version 2.14.
+    //
     if (!run_git (co,
                   co.git_option (),
                   "-C", dir,
                   "reset",
                   "--hard",
+                  (git_version (co) >= semantic_version {2, 14, 0}
+                   ? "--no-recurse-submodules"
+                   : nullptr),
                   verb < 2 ? "-q" : nullptr,
                   commit))
       fail << "unable to reset to " << commit << endg;
@@ -3352,6 +3360,7 @@ namespace bpkg
                     co.git_option (),
                     "-C", dir,
                     "checkout",
+                    "--no-recurse-submodules",
                     "--",
                     "./"))
         failure ("unable to revert '" + dir.string () + '"');
