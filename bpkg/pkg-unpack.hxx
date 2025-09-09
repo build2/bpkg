@@ -35,13 +35,19 @@ namespace bpkg
   // source directories is not disabled, then the cache should be already open
   // (and this function never closes it), unless in the simulation mode.
   //
+  // If omit_progress is true, then omit verbosity level 1 progress. Can be
+  // used to reduce noise if this call was preceded by pkg_fetch() that
+  // printed the "fetching ..." progress -- in this case having the
+  // "unpacking ..." line doesn't add much.
+  //
   shared_ptr<selected_package>
   pkg_unpack (const common_options&,
               fetch_cache&,
               database&,
               transaction&,
               const package_name&,
-              bool simulate);
+              bool simulate,
+              bool omit_progress = false);
 
   // Unpack the package as a source directory from a directory-based
   // repository and commit the transaction. Return the selected package object

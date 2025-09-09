@@ -8106,6 +8106,8 @@ namespace bpkg
         // Fetch or checkout if this is a new package or if we are
         // up/down-grading or replacing.
         //
+        bool fetched (false); // True if we have fetched the package.
+
         if (sp == nullptr                         ||
             sp->version != p.available_version () ||
             p.replace ())
@@ -8284,7 +8286,7 @@ namespace bpkg
               }
             }
           }
-          // Directory case is handled by unpack.
+          // Fetch archive path (directory case is handled by unpack below).
           //
           else if (exists (pl.location))
           {
@@ -8304,8 +8306,9 @@ namespace bpkg
           {
             r = true;
 
-            assert (sp->state == package_state::fetched ||
-                    sp->state == package_state::unpacked);
+            fetched = (sp->state == package_state::fetched);
+
+            assert (fetched || sp->state == package_state::unpacked);
 
             if (result)
             {
@@ -8322,7 +8325,7 @@ namespace bpkg
               {
               case repository_basis::archive:
                 {
-                  assert (sp->state == package_state::fetched);
+                  assert (fetched);
                   dr << "fetched " << *sp << pdb;
                   break;
                 }
@@ -8362,7 +8365,17 @@ namespace bpkg
 
             // Commits the transaction.
             //
-            sp = pkg_unpack (o, fetch_cache, pdb, t, ap->id.name, simulate);
+            // Omit "unpacking ..." progress, if we don't print the result and
+            // this call was preceded by pkg_fetch() which printed the
+            // "fetching ..." progress.
+            //
+            sp = pkg_unpack (o,
+                             fetch_cache,
+                             pdb,
+                             t,
+                             ap->id.name,
+                             simulate,
+                             !result && fetched /* omit_progress */);
 
             if (result)
               text << "unpacked " << *sp << pdb;

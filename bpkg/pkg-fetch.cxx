@@ -174,7 +174,16 @@ namespace bpkg
     if (!exists (a))
       fail << "archive file '" << a << "' does not exist";
 
-    l4 ([&]{trace << "archive: " << a << ", purge: " << purge;});
+    if (verb > 1 && !simulate)
+    {
+      text << "fetching " << a << db << (purge ? " (purge)" : "");
+    }
+    else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
+    {
+      text << "fetching " << a << db;
+    }
+    else
+      l4 ([&]{trace << "archive: " << a << db << ", purge: " << purge;});
 
     // Verify archive is a package and get its manifest.
     //
@@ -296,16 +305,25 @@ namespace bpkg
           info << "consider enabling fetch cache or turning offline mode off";
     }
 
+    // Note: also include the shared src into diagnostics in case the
+    // unpacking progress is omitted (see omit_progress in pkg_unpack()).
+    // This is not even that hacky since we do alter our behavior if shared
+    // src is enabled.
+    //
     if (verb > 1 && !simulate)
     {
       text << "fetching " << pl->location.leaf () << " "
            << "from " << pl->repository_fragment->name << pdb
-           << (crp ? " (cache)" : "");
+           << (crp
+               ? cache.cache_src () ? " (cache, shared src)" : " (cache)"
+               : "");
     }
     else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
     {
       text << "fetching " << package_string (ap->id.name, ap->version) << pdb
-           << (crp ? " (cache)" : "");
+           << (crp
+               ? cache.cache_src () ? " (cache, shared src)" : " (cache)"
+               : "");
     }
     else
       l4 ([&]{trace << pl->location.leaf () << " from "

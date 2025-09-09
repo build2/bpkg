@@ -334,7 +334,7 @@ namespace bpkg
       fail << "package " << n << " " << v
            << " is not available from a directory-based repository";
 
-    // Note: we currently don't print verb=1 progress here since these is no
+    // Note: we currently don't print verb=1 progress here since there is no
     // cache involved and it would spoil bdep diagnostics.
     //
     if (verb > 1 && !simulate)
@@ -372,7 +372,8 @@ namespace bpkg
               database& db,
               transaction& t,
               const package_name& name,
-              bool simulate)
+              bool simulate,
+              bool omit_progress)
   {
     tracer trace ("pkg_unpack");
 
@@ -446,8 +447,8 @@ namespace bpkg
     }
     else if (((verb && !co.no_progress ()) || co.progress ()) && !simulate)
     {
-      text << "unpacking " << *p << db
-           << (ssd ? " (cache, shared src)" : "");
+      if (!omit_progress)
+        text << "unpacking " << *p << db << (ssd ? " (cache, shared src)" : "");
     }
     else
       l4 ([&]{trace << dn << " from " << p->effective_archive (c) << db;});
