@@ -1285,7 +1285,7 @@ else
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >~/.+/
 
       sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'          <$out >~/.+/
-      sed -n -e 's%^(validating .*libfoo.git \(cache\))$%\1%p'     <$out >~/.+/
+      sed -n -e 's%^(querying .*libfoo.git \(cache\))$%\1%p'       <$out >~/.+/
       sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p' <$out >~/.+/
 
       # Verify that the fetched filesystem entries are cached.

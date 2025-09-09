@@ -1144,7 +1144,7 @@ namespace bpkg
   load_references (const common_options& co,
                    fetch_cache& cache,
                    const repository_url& url,
-                   const path& ls_remote,
+                   const path& ls_remote, bool cache_absent,
                    const function<probe_function>& probe)
   {
     string u (url.string ());
@@ -1192,10 +1192,13 @@ namespace bpkg
       }
       else
       {
-        // Cached ls-remote output to be validated.
+        // Absent or cached but to be validated ls-remote output.
         //
         if ((verb && !co.no_progress ()) || co.progress ())
-          text << "validating " << u << " (cache)";
+        {
+          text << (cache_absent ? "querying " : "validating ") << u
+               << " (cache)";
+        }
       }
     }
     else
@@ -1374,7 +1377,7 @@ namespace bpkg
          const dir_path& dir,
          const dir_path& submodule,  // Used only for diagnostics.
          const git_ref_filters& rfs,
-         const path& ls_remote,
+         const path& ls_remote, bool cache_absent,
          bool& started_fetching)
   {
     assert (!rfs.empty ());
@@ -1447,7 +1450,7 @@ namespace bpkg
     auto load_refs = [&co,
                       &cache,
                       &url,
-                      &ls_remote,
+                      &ls_remote, cache_absent,
                       &qprog,
                       lrs = static_cast<const refs*> (nullptr)]
                      (const function<probe_function>& probe) mutable
@@ -1456,7 +1459,8 @@ namespace bpkg
       qprog = true;
 
       if (lrs == nullptr)
-        lrs = &load_references (co, cache, url (), ls_remote, probe);
+        lrs = &load_references (
+          co, cache, url (), ls_remote, cache_absent, probe);
 
       return *lrs;
     };
@@ -2594,7 +2598,7 @@ namespace bpkg
              fsdir,
              psdir,
              rfs,
-             path () /* ls_remote */,
+             path () /* ls_remote */, false /* cache_absent */,
              started_fetching);
 
       git_checkout (co, fsdir, sm.commit);
@@ -2665,7 +2669,7 @@ namespace bpkg
              fetch_cache& cache,
              const repository_location& rl,
              const dir_path& dir,
-             const path& ls_remote)
+             const path& ls_remote, bool cache_absent)
   {
     git_ref_filters rfs;
     const repository_url& url (rl.url ());
@@ -2695,7 +2699,7 @@ namespace bpkg
                     dir,
                     dir_path () /* submodule */,
                     rfs,
-                    ls_remote,
+                    ls_remote, cache_absent,
                     started_fetching);
     }
     catch (const failed&)

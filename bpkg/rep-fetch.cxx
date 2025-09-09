@@ -898,7 +898,7 @@ namespace bpkg
                  const repository_location& rl,
                  const dir_path& rd,
                  bool init,
-                 const path& ls_remote,
+                 const path& ls_remote, bool cache_absent,
                  bool iu,
                  bool it,
                  bool ev,
@@ -912,7 +912,7 @@ namespace bpkg
     // Fetch the repository in the specified directory.
     //
     optional<vector<git_fragment>> frags (
-      git_fetch (co, cache, rl, rd, ls_remote));
+      git_fetch (co, cache, rl, rd, ls_remote, cache_absent));
 
     if (!frags)
       return nullopt;
@@ -1190,8 +1190,10 @@ namespace bpkg
       repository_url url (rl.url ());
       url.fragment = nullopt;
 
-      fetch_cache::loaded_git_repository_state crs (
-        cache.load_git_repository_state (url));
+      using loaded_git_repository_state =
+        fetch_cache::loaded_git_repository_state;
+
+      loaded_git_repository_state crs (cache.load_git_repository_state (url));
 
       const dir_path& td (crs.repository);
 
@@ -1204,8 +1206,7 @@ namespace bpkg
       // filesystem_state_changed flag since we are modifying the repository
       // filesystem state.
       //
-      bool repo_cached (
-        crs.state != fetch_cache::loaded_git_repository_state::absent);
+      bool repo_cached (crs.state != loaded_git_repository_state::absent);
 
       bool fsc (filesystem_state_changed);
 
@@ -1231,6 +1232,7 @@ namespace bpkg
                          td,
                          !repo_cached /* initialize */,
                          crs.ls_remote,
+                         crs.state == loaded_git_repository_state::absent,
                          iu,
                          it,
                          ev,
@@ -1301,7 +1303,7 @@ namespace bpkg
                          rl,
                          td,
                          !config_repo_exists /* initialize */,
-                         path () /* ls_remote */,
+                         path () /* ls_remote */, false /* cache_absent */,
                          iu,
                          it,
                          ev,

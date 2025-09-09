@@ -79,10 +79,12 @@ namespace bpkg
   // to latest order. Update the remote repository URL, if changed. If
   // ls_remote argument is specified (not empty), then use the referenced
   // file, if exists, to retrieve the advertized refs/commits and to save them
-  // otherwise. In the offline mode fail if any network interaction needs to
-  // be performed. Return nullopt if the function failed before it started to
-  // fetch the repository (no connectivity, etc). Note that the diagnostics is
-  // still issued in this case. If the returned value is nullopt, then before
+  // otherwise. In the latter case the cache_absent flag is true if the cache
+  // entry is absent and false if the ls-remote remote is out of date. In the
+  // offline mode fail if any network interaction needs to be performed.
+  // Return nullopt if the function failed before it started to fetch the
+  // repository (no connectivity, etc). Note that the diagnostics is still
+  // issued in this case. If the returned value is nullopt, then before
   // throwing failed the caller may, for example, do something useful with the
   // repository (return it to its permanent location, etc).
   //
@@ -106,7 +108,7 @@ namespace bpkg
              fetch_cache&,
              const repository_location&,
              const dir_path&,
-             const path& ls_remote = {});
+             const path& ls_remote, bool cache_absent);
 
   // Return true if a commit is already fetched.
   //
