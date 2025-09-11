@@ -14,7 +14,7 @@ using namespace butl;
 
 namespace bpkg
 {
-  void
+  bool
   pkg_purge_fs (database& db,
                 transaction& t,
                 const shared_ptr<selected_package>& p,
@@ -28,6 +28,7 @@ namespace bpkg
 
     tracer_guard tg (db, trace);
 
+    bool r (false);
     const dir_path& c (db.config_orig);
 
     try
@@ -39,7 +40,11 @@ namespace bpkg
           dir_path d (p->effective_src_root (c));
 
           if (exists (d)) // Don't complain if someone did our job for us.
+          {
             rm_r (d);
+
+            r = true;
+          }
         }
 
         p->purge_src = false;
@@ -61,7 +66,11 @@ namespace bpkg
             path a (p->effective_archive (c));
 
             if (exists (a))
+            {
               rm (a);
+
+              r = true;
+            }
           }
 
           p->purge_archive = false;
@@ -82,6 +91,8 @@ namespace bpkg
            << "use 'pkg-purge --force' to remove";
       throw;
     }
+
+    return r;
   }
 
   void
