@@ -640,6 +640,12 @@ namespace bpkg
       t_.reset (db.begin_exclusive ());
     }
 
+    bool
+    finalized () const
+    {
+      return t_.finalized ();
+    }
+
     static bool
     has_current ()
     {
