@@ -36,7 +36,8 @@ namespace bpkg
              repository_location rl,
              string m,
              bool purge,
-             bool simulate)
+             bool simulate,
+             bool keep_transaction_if_safe)
   {
     tracer trace ("pkg_fetch");
 
@@ -59,13 +60,16 @@ namespace bpkg
     if (a.sub (db.config))
       a = a.leaf (db.config);
 
+    bool keep_transaction (keep_transaction_if_safe);
+
     if (p != nullptr)
     {
       // Clean up the source directory and archive of the package we are
       // replacing. Once this is done, there is no going back. If things go
       // badly, we can't simply abort the transaction.
       //
-      pkg_purge_fs (db, t, p, simulate, purge_archive);
+      if (pkg_purge_fs (db, t, p, simulate, purge_archive))
+        keep_transaction = false;
 
       // Note that if the package name spelling changed then we need to update
       // it, to make sure that the subsequent commands don't fail and the
@@ -119,7 +123,9 @@ namespace bpkg
       db.persist (p);
     }
 
-    t.commit ();
+    if (!keep_transaction)
+      t.commit ();
+
     return p;
   }
 
@@ -167,9 +173,14 @@ namespace bpkg
              path a,
              bool replace,
              bool purge,
-             bool simulate)
+             bool simulate,
+             bool keep_transaction_if_safe)
   {
     tracer trace ("pkg_fetch");
+
+    // Keeping transaction is only meaningful if not simulating.
+    //
+    assert (!keep_transaction_if_safe || !simulate);
 
     if (!exists (a))
       fail << "archive file '" << a << "' does not exist";
@@ -217,7 +228,8 @@ namespace bpkg
                       repository_location (),
                       move (s),
                       purge,
-                      simulate);
+                      simulate,
+                      keep_transaction_if_safe);
   }
 
   shared_ptr<selected_package>
@@ -229,9 +241,14 @@ namespace bpkg
              package_name n,
              version v,
              bool replace,
-             bool simulate)
+             bool simulate,
+             bool keep_transaction_if_safe)
   {
     assert (session::has_current ());
+
+    // Keeping transaction is only meaningful if not simulating.
+    //
+    assert (!keep_transaction_if_safe || !simulate);
 
     tracer trace ("pkg_fetch");
 
@@ -387,6 +404,7 @@ namespace bpkg
     const repository_location& rl (pl->repository_fragment->location);
 
     bool purge (true);
+    bool keep_transaction (keep_transaction_if_safe);
 
     if (!simulate)
     {
@@ -402,6 +420,8 @@ namespace bpkg
       {
         earm = tmp_file (pdb.config_orig, n.string () + '-' + v.string ());
         mv (a, earm.path);
+
+        keep_transaction = false;
       }
 
       // Add the package archive file to the configuration, by either using
@@ -441,6 +461,8 @@ namespace bpkg
             info << "if problem persists, consider reporting this to "
                  << "repository maintainer";
         }
+
+        keep_transaction = false;
       }
       else
       {
@@ -490,6 +512,8 @@ namespace bpkg
           hardlink (ca, a);
 
           arm = auto_rmfile (a);
+
+          keep_transaction = false;
         }
       }
 
@@ -541,7 +565,8 @@ namespace bpkg
                  rl,
                  ap->manifest (),
                  purge,
-                 simulate));
+                 simulate,
+                 keep_transaction));
 
     arm.cancel ();
     return p;
@@ -575,7 +600,8 @@ namespace bpkg
                      path (args.next ()),
                      o.replace (),
                      o.purge (),
-                     false /* simulate */);
+                     false /* simulate */,
+                     false /* keep_transaction_if_safe */);
     }
     else
     {
@@ -604,7 +630,8 @@ namespace bpkg
                      move (n),
                      move (v),
                      o.replace (),
-                     false /* simulate */);
+                     false /* simulate */,
+                     false /* keep_transaction_if_safe */);
 
       if (cache.enabled ())
         cache.close ();
