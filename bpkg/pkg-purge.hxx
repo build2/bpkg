@@ -24,11 +24,12 @@ namespace bpkg
              const shared_ptr<selected_package>&,
              bool simulate);
 
-  // Remove package's filesystem objects (the source directory and, if
-  // the archive argument is true, the package archive). If this fails,
-  // set the package state to broken, commit the transaction, and fail.
+  // Remove package's filesystem entries (the source directory and, if the
+  // archive argument is true, the package archive). If this fails, set the
+  // package state to broken, commit the transaction, and fail. Return true if
+  // any filesystem entries have been removed.
   //
-  void
+  bool
   pkg_purge_fs (database&,
                 transaction&,
                 const shared_ptr<selected_package>&,

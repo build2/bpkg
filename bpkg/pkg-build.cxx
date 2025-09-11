@@ -8108,6 +8108,20 @@ namespace bpkg
         //
         bool fetched (false); // True if we have fetched the package.
 
+        // Unless in the simulation mode, start the transaction to fetch or
+        // checkout the package and, if possible, reuse the transaction to
+        // unpack the fetched package afterwards. Note that in the simulation
+        // mode we are in the global transaction which will never be
+        // committed.
+        //
+        // Specifically, if the package needs to be fetched, then, for
+        // performance reasons, request pkg_fetch() to keep the transaction
+        // running if deemed safe (see pkg_fetch() for details). If the
+        // transaction is kept, then reuse it for the subsequent pkg_unpack()
+        // call.
+        //
+        transaction t (pdb, false /* start */);
+
         if (sp == nullptr                         ||
             sp->version != p.available_version () ||
             p.replace ())
@@ -8126,7 +8140,8 @@ namespace bpkg
 
           if (pl.repository_fragment.object_id () != "") // Special root?
           {
-            transaction t (pdb, !simulate /* start */);
+            if (!simulate)
+              t.start (pdb);
 
             // Go through package repository fragments to decide if we should
             // fetch, checkout or unpack depending on the available repository
@@ -8242,7 +8257,8 @@ namespace bpkg
                                 ap->id.name,
                                 p.available_version (),
                                 true /* replace */,
-                                simulate);
+                                simulate,
+                                !simulate /* keep_transaction_if_safe */);
                 break;
               }
             case repository_basis::version_control:
@@ -8290,7 +8306,8 @@ namespace bpkg
           //
           else if (exists (pl.location))
           {
-            transaction t (pdb, !simulate /* start */);
+            if (!simulate)
+              t.start (pdb);
 
             sp = pkg_fetch (
               o,
@@ -8299,7 +8316,8 @@ namespace bpkg
               pl.location, // Archive path.
               true,        // Replace
               false,       // Don't purge; commits the transaction.
-              simulate);
+              simulate,
+              !simulate);  // Keep transaction if safe, unless simulating.
           }
 
           if (sp != nullptr) // Actually fetched or checked out something?
@@ -8346,6 +8364,11 @@ namespace bpkg
           }
         }
 
+        // The transaction can only be kept by pkg_fetch(), unless we are
+        // simulating.
+        //
+        assert (t.finalized () || (!simulate && fetched));
+
         // Unpack if required. Note that the package can still be NULL if this
         // is the directory case (see the fetch code above).
         //
@@ -8361,7 +8384,10 @@ namespace bpkg
                 fetch_cache.open (trace);
             }
 
-            transaction t (pdb, !simulate /* start */);
+            // Reuse the transaction if not finalized.
+            //
+            if (!simulate && t.finalized ())
+              t.start (pdb);
 
             // Commits the transaction.
             //
@@ -8385,7 +8411,13 @@ namespace bpkg
             const package_location& pl (ap->locations[0]);
             assert (pl.repository_fragment.object_id () == ""); // Special root.
 
-            transaction t (pdb, !simulate /* start */);
+            if (!simulate)
+            {
+              assert (t.finalized ()); // Wouldn't be here otherwise.
+
+              t.start (pdb);
+            }
+
             sp = pkg_unpack (o,
                              pdb,
                              t,
