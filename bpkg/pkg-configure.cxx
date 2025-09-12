@@ -717,7 +717,7 @@ namespace bpkg
       else
         bspec = "configure('" +
           src_root.representation () + "'@'" +
-          out_root.representation () + (sdt ? ",hardlink" : "") + "')";
+          out_root.representation () + (sdt ? "',hardlink)" : "')");
 
       l4 ([&]{trace << "buildspec: " << bspec;});
 
@@ -757,7 +757,7 @@ namespace bpkg
         else
           bspec = "configure('" +
             src_root.representation () + "'@'" +
-            out_root.representation () + (sdt ? ",hardlink" : "") + "')";
+            out_root.representation () + (sdt ? "',hardlink)" : "')");
 
         print_b (o, verb_b::quiet, no_progress, cpr.config_variables, bspec);
       }
