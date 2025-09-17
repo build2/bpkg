@@ -107,7 +107,7 @@ namespace bpkg
     // * config_checksum()
     //   collect_config()
     //
-    // Note that the load_old_config() function can be called at eny point
+    // Note that the load_old_config() function can be called at any point
     // before collect_config() (and is called implicitly by most other
     // functions).
     //
@@ -367,7 +367,7 @@ namespace bpkg
     // keeping track of the depends_index for the most recently evaluated
     // prefer/require clause along with the position of the first element that
     // was added by this clause. Note also that this logic does the right
-    // thing if we move to a different dependency alternative withing the same
+    // thing if we move to a different dependency alternative within the same
     // depends value.
     //
     reflect_variable_values dependency_reflect_;
