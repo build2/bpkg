@@ -219,6 +219,7 @@ namespace bpkg
       init (&build2_terminate,
             build2_argv0,
             false /* serial_stop */,
+            bc.max_stack,
             bc.mtime_check,
             bc.config_sub,
             bc.config_guess);
@@ -255,7 +256,6 @@ namespace bpkg
                             1 /* init_active */,
                             bc.max_jobs,
                             bc.jobs * bo.queue_depth (),
-                            bc.max_stack,
                             bc.jobs);
 
       build2_mutexes.init (build2_sched.shard_size ());
