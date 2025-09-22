@@ -40,6 +40,8 @@
 
 #include <bpkg/pkg-build-collect.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 using namespace butl;
 
@@ -5568,6 +5570,8 @@ namespace bpkg
     // Package managers are an easy, already solved problem, right?
     //
     build_packages pkgs;
+
+    timer col_timer (100, "pkg-collection");
     {
       struct dep
       {
@@ -5721,6 +5725,8 @@ namespace bpkg
       for (bool refine (true), scratch_exe (true), scratch_col (false);
            refine; )
       {
+        timer col_iter_timer (101, "pkg-collection-iter");
+
         bool scratch (scratch_exe || scratch_col);
 
         l4 ([&]{trace << "refine package collection/plan execution"
@@ -6008,6 +6014,8 @@ namespace bpkg
               pkgs.collect_build (
                 o, p, replaced_vers, postponed_cfgs, unsatisfied_depts);
 
+            timer ch_timer (110, "  collect-held-prereqs");
+
             // Collect all the prerequisites of the user selection.
             //
             // Note that some of the user-selected packages can well be
@@ -6063,6 +6071,8 @@ namespace bpkg
               }
             }
 
+            ch_timer.stop ();
+
             // Note that we need to collect unheld after prerequisites, not to
             // overwrite the pre-entered entries before they are used to
             // provide additional constraints for the collected prerequisites.
@@ -6110,6 +6120,8 @@ namespace bpkg
           }
           else
             pkgs.clear_order (); // Only clear the ordered list.
+
+          timer dep_timer (120, "  collect-deps");
 
           // Add to the plan dependencies to up/down-grade/drop that were
           // discovered on the previous iterations.
@@ -6237,6 +6249,8 @@ namespace bpkg
             }
           }
 
+          dep_timer.stop ();
+
           // Handle the (combined) postponed collection.
           //
           if (find_if (postponed_recs.begin (), postponed_recs.end (),
@@ -6252,6 +6266,9 @@ namespace bpkg
               !postponed_alts.empty ()             ||
               postponed_deps.has_bogus ()          ||
               !postponed_cfgs.empty ())
+          {
+            timer post_timer (130, "  collect-postponed");
+
             pkgs.collect_build_postponed (o,
                                           replaced_vers,
                                           postponed_repo,
@@ -6266,6 +6283,7 @@ namespace bpkg
                                           find_prereq_database,
                                           rpt_depts,
                                           add_priv_cfg);
+          }
 
           // Erase the bogus replacements and re-collect from scratch, if any
           // (see replaced_versions for details).
@@ -6301,8 +6319,14 @@ namespace bpkg
           continue;
         }
 
+        timer dept_timer (140, "  collect-dependents");
+
         set<package_key> depts (
           pkgs.collect_dependents (rpt_depts, unsatisfied_depts));
+
+        dept_timer.stop ();
+
+        timer order_timer (150, "  order-pkgs");
 
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
@@ -6408,6 +6432,8 @@ namespace bpkg
                         false /* reorder */);
         }
 
+        order_timer.stop ();
+
         // Make sure all the postponed dependencies of existing dependents
         // have been collected and fail if that's not the case.
         //
@@ -6477,6 +6503,8 @@ namespace bpkg
         bool changed;
         vector<pair<database&, shared_ptr<selected_package>>> build_pkgs;
         {
+          timer exe_timer (160, "  execute-plan");
+
           vector<build_package> tmp (pkgs.begin (), pkgs.end ());
           build_package_list bl (tmp.begin (), tmp.end ());
 
@@ -6759,6 +6787,8 @@ namespace bpkg
         //
         if (changed && !refine)
         {
+          timer refine_timer (170, "  refine-plan");
+
           // Verify the specified package dependency hierarchy and return the
           // set of packages plus their runtime dependencies, including
           // indirect ones. Fail if a dependency cycle is detected.
@@ -6977,8 +7007,13 @@ namespace bpkg
         // Rollback the changes to the database and reload the changed
         // selected_package objects.
         //
+        timer rollback_timer (180, "  rollback-transaction");
         t.rollback ();
+        rollback_timer.stop ();
+
         {
+          timer restore_timer (190, "  restore-pkgs");
+
           transaction t (mdb);
 
           // First reload all the selected_package object that could have been
@@ -7215,6 +7250,8 @@ namespace bpkg
 
         if (!refine)
         {
+          timer resolve_timer (200, "  resolve-unsatisfied");
+
           // Cleanup the package build collecting state, preparing for the
           // re-collection from the very beginning.
           //
@@ -7467,6 +7504,9 @@ namespace bpkg
         }
       }
     }
+
+    col_timer.stop ();
+    timer::print (true);
 
     // Print what we are going to do, then ask for the user's confirmation.
     // While at it, detect if we have any dependents that the user may want to

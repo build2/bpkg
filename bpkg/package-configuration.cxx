@@ -7,6 +7,8 @@
 
 #include <bpkg/package-skeleton.hxx>
 
+#include <bpkg/timer.hxx>
+
 namespace bpkg
 {
   using build2::config::variable_origin;
@@ -106,6 +108,8 @@ namespace bpkg
     const small_vector<reference_wrapper<package_skeleton>, 1>& depcs,
     bool has_alt)
   {
+    timer tmr (4000, "negotiate_configuration()");
+
     assert (!dept.system);
 
     pos.first--; pos.second--; // Convert to 0-base.
@@ -199,6 +203,8 @@ namespace bpkg
     package_skeleton::dependency_configurations depc_cfgs;
     depc_cfgs.reserve (depcs.size ());
 
+    timer tmr1 (4010, "  save-snapshot");
+
     for (package_skeleton& depc: depcs)
     {
       package_configuration& cfg (cfgs[depc.package]);
@@ -253,6 +259,9 @@ namespace bpkg
         depc.reload_defaults (cfg);
     }
 
+    tmr1.stop ();
+    timer tmr2 (4020, "  eval");
+
     // Note that we need to collect the dependency configurations as a
     // separate loop so that the stored references are not invalidated by
     // operator[] (which is really a push_back() into a vector).
@@ -288,6 +297,9 @@ namespace bpkg
       for (const package_configuration& cfg: depc_cfgs)
         cfg.print (dr, "    "); // Note 4 spaces since in nested info.
     }
+
+    tmr2.stop ();
+    timer tmr3 (4030, "  check-changed");
 
     // Check if anything changed by comparing to entries in old_cfgs.
     //

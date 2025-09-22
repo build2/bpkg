@@ -17,6 +17,8 @@
 #include <bpkg/satisfaction.hxx>
 #include <bpkg/manifest-utility.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 using namespace butl;
 
@@ -908,6 +910,8 @@ namespace bpkg
                     const package_name& dep,
                     database& dep_db)
   {
+    timer tm (1500, "query_dependents()");
+
     // Prepare and cache this query since it's executed a lot. Note that we
     // have to cache one per database.
     //

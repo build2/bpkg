@@ -24,6 +24,8 @@
 #include <bpkg/package-query.hxx>
 #include <bpkg/package-configuration.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 
 namespace bpkg
@@ -2022,6 +2024,8 @@ namespace bpkg
                                optional<pair<size_t, size_t>> reeval_pos,
                                const optional<package_key>& orig_dep)
   {
+    timer cp_timer (900, "collect_build_prerequisites()", true, true);
+
     // NOTE: don't forget to update collect_build_postponed() if changing
     //       anything in this function. Also enable and run the tests with the
     //       config.bpkg.tests.all=true variable when done.
@@ -2073,6 +2077,8 @@ namespace bpkg
         postponed_cfgs.find_dependency (pk) == nullptr &&
         postponed_edeps.find (pk) == postponed_edeps.end ())
     {
+      timer cp_timer (901, "  check-cfg-postpone");
+
       // Note that there can be multiple existing dependents for a dependency.
       // Also note that we skip the existing dependents for which re-
       // evaluation is optional not to initiate any negotiation in a simple
@@ -2647,6 +2653,8 @@ namespace bpkg
          diag_record* dr = nullptr,
          bool dry_run = false) -> precollect_result
         {
+          timer cp_timer (910, "  pre-collect");
+
           prebuilds r;
           bool reused (true);
           optional<unsatisfied_dependent> udep;
@@ -2849,10 +2857,14 @@ namespace bpkg
             // prerequisite replacement rather than the prerequisite being
             // replaced.
             //
+            timer fd_timer (911, "    find-dep");
+
             pair<shared_ptr<selected_package>, database*> spd (
               ddb != nullptr
               ? make_pair (ddb->find<selected_package> (dn), ddb)
               : find_dependency (pdb, dn, buildtime));
+
+            fd_timer.stop ();
 
             if (ddb == nullptr)
               ddb = &pdb;
@@ -2877,6 +2889,8 @@ namespace bpkg
 
             if (dsp != nullptr)
             {
+              timer fda_timer (912, "    find-dep-avail");
+
               // Switch to the selected package configuration.
               //
               ddb = spd.second;
@@ -3022,6 +3036,8 @@ namespace bpkg
                 dsp == nullptr &&
                 ddb->type != buildtime_dependency_type (dn))
             {
+              timer fdc_timer (913, "    find-dep-conf");
+
               database*  db (nullptr);
               database& sdb (ddb->private_ ()
                              ? ddb->parent_config (true /* sys_rep */)
@@ -3239,6 +3255,8 @@ namespace bpkg
             //
             if (dap == nullptr)
             {
+              timer fd_timer (914, "    find-dap");
+
               // And if we have no repository fragment to look in, then that
               // means the package is an orphan (we delay this check until we
               // actually need the repository fragment to allow orphans
@@ -3659,6 +3677,8 @@ namespace bpkg
          bool check_constraints,
          bool ignore_unsatisfactory_dep_spec)
         {
+          timer cp_timer (920, "  collect (without pre-collect)", true, true);
+
           // Dependency alternative position.
           //
           pair<size_t, size_t> dp (di + 1, dai + 1);
@@ -4130,6 +4150,8 @@ namespace bpkg
 
                 const dependency_alternative& a (edas[i].first);
 
+                cp_timer.stop ();
+
                 precollect_result r (
                   precollect (a,
                               das.buildtime,
@@ -4138,6 +4160,8 @@ namespace bpkg
                               ignore_unsatisfactory_dep_spec,
                               nullptr /* diag_record */,
                               true /* dry_run */));
+
+                cp_timer.start ();
 
                 if (r.builds && r.reused)
                 {
@@ -4166,6 +4190,8 @@ namespace bpkg
 
                   if (&a != &da) // Skip the current dependency alternative.
                   {
+                    cp_timer.stop ();
+
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
@@ -4174,6 +4200,8 @@ namespace bpkg
                                   ignore_unsatisfactory_dep_spec,
                                   nullptr /* diag_record */,
                                   true /* dry_run */));
+
+                    cp_timer.start ();
 
                     if (r.builds && r.reused)
                     {
@@ -4204,6 +4232,8 @@ namespace bpkg
 
                   if (&a != &da) // Skip the current dependency alternative.
                   {
+                    cp_timer.stop ();
+
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
@@ -4212,6 +4242,8 @@ namespace bpkg
                                   ignore_unsatisfactory_dep_spec,
                                   nullptr /* diag_record */,
                                   true /* dry_run */));
+
+                    cp_timer.start ();
 
                     if (r.builds && r.reused)
                     {
@@ -4233,6 +4265,8 @@ namespace bpkg
 
                   if (&a != &da) // Skip the current dependency alternative.
                   {
+                    cp_timer.stop ();
+
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
@@ -4241,6 +4275,8 @@ namespace bpkg
                                   true /* ignore_unsatisfactory_dep_spec */,
                                   nullptr /* diag_record */,
                                   true /* dry_run */));
+
+                    cp_timer.start ();
 
                     if (r.builds && r.reused)
                     {
@@ -4784,6 +4820,8 @@ namespace bpkg
                           size_t dai,
                           prebuilds&& pbs)
       {
+        timer cp_timer (930, "  select");
+
         assert (sdas.empty ());
 
         if (pre_reeval)
@@ -5991,6 +6029,8 @@ namespace bpkg
 
     if (pcfg != nullptr)
     {
+      timer neg_timer (131, "    cfg-negotiate");
+
       // This is what we refer to as the "initial negotiation" where we
       // negotiate the configuration of dependents that could be postponed.
       // Those that could not we "up-negotiate" in the collect() lambda of
@@ -6029,6 +6069,8 @@ namespace bpkg
       //
       set<package_key> postponed_existing_dependents;
       {
+        timer tm (132, "      collect-ex-dept");
+
         // Map existing dependents to the dependencies they apply a
         // configuration to. Also, collect the information which is required
         // for a dependent re-evaluation (selected package, etc).
@@ -6275,6 +6317,8 @@ namespace bpkg
       }
 #endif
 
+      timer tm_qed (133, "      query-ex-depts");
+
       for (auto b (pcfg->dependents.begin ()),
                 i (b),
                 e (pcfg->dependents.end ()); i != e; )
@@ -6351,9 +6395,13 @@ namespace bpkg
           }
         }
 
+        timer nc_timer (134, "        neg-conf");
+
         optional<bool> changed (
           negotiate_configuration (
             pcfg->dependency_configurations, *dept, pos, depcs, has_alt));
+
+        nc_timer.stop ();
 
         // If the dependency alternative configuration cannot be negotiated
         // for this dependent, then add an entry to unacceptable_alts and
@@ -6386,6 +6434,10 @@ namespace bpkg
 
         ++i;
       }
+
+      tm_qed.stop ();
+
+      timer tm_cnd (136, "      collect-neg-deps");
 
       // Being negotiated (so can only be up-negotiated).
       //
@@ -6519,6 +6571,10 @@ namespace bpkg
         }
       }
 
+      tm_cnd.stop ();
+
+      timer tm_cndt (138, "      collect-neg-depts");
+
       // Continue processing dependents with this config.
       //
       l5 ([&]{trace << "recursively collect cfg-negotiated dependents";});
@@ -6642,6 +6698,8 @@ namespace bpkg
                                      unacceptable_alts,
                                      unsatisfied_depts);
       }
+
+      tm_cndt.stop ();
 
       // Negotiated (so can only be rolled back).
       //

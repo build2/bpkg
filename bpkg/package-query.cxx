@@ -9,6 +9,8 @@
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/satisfaction.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 
 namespace bpkg
@@ -82,6 +84,8 @@ namespace bpkg
                    bool order,
                    bool revision)
   {
+    timer tm (1000, "query_available()");
+
     // Prepare and cache this query since it's executed a lot. Note that we
     // have to cache one per database.
     //
@@ -95,6 +99,8 @@ namespace bpkg
       canonical_version max_version;
       string            query_name;
     };
+
+    timer cn_timer (1005, "  compose-name");
 
     // Note that the query is crafted dynamically, based on the presence and
     // semantics of the version constraint as well as the version revision
@@ -149,11 +155,18 @@ namespace bpkg
 
     qn += order ? "-ordered" : "-unordered";
 
+    cn_timer.stop ();
+    timer lq_timer (1010, "  lookup-query");
+
     params*    qp;
     prep_query pq (db.lookup_query<available_package> (qn.c_str (), qp));
 
+    lq_timer.stop ();
+
     if (!pq)
     {
+      timer cq_timer (1020, "  compose-query");
+
       unique_ptr<params> p (qp = new params ());
       p->query_name = move (qn);
 
@@ -228,6 +241,8 @@ namespace bpkg
       db.cache_query (pq, move (p));
     }
 
+    timer pq_timer (1030, "  perform-query");
+
     qp->name = name;
 
     if (c)
@@ -262,6 +277,8 @@ namespace bpkg
         repository_fragments& chain,
         bool prereq)
   {
+    timer fn_timer (1100, "find()", true /* start */, true /* recursive */);
+
     // Prerequisites are not searched through recursively.
     //
     assert (!prereq || chain.empty ());
@@ -458,6 +475,8 @@ namespace bpkg
   static void
   sort_dedup (available_packages& pfs, bool suppress_older_revisions = false)
   {
+    timer sd_timer (1200, "sort-dedup");
+
     sort (pfs.begin (), pfs.end (),
           [] (const auto& x, const auto& y)
           {
@@ -528,6 +547,8 @@ namespace bpkg
                   const config_repo_fragments& rfs,
                   bool prereq)
   {
+    timer tmr (1300, "find_available()");
+
     available_packages r;
 
     for (const auto& dfs: rfs)
@@ -586,6 +607,8 @@ namespace bpkg
                       bool prereq,
                       bool revision)
   {
+    timer tmr (1400, "find_available_one()");
+
     assert (!rep_masked_fragment (rf));
 
     // Filter the result based on the repository fragment to which each
