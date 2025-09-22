@@ -9,6 +9,8 @@
 #include <bpkg/rep-mask.hxx>
 #include <bpkg/satisfaction.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 
 namespace bpkg
@@ -96,6 +98,8 @@ namespace bpkg
       string            query_name;
     };
 
+    timer lq_timer (1010, "  lookup-query");
+
     // Note that the query is crafted dynamically, based on the presence and
     // specifics of the version constraint as well as the revision comparing
     // and the result ordering requirements. The total number of variations
@@ -145,8 +149,12 @@ namespace bpkg
     params*    qp;
     prep_query pq (db.lookup_query<available_package> (qn.c_str (), qp));
 
+    lq_timer.stop ();
+
     if (!pq)
     {
+      timer cq_timer (1020, "  compose-query");
+
       unique_ptr<params> p (qp = new params ());
       p->query_name = move (qn);
 
@@ -213,6 +221,8 @@ namespace bpkg
       db.cache_query (pq, move (p));
     }
 
+    timer pq_timer (1030, "  perform-query");
+
     qp->name = name;
 
     if (c)
@@ -247,6 +257,8 @@ namespace bpkg
         repository_fragments& chain,
         bool prereq)
   {
+    timer fn_timer (1100, "find", true /* start */, true /* recursive */);
+
     // Prerequisites are not searched through recursively.
     //
     assert (!prereq || chain.empty ());
@@ -443,6 +455,8 @@ namespace bpkg
   static void
   sort_dedup (available_packages& pfs, bool suppress_older_revisions = false)
   {
+    timer sd_timer (1200, "sort-dedup");
+
     sort (pfs.begin (), pfs.end (),
           [] (const auto& x, const auto& y)
           {

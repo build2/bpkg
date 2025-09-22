@@ -28,6 +28,8 @@
 #include <bpkg/database.hxx>
 #include <bpkg/manifest-utility.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 using namespace butl;
 
@@ -485,6 +487,8 @@ namespace bpkg
   void package_skeleton::
   reload_defaults (package_configuration& cfg)
   {
+    timer tmr (3200, "reload_defaults()");
+
     // Should only be called before dependent_config()/evaluate_*().
     //
     assert (dependent_vars_.empty ()     &&
@@ -521,6 +525,8 @@ namespace bpkg
       //
       scope* rs;
       {
+        timer tmr (3201, "  bootstrap");
+
         auto df = build2::make_diag_frame (
           [this] (const build2::diag_record& dr)
           {
@@ -631,6 +637,8 @@ namespace bpkg
   void package_skeleton::
   load_overrides (package_configuration& cfg)
   {
+    timer tmr (3100, "load_overrides()");
+
     // Should only be called before dependent_config()/evaluate_*() and only
     // on system package without skeleton info.
     //
@@ -2229,6 +2237,8 @@ namespace bpkg
   void package_skeleton::
   load_old_config_impl ()
   {
+    timer tmr (3000, "load_old_config_impl()");
+
     assert (!loaded_old_config_ && ctx_ == nullptr);
 
     try

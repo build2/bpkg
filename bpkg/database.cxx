@@ -12,6 +12,8 @@
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
 
+#include <bpkg/timer.hxx>
+
 using namespace std;
 
 namespace bpkg
@@ -664,6 +666,8 @@ namespace bpkg
   linked_databases database::
   dependent_configs (bool sys_rep)
   {
+    timer tmr (2000, "dependent-configs");
+
     linked_databases r;
 
     // Note that if this configuration is of a build-time dependency type
@@ -726,6 +730,8 @@ namespace bpkg
   linked_databases database::
   dependency_configs (optional<bool> buildtime, const std::string& tp)
   {
+    timer tmr (2100, "dependency-configs");
+
     // The type only makes sense if build-time dependency configurations are
     // requested.
     //
@@ -846,6 +852,8 @@ namespace bpkg
   linked_databases database::
   cluster_configs (bool sys_rep)
   {
+    timer tmr (2200, "cluster-configs");
+
     linked_databases r;
 
     // If the database is not in the resulting list, then add it and its
@@ -976,6 +984,8 @@ namespace bpkg
   database& database::
   parent_config (bool sys_rep)
   {
+    timer tmr (2300, "parent-config");
+
     assert (private_ ());
 
     dir_path pd (config.directory ().directory ()); // Parent configuration.
@@ -997,6 +1007,8 @@ namespace bpkg
   database* database::
   private_config (const std::string& type)
   {
+    timer tmr (2400, "private-config");
+
     assert (!explicit_links_.empty ());
 
     auto r (find_if (explicit_links_.begin_linked (), explicit_links_.end (),
