@@ -82,72 +82,164 @@ namespace bpkg
                    bool order,
                    bool revision)
   {
-    using query = query<available_package>;
-
-    query q (query::id.name == name);
-    const auto& vm (query::id.version);
-
-    // If there is a constraint, then translate it to the query. Otherwise,
-    // get the latest version or stub versions if present.
+    // Prepare and cache this query since it's executed a lot. Note that we
+    // have to cache one per database.
     //
+    using query = query<available_package>;
+    using prep_query = prepared_query<available_package>;
+
+    struct params
+    {
+      package_name      name;
+      canonical_version min_version;
+      canonical_version max_version;
+      string            query_name;
+    };
+
+    // Note that the query is crafted dynamically, based on the presence and
+    // semantics of the version constraint as well as the version revision
+    // comparison and the result ordering requirements. The total number of
+    // variations doesn't feel to be overly big (~100) and in practice their
+    // number per bpkg run is normally much smaller. Thus, we will cache such
+    // query variations as they appear, calculating their names accordingly.
+    //
+    // Use the database address as the database identity (see
+    // query_dependents() for the reasoning).
+    //
+    string qn (to_string (reinterpret_cast<uintptr_t> (&db)));
+    qn += "-available-package-query";
+
+    // Return the query name component based on the fact whether the
+    // constraint's endpoint version comparison is revision/iteration
+    // sensitive or not.
+    //
+    auto qnr = [] (bool revision, bool iteration)
+    {
+      assert (revision || !iteration); // !revision && iteration is meaningless.
+      return !revision  ? "-no-rev" : !iteration ? "-rev" : "-rev-iter";
+    };
+
+    // NOTE: keep the subsequent query name calculating logic and the query
+    //       composing logic parallel.
+
     if (c)
     {
-      assert (c->complete ());
-
-      query qs (compare_version_eq (vm,
-                                    canonical_version (wildcard_version),
-                                    false /* revision */,
-                                    false /* iteration */));
-
       if (c->min_version &&
           c->max_version &&
           *c->min_version == *c->max_version)
       {
-        const version& v (*c->min_version);
-
-        q = q &&
-            (compare_version_eq (vm,
-                                 canonical_version (v),
-                                 revision || v.revision.has_value (),
-                                 revision /* iteration */) ||
-             qs);
+        qn += "-eq";
+        qn += qnr (revision || c->min_version->revision, revision);
       }
       else
       {
-        query qr (true);
-
         if (c->min_version)
         {
-          const version& v (*c->min_version);
-          canonical_version cv (v);
-          bool rv (revision || v.revision);
-
-          if (c->min_open)
-            qr = compare_version_gt (vm, cv, rv, revision /* iteration */);
-          else
-            qr = compare_version_ge (vm, cv, rv, revision /* iteration */);
+          qn += (c->min_open ? "-min-gt" : "-min-ge");
+          qn += qnr (revision || c->min_version->revision, revision);
         }
 
         if (c->max_version)
         {
-          const version& v (*c->max_version);
-          canonical_version cv (v);
-          bool rv (revision || v.revision);
-
-          if (c->max_open)
-            qr = qr && compare_version_lt (vm, cv, rv, revision);
-          else
-            qr = qr && compare_version_le (vm, cv, rv, revision);
+          qn += (c->max_open ? "-max-lt" : "-max-le");
+          qn += qnr (revision || c->max_version->revision, revision);
         }
-
-        q = q && (qr || qs);
       }
     }
 
-    if (order)
-      q += order_by_version_desc (vm);
+    qn += order ? "-ordered" : "-unordered";
 
-    return db.query<available_package> (q);
+    params*    qp;
+    prep_query pq (db.lookup_query<available_package> (qn.c_str (), qp));
+
+    if (!pq)
+    {
+      unique_ptr<params> p (qp = new params ());
+      p->query_name = move (qn);
+
+      query q (query::id.name == query::_ref (p->name));
+      const auto& vm (query::id.version);
+
+      // If there is a constraint, then translate it to the query. Otherwise,
+      // get the latest version or stub versions if present.
+      //
+      if (c)
+      {
+        assert (c->complete ());
+
+        // Note that specifying in the query the constant wildcard version by
+        // reference (by using compare_version_ref_eq()) doesn't seem to have
+        // any benefits. Thus, let's specify it by value.
+        //
+        query qs (compare_version_eq (vm,
+                                      canonical_version (wildcard_version),
+                                      false /* revision */,
+                                      false /* iteration */));
+
+        if (c->min_version &&
+            c->max_version &&
+            *c->min_version == *c->max_version)
+        {
+          q = q &&
+            (compare_version_ref_eq (vm,
+                                     p->min_version,
+                                     revision || c->min_version->revision,
+                                     revision /* iteration */) ||
+             qs);
+        }
+        else
+        {
+          query qr;
+
+          if (c->min_version)
+          {
+            canonical_version& cv (p->min_version);
+            bool rv (revision || c->min_version->revision);
+
+            if (c->min_open)
+              qr = compare_version_ref_gt (vm, cv, rv, revision /* iteration */);
+            else
+              qr = compare_version_ref_ge (vm, cv, rv, revision /* iteration */);
+          }
+
+          if (c->max_version)
+          {
+            canonical_version& cv (p->max_version);
+            bool rv (revision || c->max_version->revision);
+
+            query qm (c->max_open
+                      ? compare_version_ref_lt (vm, cv, rv, revision)
+                      : compare_version_ref_le (vm, cv, rv, revision));
+
+            if (qr.empty ())
+              qr = move (qm);
+            else
+              qr = qr && qm;
+          }
+
+          q = q && (qr || qs);
+        }
+      }
+
+      if (order)
+        q += order_by_version_desc (vm);
+
+      pq = db.prepare_query<available_package> (p->query_name.c_str (), q);
+      db.cache_query (pq, move (p));
+    }
+
+    qp->name = name;
+
+    if (c)
+    {
+      if (c->min_version)
+        qp->min_version = canonical_version (*c->min_version);
+
+      if (c->max_version)
+        qp->max_version = canonical_version (*c->max_version);
+    }
+
+    return pq.execute ();
   }
 
   // Check if the package is available from the specified repository fragment,

@@ -921,8 +921,20 @@ namespace bpkg
       string query_name;
     };
 
+    // Note that we used to use the db.uuid.string () call to generate the
+    // database identity component of the query name. This, however, turned
+    // out to be quite slow, taking about the same time to execute as the
+    // database query. Thus, we switched to using the database address as the
+    // database identity, similar to the database comparison operators (see
+    // database.hxx for details). With this approach the query name is
+    // generated 5 times faster. Also note that both name generating
+    // approaches assume that the databases are not detached during the cached
+    // query lifetime (bpkg run).
+    //
+    string qn (to_string (reinterpret_cast<uintptr_t> (&db)));
+    qn += "-package-dependent-query";
+
     params*    qp;
-    string     qn (db.uuid.string () + "-package-dependent-query");
     prep_query pq (db.lookup_query<package_dependent> (qn.c_str (), qp));
 
     if (!pq)

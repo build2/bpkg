@@ -258,7 +258,7 @@ namespace bpkg
         : name (move (n)), version (v) {}
   };
 
-  // Version comparison operators.
+  // Version comparison operators and functions.
   //
   // They allow comparing objects that have epoch, canonical_upstream,
   // canonical_release, revision, and iteration data members. The idea is that
@@ -268,7 +268,10 @@ namespace bpkg
   // canonical_version you may need to explicitly convert the version object
   // to canonical_version.
   //
-  // Also note that if the comparison operation ignores the revision, then it
+  // The compare_version_ref_*() functions compare the query members with the
+  // canonical_version members, binding the latter by reference.
+  //
+  // Also note that if the comparison function ignores the revision, then it
   // also unconditionally ignores the iteration (that semantically extends the
   // revision).
   //
@@ -283,7 +286,7 @@ namespace bpkg
     // expression will run), let's not push our luck with something like
     // (!revision || x.revision == y.revision).
     //
-    auto r (x.epoch == y.epoch &&
+    auto r (x.epoch == y.epoch                           &&
             x.canonical_upstream == y.canonical_upstream &&
             x.canonical_release == y.canonical_release);
 
@@ -292,6 +295,31 @@ namespace bpkg
       : !iteration
         ? r && x.revision == y.revision
         : r && x.revision == y.revision && x.iteration == y.iteration;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_eq (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (x.epoch == q::_ref (y.epoch)                           &&
+            x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+            x.canonical_release == q::_ref (y.canonical_release));
+
+    return !revision
+      ? r
+      : !iteration
+        ? r && x.revision == q::_ref (y.revision)
+        : r                                  &&
+          x.revision == q::_ref (y.revision) &&
+          x.iteration == q::_ref (y.iteration);
   }
 
   /*
@@ -312,7 +340,7 @@ namespace bpkg
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
-    auto r (x.epoch != y.epoch ||
+    auto r (x.epoch != y.epoch                           ||
             x.canonical_upstream != y.canonical_upstream ||
             x.canonical_release != y.canonical_release);
 
@@ -321,6 +349,31 @@ namespace bpkg
       : !iteration
         ? r || x.revision != y.revision
         : r || x.revision != y.revision || x.iteration != y.iteration;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_ne (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (x.epoch != q::_ref (y.epoch)                           ||
+            x.canonical_upstream != q::_ref (y.canonical_upstream) ||
+            x.canonical_release != q::_ref (y.canonical_release));
+
+    return !revision
+      ? r
+      : !iteration
+        ? r || x.revision != q::_ref (y.revision)
+        : r                                  ||
+          x.revision != q::_ref (y.revision) ||
+          x.iteration != q::_ref (y.iteration);
   }
 
   template <typename T1, typename T2>
@@ -337,25 +390,61 @@ namespace bpkg
   {
     assert (revision || !iteration); // !revision && iteration is meaningless.
 
-    auto r (
-      x.epoch < y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release < y.canonical_release));
+    auto r (x.epoch < y.epoch ||
+            (x.epoch == y.epoch &&
+             (x.canonical_upstream < y.canonical_upstream ||
+              (x.canonical_upstream == y.canonical_upstream &&
+               x.canonical_release < y.canonical_release))));
 
     if (revision)
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
-                x.canonical_release == y.canonical_release &&
+                x.canonical_release == y.canonical_release   &&
                 x.revision < y.revision);
 
       if (iteration)
-        r = r || (x.epoch == y.epoch &&
+        r = r || (x.epoch == y.epoch                           &&
                   x.canonical_upstream == y.canonical_upstream &&
-                  x.canonical_release == y.canonical_release &&
-                  x.revision == y.revision &&
+                  x.canonical_release == y.canonical_release   &&
+                  x.revision == y.revision                     &&
                   x.iteration < y.iteration);
+    }
+
+    return r;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_lt (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (x.epoch < q::_ref (y.epoch) ||
+            (x.epoch == q::_ref (y.epoch) &&
+             (x.canonical_upstream < q::_ref (y.canonical_upstream) ||
+              (x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+               x.canonical_release < q::_ref (y.canonical_release)))));
+
+    if (revision)
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release == q::_ref (y.canonical_release)   &&
+                x.revision < q::_ref (y.revision));
+
+      if (iteration)
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  x.revision == q::_ref (y.revision)                     &&
+                  x.iteration < q::_ref (y.iteration));
     }
 
     return r;
@@ -381,34 +470,73 @@ namespace bpkg
 
     if (!revision)
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
                 x.canonical_release <= y.canonical_release);
     }
     else
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
                 x.canonical_release < y.canonical_release);
 
       if (!iteration)
-        r = r || (x.epoch == y.epoch &&
+        r = r || (x.epoch == y.epoch                           &&
                   x.canonical_upstream == y.canonical_upstream &&
-                  x.canonical_release == y.canonical_release &&
+                  x.canonical_release == y.canonical_release   &&
                   x.revision <= y.revision);
       else
-        r =  r ||
+        r = r || (x.epoch == y.epoch                           &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release   &&
+                  (x.revision < y.revision ||
+                   (x.revision == y.revision && x.iteration <= y.iteration)));
+    }
 
-          (x.epoch == y.epoch &&
-           x.canonical_upstream == y.canonical_upstream &&
-           x.canonical_release == y.canonical_release &&
-           x.revision < y.revision) ||
+    return r;
+  }
 
-          (x.epoch == y.epoch &&
-           x.canonical_upstream == y.canonical_upstream &&
-           x.canonical_release == y.canonical_release &&
-           x.revision == y.revision &&
-           x.iteration <= y.iteration);
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_le (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (
+      x.epoch < q::_ref (y.epoch) ||
+      (x.epoch == q::_ref (y.epoch) &&
+       x.canonical_upstream < q::_ref (y.canonical_upstream)));
+
+    if (!revision)
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release <= q::_ref (y.canonical_release));
+    }
+    else
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release < q::_ref (y.canonical_release));
+
+      if (!iteration)
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  x.revision <= q::_ref (y.revision));
+      else
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  (x.revision < q::_ref (y.revision) ||
+                   (x.revision == q::_ref (y.revision) &&
+                    x.iteration <= q::_ref (y.iteration))));
     }
 
     return r;
@@ -434,23 +562,61 @@ namespace bpkg
 
     auto r (
       x.epoch > y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release > y.canonical_release));
+      (x.epoch == y.epoch &&
+       (x.canonical_upstream > y.canonical_upstream ||
+        (x.canonical_upstream == y.canonical_upstream &&
+         x.canonical_release > y.canonical_release))));
 
     if (revision)
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
-                x.canonical_release == y.canonical_release &&
+                x.canonical_release == y.canonical_release   &&
                 x.revision > y.revision);
 
       if (iteration)
-        r = r || (x.epoch == y.epoch &&
+        r = r || (x.epoch == y.epoch                           &&
                   x.canonical_upstream == y.canonical_upstream &&
-                  x.canonical_release == y.canonical_release &&
-                  x.revision == y.revision &&
+                  x.canonical_release == y.canonical_release   &&
+                  x.revision == y.revision                     &&
                   x.iteration > y.iteration);
+    }
+
+    return r;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_gt (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (
+      x.epoch > q::_ref (y.epoch) ||
+      (x.epoch == q::_ref (y.epoch) &&
+       (x.canonical_upstream > q::_ref (y.canonical_upstream) ||
+        (x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+         x.canonical_release > q::_ref (y.canonical_release)))));
+
+    if (revision)
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release == q::_ref (y.canonical_release)   &&
+                x.revision > q::_ref (y.revision));
+
+      if (iteration)
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  x.revision == q::_ref (y.revision)                     &&
+                  x.iteration > q::_ref (y.iteration));
     }
 
     return r;
@@ -476,34 +642,72 @@ namespace bpkg
 
     if (!revision)
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
                 x.canonical_release >= y.canonical_release);
     }
     else
     {
-      r = r || (x.epoch == y.epoch &&
+      r = r || (x.epoch == y.epoch                           &&
                 x.canonical_upstream == y.canonical_upstream &&
                 x.canonical_release > y.canonical_release);
 
       if (!iteration)
-        r = r || (x.epoch == y.epoch &&
+        r = r || (x.epoch == y.epoch                           &&
                   x.canonical_upstream == y.canonical_upstream &&
-                  x.canonical_release == y.canonical_release &&
+                  x.canonical_release == y.canonical_release   &&
                   x.revision >= y.revision);
       else
-        r =  r ||
+        r = r || (x.epoch == y.epoch                           &&
+                  x.canonical_upstream == y.canonical_upstream &&
+                  x.canonical_release == y.canonical_release   &&
+                  (x.revision > y.revision ||
+                   (x.revision == y.revision && x.iteration >= y.iteration)));
+    }
 
-          (x.epoch == y.epoch &&
-           x.canonical_upstream == y.canonical_upstream &&
-           x.canonical_release == y.canonical_release &&
-           x.revision > y.revision) ||
+    return r;
+  }
 
-          (x.epoch == y.epoch &&
-           x.canonical_upstream == y.canonical_upstream &&
-           x.canonical_release == y.canonical_release &&
-           x.revision == y.revision &&
-           x.iteration >= y.iteration);
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ref_ge (const T1& x,
+                          const T2& y,
+                          bool revision,
+                          bool iteration)
+    -> decltype (x.revision == y.revision)
+  {
+    assert (revision || !iteration); // !revision && iteration is meaningless.
+
+    using q = decltype (x.revision == y.revision);
+
+    auto r (x.epoch > q::_ref (y.epoch) ||
+            (x.epoch == q::_ref (y.epoch) &&
+             x.canonical_upstream > q::_ref (y.canonical_upstream)));
+
+    if (!revision)
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release >= q::_ref (y.canonical_release));
+    }
+    else
+    {
+      r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                x.canonical_release > q::_ref (y.canonical_release));
+
+      if (!iteration)
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  x.revision >= q::_ref (y.revision));
+      else
+        r = r || (x.epoch == q::_ref (y.epoch)                           &&
+                  x.canonical_upstream == q::_ref (y.canonical_upstream) &&
+                  x.canonical_release == q::_ref (y.canonical_release)   &&
+                  (x.revision > q::_ref (y.revision) ||
+                   (x.revision == q::_ref (y.revision) &&
+                    x.iteration >= q::_ref (y.iteration))));
     }
 
     return r;
