@@ -644,7 +644,7 @@ namespace bpkg
                       const package_name& name,
                       const version& v)
   {
-    optional<version_constraint> c (v);
+    optional<version_constraint> c {version_constraint (v)};
 
     for (database& db: dbs)
     {
