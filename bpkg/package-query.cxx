@@ -638,6 +638,36 @@ namespace bpkg
     return make_pair (find_imaginary_stub (name), nullptr);
   }
 
+  pair<shared_ptr<available_package>,
+       lazy_shared_ptr<repository_fragment>>
+  find_available_one (const linked_databases& dbs,
+                      const package_name& name,
+                      const version& v)
+  {
+    optional<version_constraint> c {version_constraint (v)};
+
+    for (database& db: dbs)
+    {
+      for (shared_ptr<available_package> ap:
+             pointer_result (query_available (db, name, c)))
+      {
+        // All repository fragments the package comes from are equally good,
+        // so we pick the first unmasked one.
+        //
+        for (const auto& pl: ap->locations)
+        {
+          const lazy_shared_ptr<repository_fragment>& lrf (
+            pl.repository_fragment);
+
+          if (!rep_masked_fragment (lrf))
+            return make_pair (move (ap), lrf);
+        }
+      }
+    }
+
+    return make_pair (nullptr, nullptr);
+  }
+
   shared_ptr<available_package>
   find_available (const common_options& options,
                   database& db,
