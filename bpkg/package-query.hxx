@@ -152,6 +152,15 @@ namespace bpkg
                       bool prereq = true,
                       bool revision = false);
 
+  // Try to find a package of the specified version searching in all the
+  // specified databases.
+  //
+  pair<shared_ptr<available_package>,
+       lazy_shared_ptr<repository_fragment>>
+  find_available_one (const linked_databases&,
+                      const package_name&,
+                      const version&);
+
   // Try to find an available package corresponding to the specified selected
   // package and, if not found, return a transient one. The search is
   // performed in the dependent configurations of the selected package.

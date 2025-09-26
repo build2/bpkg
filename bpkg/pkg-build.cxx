@@ -1633,8 +1633,11 @@ namespace bpkg
   class cmdline_adjustments
   {
   public:
-    cmdline_adjustments (vector<build_package>& hps, dependency_packages& dps)
-        : hold_pkgs_ (hps),
+    cmdline_adjustments (const common_options& o,
+                         vector<build_package>& hps,
+                         dependency_packages& dps)
+        : options_ (o),
+          hold_pkgs_ (hps),
           dep_pkgs_ (dps) {}
 
     // Apply the specified adjustment to the command line, push the adjustment
@@ -1642,7 +1645,7 @@ namespace bpkg
     // checksum.
     //
     void
-    push (cmdline_adjustment&& a)
+    push (cmdline_adjustment&& a, bool deny_multiple_project_versions)
     {
       using type = cmdline_adjustment::adjustment_type;
 
@@ -1652,7 +1655,52 @@ namespace bpkg
 
       database& db (a.db);
       const package_name& nm (a.name);
+      const version& v (a.version);
       package_version_key cmd_line (db.main_database (), "command line");
+
+      // If we are in the 'deny multiple project versions' mode, then track
+      // the project names in the package version replacements map.
+      //
+      optional<package_name> prj;
+
+      auto project = [&db,
+                      &nm,
+                      &v,
+                      deny_multiple_project_versions,
+                      this] (const shared_ptr<available_package>& ap,
+                             const shared_ptr<selected_package>& sp)
+      {
+        optional<package_name> r; // Project name.
+
+        if (deny_multiple_project_versions)
+        {
+          if (ap != nullptr)
+          {
+            r = ap->project;
+          }
+          else
+          {
+            shared_ptr<available_package> ap (
+              find_available_one (db.cluster_configs (true /* sys_rep */),
+                                  nm,
+                                  v).first);
+
+            if (ap == nullptr && sp != nullptr)
+              ap = make_available (options_, db, sp);
+
+            if (ap != nullptr)
+              r = ap->project;
+          }
+        }
+
+        return r;
+      };
+
+      // Start the database transaction to perform the
+      // database::find<selected_package>() and find_available_one() calls,
+      // unless we are already in the transaction.
+      //
+      transaction t (db, !transaction::has_current ());
 
       switch (a.type)
       {
@@ -1677,6 +1725,7 @@ namespace bpkg
             a.constraint = nullopt;
           }
 
+          prj = project (bp.available, bp.selected);
           break;
         }
       case type::dep_existing:
@@ -1684,6 +1733,8 @@ namespace bpkg
           auto i (find_dep_pkg (a));
           assert (i != dep_pkgs_.end ()); // As per adjustment type.
           swap (i->constraint, a.constraint);
+
+          prj = project (nullptr /* available */, i->selected);
           break;
         }
       case type::hold_new:
@@ -1691,12 +1742,6 @@ namespace bpkg
           // As per adjustment type.
           //
           assert (find_hold_pkg (a) == hold_pkgs_.end ());
-
-          // Start the database transaction to perform the
-          // database::find<selected_package> call, unless we are already in
-          // the transaction.
-          //
-          transaction t (db, !transaction::has_current ());
 
           build_package bp {
             build_package::build,
@@ -1727,13 +1772,13 @@ namespace bpkg
              ? build_package::build_replace
              : uint16_t (0))};
 
-          t.commit ();
-
           bp.constraints.emplace_back (move (*a.constraint),
                                        cmd_line.db,
                                        cmd_line.name.string ());
 
           a.constraint = nullopt;
+
+          prj = project (bp.available, bp.selected);
 
           hold_pkgs_.push_back (move (bp));
           break;
@@ -1743,12 +1788,6 @@ namespace bpkg
           // As per adjustment type.
           //
           assert (find_dep_pkg (a) == dep_pkgs_.end ());
-
-          // Start the database transaction to perform the
-          // database::find<selected_package> call, unless we are already in
-          // the transaction.
-          //
-          transaction t (db, !transaction::has_current ());
 
           dep_pkgs_.push_back (
             dependency_package {&db,
@@ -1767,14 +1806,17 @@ namespace bpkg
                                 strings () /* config_vars */,
                                 nullptr /* system_status */});
 
-          t.commit ();
-
           a.constraint = nullopt;
+
+          prj = project (nullptr /* available */, dep_pkgs_.back ().selected);
           break;
         }
       }
 
-      packages_.insert (package_version_key (db, nm, a.version));
+      t.commit ();
+
+      packages_.emplace (package_version_key (db, nm, a.version), move (prj));
+
       adjustments_.push_back (move (a));
       former_states_.insert (state ());
     }
@@ -2020,8 +2062,10 @@ namespace bpkg
       };
 
       bool appended (false);
-      for (const package_version_key& p: packages_)
+      for (const auto& pr: packages_)
       {
+        const package_version_key& p (pr.first);
+
         assert (p.version); // Only the real packages can be here.
 
         if (!appended && lt (p))
@@ -2048,6 +2092,45 @@ namespace bpkg
       return former_states_.find (cs.string ()) != former_states_.end ();
     }
 
+    // Return false if there is already a package version replacement for the
+    // specified project in the specified configuration, but with a different
+    // version.
+    //
+    // Note: needs to be called in the 'deny multiple project versions' mode
+    // before considering a package version replacement.
+    //
+    bool
+    allowed_project_version (database& db,
+                             const package_name& prj,
+                             const version& v) const
+    {
+      for (const auto& pr: packages_)
+      {
+        const package_version_key& pv (pr.first);
+
+        if (pv.db == db)
+        {
+          const optional<package_name>& pp (pr.second);
+
+          if (pp && *pp == prj && pv.version != v)
+            return false;
+        }
+      }
+
+      return true;
+    }
+
+    // Should only be called at the end of the adjustments cycle, when we are
+    // about to start a new cycle with some adjustment parameters amended.
+    //
+    void
+    clear_former_states ()
+    {
+      assert (adjustments_.empty () && packages_.empty ());
+
+      former_states_.clear ();
+    }
+
   private:
     // Return the SHA256 checksum of the current command line state.
     //
@@ -2057,8 +2140,10 @@ namespace bpkg
       // NOTE: remember to update tried_earlier() if changing anything here.
       //
       sha256 cs;
-      for (const package_version_key& p: packages_)
+      for (const auto& pr: packages_)
       {
+        const package_version_key& p (pr.first);
+
         assert (p.version); // Only the real packages can be here.
 
         cs.append (p.db.get ().config.string ());
@@ -2094,12 +2179,26 @@ namespace bpkg
     }
 
   private:
+    const common_options& options_;
     vector<build_package>& hold_pkgs_;
     dependency_packages&   dep_pkgs_;
 
-    vector<cmdline_adjustment> adjustments_;   // Adjustments stack.
-    set<package_version_key>   packages_;      // Replacements.
-    set<string>                former_states_; // Command line seen states.
+    // Adjustments stack.
+    //
+    vector<cmdline_adjustment> adjustments_;
+
+    // Replacements and projects they belong to.
+    //
+    // Note: the mapped projects may only be present in the 'deny multiple
+    // project versions' mode. Also absent for packages without explicitly
+    // specified project in the manifest (normally for single package
+    // projects).
+    //
+    map<package_version_key, optional<package_name>> packages_;
+
+    // Command line seen states.
+    //
+    set<string> former_states_;
   };
 
   // Try to replace a collected package with a different available version,
@@ -2154,6 +2253,7 @@ namespace bpkg
   try_replace_dependency (const common_options& o,
                           const build_package& p,
                           bool allow_downgrade,
+                          bool deny_multiple_project_versions,
                           const build_packages& pkgs,
                           const vector<build_package>& hold_pkgs,
                           const dependency_packages& dep_pkgs,
@@ -2509,6 +2609,17 @@ namespace bpkg
         continue;
       }
 
+      if (deny_multiple_project_versions &&
+          ap->project                    &&
+          !cmdline_adjs.allowed_project_version (db, *ap->project, av))
+      {
+        l5 ([&]{trace << "replacement " << package_version_key (db, nm, av)
+                      << " version differs from other project package "
+                      << "versions on command line, skipping";});
+
+        continue;
+      }
+
       // If we aim to upgrade to the latest version and it tends to be less
       // then the selected one, then what we currently have is the best that
       // we can get. Thus, we use the selected version as a replacement,
@@ -2779,6 +2890,7 @@ namespace bpkg
   try_replace_dependent (const common_options& o,
                          const build_package& p, // Dependency.
                          bool allow_downgrade,
+                         bool deny_multiple_project_versions,
                          const vector<unsatisfied_constraint>* ucs,
                          const build_packages& pkgs,
                          const cmdline_adjustments& cmdline_adjs,
@@ -2812,6 +2924,7 @@ namespace bpkg
     auto try_replace = [&o,
                         &p,
                         allow_downgrade,
+                        deny_multiple_project_versions,
                         &pkgs,
                         &cmdline_adjs,
                         &hold_pkgs,
@@ -2848,6 +2961,7 @@ namespace bpkg
                 o,
                 *d,
                 allow_downgrade,
+                deny_multiple_project_versions,
                 pkgs,
                 hold_pkgs,
                 dep_pkgs,
@@ -2956,6 +3070,7 @@ namespace bpkg
             o,
             *d,
             allow_downgrade,
+            deny_multiple_project_versions,
             nullptr /* unsatisfied_constraints */,
             pkgs,
             cmdline_adjs,
@@ -4340,7 +4455,7 @@ namespace bpkg
     // trying to drop just one adjustment per the refinement cycle iteration
     // and wait and see how it goes.
     //
-    cmdline_adjustments          cmdline_adjs (hold_pkgs, dep_pkgs);
+    cmdline_adjustments          cmdline_adjs (o, hold_pkgs, dep_pkgs);
 
     // If both are present, then we are in the command line adjustments
     // refinement cycle, where cmdline_refine_adjustment is the adjustment
@@ -4356,7 +4471,24 @@ namespace bpkg
     // downgrades. Without this logic, we may end up downgrading one package
     // in order to upgrade another, which would be incorrect.
     //
+    // Note: outer loop for the adjustment cycles.
+    //
     bool cmdline_allow_downgrade (true);
+
+    // For multi-package projects the command line in the middle of the
+    // adjustment cycle may potentially contain different version constraints
+    // for packages of the same project (for example, '?libboost-locale ==
+    // 1.85.0' '?libboost-foreach == 1.83.0' ...). For the most projects this
+    // doesn't make much sense and the attempts to further amend such a
+    // command line, until the rollback, is normally a dead-end. Thus, on the
+    // first pass, we will deny such command lines not to waste time on the
+    // constraint combinations meaningless for the most of the projects.
+    // However, if that fails, we will remove this restriction and repeat the
+    // amendment cycle from scratch.
+    //
+    // Note: inner loop for the adjustment cycles.
+    //
+    bool cmdline_deny_multiple_project_versions (true);
 
     {
       // Check if the package is a duplicate. Return true if it is but
@@ -7129,6 +7261,7 @@ namespace bpkg
               if ((a = try_replace_dependency (o,
                                                *p,
                                                cmdline_allow_downgrade,
+                                               cmdline_deny_multiple_project_versions,
                                                pkgs,
                                                hold_pkgs,
                                                dep_pkgs,
@@ -7138,6 +7271,7 @@ namespace bpkg
                   (a = try_replace_dependent (o,
                                               *p,
                                               cmdline_allow_downgrade,
+                                              cmdline_deny_multiple_project_versions,
                                               &ic.unsatisfied_constraints,
                                               pkgs,
                                               cmdline_adjs,
@@ -7149,7 +7283,8 @@ namespace bpkg
               {
                 if (a)
                 {
-                  cmdline_adjs.push (move (*a));
+                  cmdline_adjs.push (move (*a),
+                                     cmdline_deny_multiple_project_versions);
                 }
                 else
                 {
@@ -7164,16 +7299,31 @@ namespace bpkg
               }
               else
               {
+                if (cmdline_deny_multiple_project_versions)
+                {
+                  l5 ([&]{trace << "cannot resolve unsatisfied dependency "
+                                << "constraints, now allowing multiple "
+                                << "project versions";});
+
+                  cmdline_deny_multiple_project_versions = false;
+
+                  cmdline_adjs.clear_former_states ();
+
+                  prepare_recollect ();
+                }
                 // If we fail to resolve the unsatisfied dependency
                 // constraints with the downgrades disallowed, then allow
                 // downgrades and retry from the very beginning.
                 //
-                if (!cmdline_allow_downgrade)
+                else if (!cmdline_allow_downgrade)
                 {
                   l5 ([&]{trace << "cannot resolve unsatisfied dependency "
                                 << "constraints, now allowing downgrades";});
 
                   cmdline_allow_downgrade = true;
+                  cmdline_deny_multiple_project_versions = true;
+
+                  cmdline_adjs.clear_former_states ();
 
                   prepare_recollect ();
                 }
@@ -7202,7 +7352,8 @@ namespace bpkg
                                  *cmdline_refine_adjustment)
                             << " failed, pushing it back";});
 
-              cmdline_adjs.push (move (*cmdline_refine_adjustment));
+              cmdline_adjs.push (move (*cmdline_refine_adjustment),
+                                 cmdline_deny_multiple_project_versions);
 
               // Index of the being previously dropped adjustment must be
               // valid.
