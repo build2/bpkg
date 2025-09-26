@@ -5414,7 +5414,7 @@ test.arguments += --sys-no-query
             %.*
             trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
             trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependency: downgrade for libbox/2.0.0 is not allowed, bailing out
+            trace: try_replace_dependency: downgrade for libbox/2.0.0 is denied, bailing out
             trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
             trace: try_replace_dependency: replace unsatisfied dependent version libbix/2.0.0 with 1.0.0 by adding package spec '?libbix == 1.0.0' to command line
             trace: pkg_build: refine package collection/plan execution from scratch
@@ -5490,7 +5490,7 @@ test.arguments += --sys-no-query
             %.*
             trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
             trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependency: downgrade for libbox/2.0.0 is not allowed, bailing out
+            trace: try_replace_dependency: downgrade for libbox/2.0.0 is denied, bailing out
             trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
             trace: try_replace_dependency: replacement of unsatisfied dependent version libbix/2.0.0 is denied since it is specified on command line as '?libbix == 2.0.0'
             trace: pkg_build: cannot resolve unsatisfied dependency constraints, now allowing downgrades
