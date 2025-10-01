@@ -246,7 +246,17 @@ namespace bpkg
 
     if (!lcs.empty ())
     {
-      lcs.push_back (linked_config {*lcf->id, lcf->name, ldb});
+      // Cache the linked database in the current database, unless it is
+      // already there (see the private configurations re-linkage in pkg-build
+      // for the use case).
+      //
+      if (find_if (lcs.begin (), lcs.end (),
+                   [&ldb] (const linked_config& c) {return c.db == ldb;}) ==
+          lcs.end ())
+      {
+        lcs.push_back (linked_config {*lcf->id, lcf->name, ldb});
+      }
+
       ldb.attach_explicit (sys_rep);
     }
 

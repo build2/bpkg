@@ -209,11 +209,11 @@ namespace bpkg
       return explicit_links_;
     }
 
-    // By default attach and cache the implicitly linked configuration
-    // databases on the first call and return them along with the self-link
-    // (comes first), silently skipping the dangling links. If attach is
-    // false, then return an empty list if links were not yet cached by this
-    // function's previous call.
+    // If the attach argument is true, then attach and cache the implicitly
+    // linked configuration databases on the first call and return them along
+    // with the self-link (comes first), silently skipping the dangling
+    // links. If attach is false, then return an empty list if links were not
+    // yet cached by this function's previous call.
     //
     // Note that we skip dangling links without any warning since they can be
     // quite common. Think of a shared host configuration with a bunch of
