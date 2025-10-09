@@ -1897,10 +1897,14 @@ namespace bpkg
                            if (v.compare (pn, vn - pn, ".develop") == 0)
                              return false;
                          }
-
-                         return true;
                        }
-                       return false;
+                       else
+                       {
+                         if (system)
+                           return false;
+                       }
+
+                       return true;
                      }) == config_vars_.end ());
   }
 
@@ -1939,31 +1943,39 @@ namespace bpkg
     {
       const string& v (config_vars_[i]);
 
+      // To reduce the noise (e.g., during bdep-init), skip
+      // config.<project>.develop if the package doesn't use it. Also skip
+      // non-project configuration variables (config.cc.*, etc) for system
+      // packages, since they are not relevant for the potential configuration
+      // negotiation.
+      //
       size_t vn;
       if (project_override (v, var_prefix_, &vn))
       {
-        // To reduce the noise (e.g., during bdep-init), skip
-        // config.<project>.develop if the package doesn't use it.
-        //
         if (!develop_)
         {
           size_t pn (var_prefix_.size ());
           if (v.compare (pn, vn - pn, ".develop") == 0)
             continue;
         }
-
-        const char* s (nullptr);
-
-        switch (config_var_srcs_[i])
-        {
-        case config_source::user: s = "user"; break;
-        case config_source::dependent: s = "dependent"; break;
-        case config_source::reflect: assert (false); // Must never be loaded.
-        }
-
-        print (v) << " (" << (system ? "expected " : "")
-                  << s << " configuration)";
       }
+      else
+      {
+        if (system)
+          continue;
+      }
+
+      const char* s (nullptr);
+
+      switch (config_var_srcs_[i])
+      {
+      case config_source::user: s = "user"; break;
+      case config_source::dependent: s = "dependent"; break;
+      case config_source::reflect: assert (false); // Must never be loaded.
+      }
+
+      print (v) << " (" << (system ? "expected " : "") << s
+                << " configuration)";
     }
 
     // Next dependent configuration.
