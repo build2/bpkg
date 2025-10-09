@@ -183,14 +183,14 @@ namespace bpkg
     void
     reset ();
 
-    // Return true if there are no accumulated *project* configuration
-    // variables that will be printed by print_config().
+    // Return true if there are no accumulated configuration variables that
+    // will be printed by print_config().
     //
     bool
     empty_print ();
 
-    // Print the accumulated *project* configuration variables as command line
-    // overrides one per line with the specified indentation.
+    // Print the accumulated configuration variables as command line overrides
+    // one per line with the specified indentation.
     //
     void
     print_config (ostream&, const char* indent);
