@@ -8357,9 +8357,14 @@ namespace bpkg
             //
             // Also note that if the fetch cache is enabled, then for an
             // archive-based repository the package archive becomes local
-            // after the first fetch. So based on this it feels correct to
+            // after the first fetch. So based on this it is tempting to
             // always prefer archive over git checkout if fetch cache is
-            // enabled.
+            // enabled. However, what this would break is the sloppy but
+            // common pattern of cloning the package locally, changing
+            // something without changing the version, adding this package as
+            // a local repository of type git or dir, and ... the package
+            // would still come from the archive. Also, probably fetching from
+            // local git is still faster than fetching from remote archive.
             //
             // Note also that checking for the archive presence in the cache
             // is likely a bad idea since it's quite expensive (and we could
@@ -8368,16 +8373,17 @@ namespace bpkg
             // The overall preference order of the package repositories is as
             // follows:
             //
-            // 1: directory-based
-            // 2: local archive-based
+            // 1: (local) directory-based
+            // 2:  local  version control-based
+            // 3:  local  archive-based
             //
             // If fetch cache is enabled:
-            //   3: archive-based
-            //   4: version control-based
+            //   4:  remote archive-based
+            //   5:  remote version control-based
             //
             // Otherwise:
-            //   3: version control-based
-            //   4: archive-based
+            //   4:  remote version control-based
+            //   5:  remote archive-based
             //
             auto pref_order = [&fetch_cache, &fetch_cache_mode, &pdb]
                               (const repository_location& rl) -> int
@@ -8385,27 +8391,33 @@ namespace bpkg
               if (rl.directory_based ())
                 return 1;
 
-              if (rl.archive_based () && rl.local ())
-                return 2;
+              if (rl.local ())
+              {
+                if (rl.version_control_based ())
+                  return 2;
+
+                assert (rl.archive_based ()); // Wouldn't be here otherwise.
+                return 3;
+              }
 
               fetch_cache_mode (pdb);
 
               if (fetch_cache.enabled ())
               {
                 if (rl.archive_based ())
-                  return 3;
+                  return 4;
 
-                assert (rl.version_control_based ());
+                assert (rl.version_control_based ()); // Wouldn't be here otherwise.
               }
               else
               {
                 if (rl.version_control_based ())
-                  return 3;
+                  return 4;
 
-                assert (rl.archive_based ());
+                assert (rl.archive_based ()); // Wouldn't be here otherwise.
               }
 
-              return 4;
+              return 5;
             };
 
             const repository_location* prl (nullptr);
