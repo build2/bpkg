@@ -200,9 +200,9 @@ namespace bpkg
     void
     load_old_config ();
 
-    // Return the accumulated configuration variables (first) and project
+    // Return the accumulated configuration variables (first) and
     // configuration variable sources (second). Note that the arrays are not
-    // necessarily parallel (config_vars may contain non-project variables).
+    // necessarily parallel (config_vars may contain config.*.develop, etc).
     //
     // Note that the dependent and reflect variables are merged with
     // config_vars/config_srcs and should be used instead rather than in
@@ -213,7 +213,7 @@ namespace bpkg
     pair<strings, vector<config_variable>>
     collect_config () &&;
 
-    // Return the checksum of the project configuration variables that will be
+    // Return the checksum of the configuration variables that will be
     // returned by the collect_config() function call.
     //
     string
@@ -307,7 +307,7 @@ namespace bpkg
     bool src_root_specified_ = false;
 
     // If specified, are used instead of {src,out}_root_ for loading of the
-    // project configuration variables.
+    // configuration variables.
     //
     dir_path old_src_root_;
     dir_path old_out_root_;

@@ -335,7 +335,8 @@ namespace bpkg
       config_var_srcs_ = vector<config_source> (config_vars_.size (),
                                                 config_source::user);
 
-    // We are only interested in old user configuration variables.
+    // We are only interested in old user and/or dependent configuration
+    // variables, whichever are requested.
     //
     if (config_srcs_ != nullptr)
     {
@@ -351,7 +352,13 @@ namespace bpkg
     }
 
     // We don't need to load old user configuration if there isn't any and
-    // there is no new project configuration specified by the user.
+    // there is no new configuration specified by the user. In other words, if
+    // there is no old configuration present/requested (config_srcs_ is NULL),
+    // we still don't disable load_old_config_impl() if some configuration
+    // variables are specified on the command line. This function, in
+    // particular, will verify that these variables are still used (build2
+    // will issue the 'dropping no longer used variable' warning, if that's
+    // not the case).
     //
     // Note that at first it may seem like we shouldn't do this for any system
     // packages but if we want to verify the user configuration, why not do so
@@ -360,25 +367,7 @@ namespace bpkg
     if (available == nullptr)
       loaded_old_config_ = true;
     else
-      loaded_old_config_ =
-        (config_srcs_ == nullptr) &&
-        find_if (config_vars_.begin (), config_vars_.end (),
-                 [this] (const string& v)
-                 {
-                   // For now tighten it even further so that we can continue
-                   // using repositories without package skeleton information
-                   // (bootstrap.build, root.build). See
-                   // load_old_config_impl() for details.
-                   //
-#if 0
-                   return project_override (v, var_prefix_);
-#else
-                   size_t vn;
-                   size_t pn (var_prefix_.size ());
-                   return (project_override (v, var_prefix_, &vn) &&
-                           v.compare (pn, vn - pn, ".develop") == 0);
-#endif
-                 }) == config_vars_.end ();
+      loaded_old_config_ = (config_srcs_ == nullptr && config_vars_.empty ());
 
     if (src_root)
     {
@@ -2052,9 +2041,18 @@ namespace bpkg
       //
       if (!config_vars_.empty ())
       {
-        // Assign the user source only to user-specified configuration
-        // variables which are project variables (i.e., names start with
-        // config.<project>).
+        // Assign the user source to all the user-specified configuration
+        // variables, with the following exceptions:
+        //
+        // - Skip config.<project>.develop (can potentially be passed by
+        //   bdep-init) if the package doesn't use it.
+        //
+        // - Skip non-project configuration variables (config.cc.*, etc) for
+        //   the system packages. Note that we actually don't call this
+        //   function for the system packages, but let's consider that we may,
+        //   for consistency with print_config(), etc. @@ In fact, while we
+        //   currently don't save the expected configuration for system
+        //   packages, we will probably need to implement that in the future.
         //
         size_t pn (var_prefix_.size ());
         for (const string& v: config_vars_)
@@ -2062,25 +2060,29 @@ namespace bpkg
           size_t vn;
           if (project_override (v, var_prefix_, &vn))
           {
-            // Skip config.<project>.develop (can potentially be passed by
-            // bdep-init) if the package doesn't use it.
-            //
             if (!develop_ && v.compare (pn, vn - pn, ".develop") == 0)
               continue;
-
-            string n (v, 0, vn);
-
-            // Check for a duplicate.
-            //
-            auto i (find_if (srcs.begin (), srcs.end (),
-                             [&n] (const config_variable& cv)
-                             {
-                               return cv.name == n;
-                             }));
-
-            if (i == srcs.end ())
-              srcs.push_back (config_variable {move (n), config_source::user});
           }
+          else
+          {
+            if (system)
+              continue;
+
+            vn = v.find_first_of ("=+ \t");
+          }
+
+          string n (v, 0, vn);
+
+          // Check for a duplicate.
+          //
+          auto i (find_if (srcs.begin (), srcs.end (),
+                           [&n] (const config_variable& cv)
+                           {
+                             return cv.name == n;
+                           }));
+
+          if (i == srcs.end ())
+            srcs.push_back (config_variable {move (n), config_source::user});
         }
 
         vars = move (config_vars_);
@@ -2159,6 +2161,11 @@ namespace bpkg
           // bdep-init) if the package doesn't use it.
           //
           if (develop_ || v.compare (pn, vn - pn, ".develop") != 0)
+            cs.append (v);
+        }
+        else
+        {
+          if (!system)
             cs.append (v);
         }
       }

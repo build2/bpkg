@@ -8138,6 +8138,9 @@ namespace bpkg
 
       if (result || progress)
       {
+        // @@ Shouldn't we, for a system package, print
+        //    'purged sys:libfoo/1.0.0' rather than 'purged libfoo/1.0.0'?
+        //
         const char* what (sp->state == package_state::transient
                           ? "purged"
                           : "disfigured");

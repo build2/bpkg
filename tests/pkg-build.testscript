@@ -2855,6 +2855,23 @@ test.arguments += --sys-no-query
         %.*
         EOO
 
+      # While at it, test that the configuration is preserved on the upgrade.
+      #
+      $rep_fetch $rep/t6
+
+      $* --configure-only libbar 2>>EOE
+        disfigured libbar/1.2.0
+        fetched libBar/2.0.0
+        unpacked libBar/2.0.0
+        configured libBar/2.0.0
+        EOE
+
+      cat cfg/libBar-2.0.0/build/config.build >>~%EOO%
+        %.*
+        config.cc.coptions = -Wall -g
+        %.*
+        EOO
+
       $pkg_drop libbar libbox
     }
 
@@ -2877,6 +2894,23 @@ test.arguments += --sys-no-query
         EOO
 
       cat cfg/libbar-1.2.0/build/config.build >>~%EOO%
+        %.*
+        config.cc.coptions = -Wall -g -O
+        %.*
+        EOO
+
+      # While at it, test that the configuration is preserved on the upgrade.
+      #
+      $rep_fetch $rep/t6
+
+      $* --configure-only libbar 2>>EOE
+        disfigured libbar/1.2.0
+        fetched libBar/2.0.0
+        unpacked libBar/2.0.0
+        configured libBar/2.0.0
+        EOE
+
+      cat cfg/libBar-2.0.0/build/config.build >>~%EOO%
         %.*
         config.cc.coptions = -Wall -g -O
         %.*

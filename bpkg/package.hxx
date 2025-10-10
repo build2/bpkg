@@ -1073,7 +1073,8 @@ namespace bpkg
     indexes_type dependency_alternatives;
     odb::section dependency_alternatives_section;
 
-    // Project configuration variable names and their sources.
+    // Configuration variable names and their sources (see
+    // package_skeleton::collect_config() for details).
     //
     vector<config_variable> config_variables;
 
