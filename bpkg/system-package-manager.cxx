@@ -783,8 +783,9 @@ namespace bpkg
 
         json::parser p (is,
                         args[0] /* input_name */,
-                        true    /* multi_value */,
-                        "\n"    /* value_separators */);
+                        json::language::json,
+                        true /* multi_value */,
+                        "\n" /* value_separators */);
 
         using event = json::event;
 
