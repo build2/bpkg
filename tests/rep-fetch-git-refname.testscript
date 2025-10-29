@@ -92,7 +92,7 @@
       %fetching .+libbar\.git for submodule 'libbar'%
       $info3
       %submodule path 'libbar': checked out .+%
-      %skipped validating .+style-basic.git .memory cache.%?
+      %skipped fetching and validating .+style-basic.git .memory cache.%?
       %fetching .+style-basic\.git+ for submodule 'libbar/extras'%
       $info4
       %submodule path 'libbar/extras': checked out .+%

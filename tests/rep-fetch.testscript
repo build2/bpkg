@@ -1308,9 +1308,9 @@ else
       sed -n -e 's%^(git.* ls-remote .*)$%\1%p'        <$out >:''
       sed -n -e 's%^(git.* .*fetch .*origin .*)$%\1%p' <$out >:''
 
-      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'                       <$out >~/.+/
-      sed -n -e 's%^(skipped validating .*libfoo.git \(cache, session\))$%\1%p' <$out >~/.+/
-      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p'              <$out >:''
+      sed -n -e 's%^(fetching git:.*libfoo#master)$%\1%p'                                    <$out >~/.+/
+      sed -n -e 's%^(skipped fetching and validating .*libfoo.git \(cache, session\))$%\1%p' <$out >~/.+/
+      sed -n -e 's%^(fetching .*libfoo.git in .+ \(cache\))$%\1%p'                           <$out >:''
 
       $rep_list >~'%git:.+libfoo#master.+%'
       $pkg_status libfoo >'libfoo available 1.0.0'

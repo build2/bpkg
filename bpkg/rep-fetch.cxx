@@ -159,8 +159,8 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped validating " << rl.url () << " (cache, "
-               << (cache.offline () ? "offline)" : "session)");
+          text << "skipped fetching and validating " << rl.url ()
+               << " (cache, " << (cache.offline () ? "offline)" : "session)");
         }
       }
       else

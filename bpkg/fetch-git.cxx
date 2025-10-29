@@ -1156,7 +1156,7 @@ namespace bpkg
     if (i != repository_refs.end ())
     {
       if ((verb && !co.no_progress ()) || co.progress ())
-        text << "skipped validating " << u << " (memory cache)";
+        text << "skipped fetching and validating " << u << " (memory cache)";
 
       return i->second;
     }
@@ -1171,7 +1171,7 @@ namespace bpkg
         //
         if ((verb && !co.no_progress ()) || co.progress ())
         {
-          text << "skipped validating " << u << " (cache, "
+          text << "skipped fetching and validating " << u << " (cache, "
                << (cache.offline () ? "offline)" : "session)");
         }
 
