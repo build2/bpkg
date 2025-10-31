@@ -11,6 +11,7 @@
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/options-types.hxx> // to_string(sqlite_synchronous)
 
 using namespace std;
 
@@ -99,6 +100,7 @@ namespace bpkg
   database::
   database (const dir_path& d,
             configuration* create,
+            sqlite_synchronous sync,
             odb::tracer& tr,
             bool pre_attach,
             bool sys_rep,
@@ -113,6 +115,7 @@ namespace bpkg
             new sqlite::serial_connection_factory)), // Single connection.
         config (normalize (d, "configuration")),
         config_orig (d),
+        synchronous (sync),
         string (move (str_repr))
   {
     bpkg::tracer trace ("database");
@@ -139,6 +142,17 @@ namespace bpkg
       using odb::schema_catalog;
 
       impl_->conn->execute ("PRAGMA locking_mode = EXCLUSIVE");
+
+      // Use the default rollback journaling mode which, in contrast to the
+      // WAL (Write-Ahead Logging) mode, guarantees atomicity of a transaction
+      // across all the attached databases. Use the NORMAL synchronization
+      // mode to speed up the transaction commits. Note that for NORMAL in
+      // rollback mode there is a very small (though non-zero) chance that a
+      // power failure at just the wrong time could corrupt the database on an
+      // older filesystem. Note that those who are uncomfortable with NORMAL
+      // can select FULL or even EXTRA while we run tests with OFF.
+      //
+      impl_->conn->execute ("PRAGMA main.synchronous = " + to_string (sync));
 
       add_env (true /* reset */);
       auto g (make_exception_guard ([] () {unsetenv (open_name);}));
@@ -212,7 +226,10 @@ namespace bpkg
 
       if (pre_attach)
       {
-        sqlite::transaction t (begin_exclusive ());
+        // Note: the specified synchronous mode is set on the transaction
+        // commit for the attached databases.
+        //
+        transaction t (*this);
         attach_explicit (sys_rep);
         t.commit ();
       }
@@ -295,6 +312,33 @@ namespace bpkg
     // Set the tracer used by the linked configurations cluster.
     //
     sqlite::database::tracer (mdb.tracer ());
+  }
+
+  void database::
+  set_synchronous_attached ()
+  {
+    // Note: may or may not be absent.
+    //
+    optional<sqlite_synchronous> sync (synchronous);
+
+    for (auto& v: impl_->attached_map)
+    {
+      database& db (v.second);
+
+      if (!db.synchronous)
+      {
+        if (!sync)
+        {
+          sync = main_database ().synchronous;
+          assert (sync);
+        }
+
+        impl_->conn->execute ("PRAGMA \"" + db.schema () +
+                              "\".synchronous = " + to_string (*sync));
+
+        db.synchronous = *sync;
+      }
+    }
   }
 
   void database::

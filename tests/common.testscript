@@ -68,3 +68,5 @@ test.arguments = $cmd
 # completion.
 #
 src = [dir_path] "$src_base/$@"
+
++export BUILD2_SQLITE_SYNCHRONOUS=off

@@ -16,6 +16,7 @@
 #include <bpkg/utility.hxx>
 
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/options-types.hxx>     // sqlite_synchronous
 #include <bpkg/system-repository.hxx>
 
 namespace bpkg
@@ -112,11 +113,13 @@ namespace bpkg
     //
     database (const dir_path& cfg,
               const shared_ptr<configuration>& self,
+              sqlite_synchronous sync,
               odb::tracer& tr,
               const dir_paths& pre_link = dir_paths (),
               std::string str_repr = "")
         : database (cfg,
                     self.get (),
+                    sync,
                     tr,
                     false,
                     false,
@@ -138,6 +141,7 @@ namespace bpkg
     // are marked with the 'Note: loads selected packages.' note.
     //
     database (const dir_path& cfg,
+              sqlite_synchronous sync,
               odb::tracer& tr,
               bool pre_attach,
               bool sys_rep,
@@ -145,6 +149,7 @@ namespace bpkg
               std::string str_repr = "")
         : database (cfg,
                     nullptr,
+                    sync,
                     tr,
                     pre_attach,
                     sys_rep,
@@ -426,6 +431,26 @@ namespace bpkg
     //
     dir_path config_orig;
 
+    // For the main database the synchronous mode is specified as an argument
+    // (normally comes from the --sqlite-synchronous option value) for the
+    // constructor and is applied (using the `PRAGMA main.synchronous=...`
+    // statement) and saved by this constructor. Note, that we cannot do the
+    // same for the attached databases. The databases are always attached
+    // inside an exclusive transaction to force database locking. However, the
+    // above pragma cannot be executed inside a transaction and fails with the
+    // 'Safety level may not be changed inside a transaction' error. Thus, for
+    // the newly attached databases the synchronous mode will be applied and
+    // saved at the end of the transaction by the transaction wrapper using
+    // the set_synchronous_attached() function call (see below).
+    //
+    // Note that when present, it is the same for all databases. We, however,
+    // don't enforce that.
+    //
+    optional<sqlite_synchronous> synchronous;
+
+    void
+    set_synchronous_attached ();
+
     // The database string representation for use in diagnostics.
     //
     // By default it is empty for the main database and the original
@@ -448,6 +473,7 @@ namespace bpkg
     //
     database (const dir_path& cfg,
               configuration* create,
+              sqlite_synchronous,
               odb::tracer&,
               bool pre_attach,
               bool sys_rep,
@@ -471,6 +497,11 @@ namespace bpkg
     // it is also unnecessary for its linked databases. By this reason, we
     // also drop the dangling implicit links rather than skip them, as we do
     // for normal operations (see implicit_links () for details).
+    //
+    // Also note that since the function is always called inside the
+    // transaction the databases attached during migration are migrated in the
+    // default synchronous mode (see the synchronous member for the gory
+    // details).
     //
     void
     migrate ();
@@ -605,7 +636,7 @@ namespace bpkg
 
     explicit
     transaction (database_type& db, bool start = true)
-        : start_ (start), t_ () // Finalized.
+        : start_ (start), db_ (db), t_ () // Finalized.
     {
       if (start)
         t_.reset (db.begin_exclusive ()); // See locking_mode for details.
@@ -618,6 +649,8 @@ namespace bpkg
       {
         t_.commit ();
         start_ = false;
+
+        db_.set_synchronous_attached ();
       }
     }
 
@@ -628,6 +661,8 @@ namespace bpkg
       {
         t_.rollback ();
         start_ = false;
+
+        db_.set_synchronous_attached ();
       }
     }
 
@@ -654,6 +689,7 @@ namespace bpkg
 
   private:
     bool start_;
+    database& db_;
     odb::sqlite::transaction t_;
   };
 

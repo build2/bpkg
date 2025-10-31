@@ -5,6 +5,8 @@
 
 #include <libbpkg/manifest.hxx>
 
+#include <bpkg/options-types.hxx> // to_sqlite_synchronous()
+
 namespace bpkg
 {
   namespace cli
@@ -257,6 +259,24 @@ namespace bpkg
       {
         throw invalid_value (o, v);
       }
+    }
+
+    void parser<sqlite_synchronous>::
+    parse (sqlite_synchronous& r, bool& xs, scanner& s)
+    {
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      string v (s.next ());
+
+      if (optional<sqlite_synchronous> sv = to_sqlite_synchronous (v))
+        r = *sv;
+      else
+        throw invalid_value (o, v);
+
+      xs = true;
     }
   }
 }

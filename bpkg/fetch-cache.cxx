@@ -16,6 +16,7 @@
 
 #include <bpkg/database.hxx>         // database::fetch_cache_mode
 #include <bpkg/diagnostics.hxx>
+#include <bpkg/options-types.hxx>    // to_string(sqlite_synchronous)
 #include <bpkg/manifest-utility.hxx> // {repositories,packages}_file
 
 #include <bpkg/fetch-cache-data.hxx>
@@ -125,6 +126,10 @@ namespace bpkg
   // lock.
   //
   static bool progress_;
+
+  // --sqlite-synchronous option.
+  //
+  static sqlite_synchronous sqlite_synchronous_;
 
   cache_mode fetch_cache::
   mode (const common_options& co)
@@ -384,6 +389,8 @@ namespace bpkg
     // Progress indicators.
     //
     progress_ = (verb && !co.no_progress ()) || co.progress ();
+
+    sqlite_synchronous_ = co.sqlite_synchronous ();
   }
 
   static const path   db_file_name   ("fetch-cache.sqlite3");
@@ -578,8 +585,9 @@ namespace bpkg
           connection_ptr c (db.connection ());
           c->execute ("PRAGMA locking_mode = EXCLUSIVE");
 
-          // Use the WAL (Write-Ahead Logging) journaling mode and the NORMAL
-          // synchronization mode to speed up the transaction commits.
+          // Use the WAL (Write-Ahead Logging) journaling mode and, by
+          // default, the NORMAL synchronization mode to speed up the
+          // transaction commits.
           //
           // Note that according to the SQLite documentation, NORMAL should be
           // safe enough for WAL. In particular, the worst that can happen (in
@@ -587,10 +595,14 @@ namespace bpkg
           // committed transaction will be rolled back. Which in our case will
           // translate to us not tracking some filesystem entries in the cache
           // or not tracking some build configurations that are on different
-          // filesystems. This feels like a reasonable tradeoff.
+          // filesystems. This feels like a reasonable tradeoff. This way
+          // those who are uncomfortable with NORMAL can select FULL or even
+          // EXTRA while we run tests with OFF.
           //
           c->execute ("PRAGMA journal_mode = WAL");
-          c->execute ("PRAGMA main.synchronous = NORMAL");
+
+          c->execute ("PRAGMA main.synchronous = " +
+                      to_string (sqlite_synchronous_));
 
           transaction t (c->begin_exclusive ());
 
