@@ -298,7 +298,13 @@ namespace bpkg
     bool rel (ld.relative () || o.relative ());
     normalize (ld, "specified linked configuration");
 
-    database db (c, trace, false /* pre_attach */, false /* sys_rep */, {ld});
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 false /* pre_attach */,
+                 false /* sys_rep */,
+                 {ld});
+
     transaction t (db);
 
     shared_ptr<configuration> lc (

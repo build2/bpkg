@@ -112,11 +112,13 @@ namespace bpkg
     //
     database (const dir_path& cfg,
               const shared_ptr<configuration>& self,
+              sqlite_synchronous sync,
               odb::tracer& tr,
               const dir_paths& pre_link = dir_paths (),
               std::string str_repr = "")
         : database (cfg,
                     self.get (),
+                    sync,
                     tr,
                     false,
                     false,
@@ -138,6 +140,7 @@ namespace bpkg
     // are marked with the 'Note: loads selected packages.' note.
     //
     database (const dir_path& cfg,
+              sqlite_synchronous sync,
               odb::tracer& tr,
               bool pre_attach,
               bool sys_rep,
@@ -145,6 +148,7 @@ namespace bpkg
               std::string str_repr = "")
         : database (cfg,
                     nullptr,
+                    sync,
                     tr,
                     pre_attach,
                     sys_rep,
@@ -426,6 +430,28 @@ namespace bpkg
     //
     dir_path config_orig;
 
+    // For the main database the filesystem synchronization mode is specified
+    // as a constructor's argument. This constructor sets the mode (using the
+    // `PRAGMA main.synchronous=...` statement) and saves it in the
+    // synchronous member. Note, that we cannot do the same for the attached
+    // databases. The databases are normally attached inside a transaction and
+    // even if that's not the case, an exclusive transaction is started
+    // implicitly before the attached database creation to force its locking.
+    // However, the above pragma cannot be executed inside a transaction.
+    // Thus, for the newly attached databases the filesystem synchronization
+    // mode will only be set and saved by the transaction wrapper (see below)
+    // at the end of the transaction, using the set_synchronous_attached()
+    // function call. This feels fine since transactions where we may attach a
+    // database are normally either short or read-only.
+    //
+    // When present, it is assumed to be the same for all the databases. We,
+    // however, don't enforce that.
+    //
+    optional<sqlite_synchronous> synchronous;
+
+    void
+    set_synchronous_attached ();
+
     // The database string representation for use in diagnostics.
     //
     // By default it is empty for the main database and the original
@@ -448,6 +474,7 @@ namespace bpkg
     //
     database (const dir_path& cfg,
               configuration* create,
+              sqlite_synchronous,
               odb::tracer&,
               bool pre_attach,
               bool sys_rep,
@@ -471,6 +498,11 @@ namespace bpkg
     // it is also unnecessary for its linked databases. By this reason, we
     // also drop the dangling implicit links rather than skip them, as we do
     // for normal operations (see implicit_links () for details).
+    //
+    // Also note that since the function is always called inside a
+    // transaction, the databases attached during the (recursive) migration
+    // are migrated in the default filesystem synchronization mode (see the
+    // synchronous member for the gory details).
     //
     void
     migrate ();
@@ -605,7 +637,7 @@ namespace bpkg
 
     explicit
     transaction (database_type& db, bool start = true)
-        : start_ (start), t_ () // Finalized.
+        : start_ (start ? &db : nullptr), t_ () // Finalized.
     {
       if (start)
         t_.reset (db.begin_exclusive ()); // See locking_mode for details.
@@ -617,7 +649,10 @@ namespace bpkg
       if (start_)
       {
         t_.commit ();
-        start_ = false;
+
+        start_->set_synchronous_attached ();
+
+        start_ = nullptr;
       }
     }
 
@@ -627,7 +662,10 @@ namespace bpkg
       if (start_)
       {
         t_.rollback ();
-        start_ = false;
+
+        start_->set_synchronous_attached ();
+
+        start_ = nullptr;
       }
     }
 
@@ -636,14 +674,14 @@ namespace bpkg
     {
       assert (!start_);
 
-      start_ = true;
+      start_ = &db;
       t_.reset (db.begin_exclusive ());
     }
 
     bool
     finalized () const
     {
-      return t_.finalized ();
+      return !start_;
     }
 
     static bool
@@ -653,7 +691,10 @@ namespace bpkg
     }
 
   private:
-    bool start_;
+    // NULL if no transaction is started, so can be used as bool.
+    //
+    database_type* start_;
+
     odb::sqlite::transaction t_;
   };
 

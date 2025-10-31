@@ -409,7 +409,11 @@ namespace bpkg
         dr << info << "run 'bpkg help rep-remove' for more information";
     }
 
-    database db (c, trace, false /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 false /* pre_attach */,
+                 false /* sys_rep */);
 
     // Clean the configuration if requested.
     //

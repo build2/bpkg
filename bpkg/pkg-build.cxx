@@ -3299,6 +3299,7 @@ namespace bpkg
     //    belong to the same cluster.
     //
     database mdb (config_dirs[0],
+                  o.sqlite_synchronous (),
                   trace,
                   true         /* pre_attach */,
                   true         /* sys_rep */,

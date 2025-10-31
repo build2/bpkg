@@ -1229,7 +1229,12 @@ namespace bpkg
     if (ps == package_scheme::sys && !vars.empty ())
       fail << "configuration variables specified for a system package";
 
-    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 true /* pre_attach */,
+                 false /* sys_rep */);
+
     transaction t (db);
     session s;
 

@@ -321,6 +321,20 @@ namespace bpkg
        \cb{BPKG_FETCH_CACHE_SESSION} environment variable."
     }
 
+    bpkg::sqlite_synchronous --sqlite-synchronous = bpkg::sqlite_synchronous::normal
+    {
+      "<mode>",
+      "Filesystem synchronization mode for the fetch cache and configuration
+       SQLite databases. Valid values are \cb{off}, \cb{normal} (default),
+       \cb{full}, and \cb{extra}. See the SQLite documentation on the
+       \cb{synchronous} pragma for details. See also the
+       \cb{BUILD2_SQLITE_SYNCHRONOUS} environment variable.
+
+       Note that the WAL (Write-Ahead Logging) journaling mode is used for the
+       fetch cache database and the rollback journaling mode for the
+       configuration databases."
+    }
+
     butl::url --pkg-proxy
     {
       "<url>",

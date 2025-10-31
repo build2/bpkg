@@ -117,6 +117,16 @@ namespace bpkg
     };
 
     template <>
+    struct parser<sqlite_synchronous>
+    {
+      static void
+      parse (sqlite_synchronous&, bool&, scanner&);
+
+      static void
+      merge (sqlite_synchronous& b, const sqlite_synchronous& a) {b = a;}
+    };
+
+    template <>
     struct parser<repository_type>
     {
       static void

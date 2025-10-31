@@ -169,6 +169,29 @@ namespace bpkg
   //
   using package_info = butl::b_project_info;
 
+  enum class sqlite_synchronous
+  {
+    off,
+    normal,
+    full,
+    extra
+  };
+
+  // Return nullopt if the passed string is not a valid --sqlite-synchronous
+  // option value. Match the argument case-insensitively.
+  //
+  // Note: defined in utility.cxx.
+  //
+  optional<sqlite_synchronous>
+  to_sqlite_synchronous (const string&);
+
+  // Return an upper case representation of the specified value.
+  //
+  // Note: defined in utility.cxx.
+  //
+  string
+  to_string (sqlite_synchronous);
+
   // Derive from ODB smart pointers to return derived database (note that the
   // database() functions are defined in database.hxx).
   //

@@ -53,10 +53,16 @@ namespace bpkg
     // First, let's verify the host/build2 configurations existence and types
     // and normalize their paths.
     //
-    auto norm = [&trace] (const dir_path& d, const string& t)
+    auto norm = [&o, &trace] (const dir_path& d, const string& t)
     {
       dir_path r (normalize (d, string (t + " configuration").c_str ()));
-      database db (r, trace, false /* pre_attach */, false /* sys_rep */);
+
+      database db (r,
+                   o.sqlite_synchronous (),
+                   trace,
+                   false /* pre_attach */,
+                   false /* sys_rep */);
+
       if (db.type != t)
         fail << t << " configuration " << r << " is of '" << db.type
              << "' type";
@@ -191,7 +197,7 @@ namespace bpkg
     if (bc)
       pre_link.push_back (*bc);
 
-    database db (c, r, trace, pre_link);
+    database db (c, r, o.sqlite_synchronous (), trace, pre_link);
     transaction t (db);
 
     // Add the special, root repository object with empty location and

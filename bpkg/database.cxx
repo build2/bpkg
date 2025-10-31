@@ -99,6 +99,7 @@ namespace bpkg
   database::
   database (const dir_path& d,
             configuration* create,
+            sqlite_synchronous sync,
             odb::tracer& tr,
             bool pre_attach,
             bool sys_rep,
@@ -113,6 +114,7 @@ namespace bpkg
             new sqlite::serial_connection_factory)), // Single connection.
         config (normalize (d, "configuration")),
         config_orig (d),
+        synchronous (sync),
         string (move (str_repr))
   {
     bpkg::tracer trace ("database");
@@ -140,10 +142,26 @@ namespace bpkg
 
       impl_->conn->execute ("PRAGMA locking_mode = EXCLUSIVE");
 
+      // Use the default rollback journaling mode which, in contrast to the
+      // WAL (Write-Ahead Logging) mode, guarantees atomicity of a transaction
+      // across all the attached databases. Use the NORMAL synchronization
+      // mode to speed up the transaction commits. Note that for NORMAL in the
+      // rollback mode there is a very small (though non-zero) chance that a
+      // power failure at just the wrong time could corrupt the database on an
+      // older filesystem. Those who are uncomfortable with NORMAL can select
+      // FULL or even EXTRA while we may run tests with OFF (see GH issue #476
+      // for background).
+      //
+      impl_->conn->execute ("PRAGMA main.synchronous = " + to_string (sync));
+
       add_env (true /* reset */);
       auto g (make_exception_guard ([] () {unsetenv (open_name);}));
 
       {
+        // Note that potential migration of the attached databases will be
+        // performed in the default filesystem synchronization mode (see the
+        // database synchronous member for the gory details).
+        //
         sqlite::transaction t (impl_->conn->begin_exclusive ());
 
         if (create != nullptr)
@@ -212,7 +230,11 @@ namespace bpkg
 
       if (pre_attach)
       {
-        sqlite::transaction t (begin_exclusive ());
+        // Note that the specified filesystem synchronization mode is set
+        // automatically for the attached databases by the transaction wrapper
+        // after this transaction commit.
+        //
+        transaction t (*this);
         attach_explicit (sys_rep);
         t.commit ();
       }
@@ -295,6 +317,33 @@ namespace bpkg
     // Set the tracer used by the linked configurations cluster.
     //
     sqlite::database::tracer (mdb.tracer ());
+  }
+
+  void database::
+  set_synchronous_attached ()
+  {
+    // Use our value if we have it.
+    //
+    optional<sqlite_synchronous> sync (synchronous);
+
+    for (auto& v: impl_->attached_map)
+    {
+      database& db (v.second);
+
+      if (!db.synchronous)
+      {
+        if (!sync)
+        {
+          sync = main_database ().synchronous;
+          assert (sync);
+        }
+
+        impl_->conn->execute ("PRAGMA \"" + db.schema () +
+                              "\".synchronous = " + to_string (*sync));
+
+        db.synchronous = *sync;
+      }
+    }
   }
 
   void database::
@@ -486,9 +535,7 @@ namespace bpkg
       // are exclusive), start one to force database locking (see the above
       // locking_mode discussion for details).
       //
-      sqlite::transaction t;
-      if (!sqlite::transaction::has_current ())
-        t.reset (begin_exclusive ());
+      transaction t (*this, !transaction::has_current ());
 
       try
       {

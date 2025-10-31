@@ -580,7 +580,12 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 true /* pre_attach */,
+                 false /* sys_rep */);
+
     transaction t (db);
     session s;
 

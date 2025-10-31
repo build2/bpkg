@@ -21,7 +21,12 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database mdb (c, trace, true /* pre_attach */, false /* sys_rep */);
+    database mdb (c,
+                  o.sqlite_synchronous (),
+                  trace,
+                  true /* pre_attach */,
+                  false /* sys_rep */);
+
     transaction t (mdb);
 
     // Find the configuration to be unlinked.
@@ -226,7 +231,12 @@ namespace bpkg
     dir_path c (o.directory ());
     l4 ([&]{trace << "configuration: " << c;});
 
-    database db (c, trace, false /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 false /* pre_attach */,
+                 false /* sys_rep */);
+
     transaction t (db);
 
     using query = query<configuration>;

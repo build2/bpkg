@@ -554,7 +554,11 @@ namespace bpkg
     }
 
 
-    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 true /* pre_attach */,
+                 false /* sys_rep */);
 
     // Note that the session spans all our transactions. The idea here is
     // that drop_package objects in the drop_packages list below will be

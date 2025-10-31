@@ -86,6 +86,7 @@ namespace bpkg
     if (conf != nullptr && db == nullptr)
     {
       pdb.reset (new database (*conf,
+                               co.sqlite_synchronous (),
                                trace,
                                false /* pre_attach */,
                                false /* sys_rep */));
@@ -1130,6 +1131,7 @@ namespace bpkg
     if (conf != nullptr && db == nullptr)
     {
       pdb.reset (new database (*conf,
+                               co.sqlite_synchronous (),
                                trace,
                                false /* pre_attach */,
                                false /* sys_rep */));
@@ -2465,7 +2467,11 @@ namespace bpkg
     // Pre-attach the explicitly linked databases since we call
     // package_iteration().
     //
-    database db (c, trace, true /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 true /* pre_attach */,
+                 false /* sys_rep */);
 
     transaction t (db);
     session s; // Repository dependencies can have cycles.

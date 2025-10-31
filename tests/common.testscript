@@ -22,6 +22,18 @@ options_guard = $~/.build2
 +echo '--no-default-options' >=$options_guard/bpkg.options
 +echo '--no-fetch-cache'     >+$options_guard/bpkg.options
 
+# Select the OFF SQLite filesystem synchronization mode to speed up the tests.
+#
+# Note that using BUILD2_SQLITE_SYNCHRONOUS=OFF would be a bad idea, since
+# this could lead to occasional hanging on build configurations with an older
+# glibc (always hangs on linux_debian_9_tsan-gcc_7.4; see notes regarding
+# allocations while using fork() in libbutl's process.cxx for details). Thus,
+# we use the default options file while unsetting the
+# BUILD2_SQLITE_SYNCHRONOUS environment variable instead.
+#
++export --unset BUILD2_SQLITE_SYNCHRONOUS
++echo '--sqlite-synchronous off' >+$options_guard/bpkg.options
+
 test.options += --default-options $options_guard \
 --build $build --build-option "--default-options=$options_guard"
 

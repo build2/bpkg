@@ -116,7 +116,12 @@ namespace bpkg
         }
       };
 
-      database db (c, trace, false /* pre_attach */, false /* sys_rep */);
+      database db (c,
+                   o.sqlite_synchronous (),
+                   trace,
+                   false /* pre_attach */,
+                   false /* sys_rep */);
+
       transaction t (db);
 
       print_db (db, o.link () || o.backlink () || o.dangling (), print_db);

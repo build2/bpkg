@@ -107,7 +107,12 @@ namespace bpkg
       fail << "unexpected argument '" << args.next () << "'" <<
         info << "run 'bpkg help rep-list' for more information";
 
-    database db (c, trace, false /* pre_attach */, false /* sys_rep */);
+    database db (c,
+                 o.sqlite_synchronous (),
+                 trace,
+                 false /* pre_attach */,
+                 false /* sys_rep */);
+
     transaction t (db);
     session s; // Repository dependencies can have cycles.
 
