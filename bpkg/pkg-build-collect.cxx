@@ -8473,9 +8473,10 @@ namespace bpkg
     {
       // So here we are going to do things differently depending on whether
       // the package prerequisites builds are collected or not. If they are
-      // not, then the package is being reconfigured and we use its configured
-      // prerequisites list. Otherwise, we use its collected prerequisites
-      // builds.
+      // not, then the package is being reconfigured (or an already configured
+      // package is just specified on the command line, not being upgraded nor
+      // reconfigured) and we use its configured prerequisites list.
+      // Otherwise, we use its collected prerequisites builds.
       //
       if (!p.dependencies)
       {
@@ -8499,7 +8500,29 @@ namespace bpkg
           {
             optional<build_package::action_type> a (i->second.package.action);
 
-            assert (!a || *a != build_package::drop); // See above.
+            if (a && *a == build_package::drop) // See above.
+            {
+              diag_record dr (info);
+
+              dr << "prerequisite of being reconfigured dependent may not "
+                 << "be dropped" <<
+                info << "problematic dependent " << sp->string (cp.db) <<
+                info << "problematic dependency " << package_key (db, name);
+
+              if (shared_ptr<selected_package> dsp =
+                  db.find<selected_package> (name))
+              {
+                dr << info << "dependency selected: " << *dsp;
+              }
+
+              dr << info
+                 << "please report in https://github.com/build2/build2/issues/494"
+                 << " and try to provide reproducer or log collected with --verbose=5";
+
+              dr.flush ();
+
+              assert (!a || *a != build_package::drop);
+            }
 
             if (a)
               update (order (db, name, chain, fdb, false /* reorder */));
