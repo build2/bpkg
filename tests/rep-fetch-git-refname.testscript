@@ -14,6 +14,7 @@
     %querying .+libfoo\.git%
     %fetching .+libfoo\.git%
     $info
+    %fetched git:.+libfoo$fragment%
     1 package\(s\) in 1 repository\(s\)
     EOE
 }
@@ -31,6 +32,7 @@
     $* 2>>~"%EOE%"
       %fetching git:.+libfoo$fragment%
       %querying .+libfoo\.git%
+      %fetched git:.+libfoo$fragment%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -127,6 +129,7 @@
       %querying .+libfoo\.git%
       %fetching .+libfoo\.git%
       $info
+      %fetched git:.+libfoo$fragment%
       1 package\(s\) in 1 repository\(s\)
       EOE
 
@@ -175,7 +178,7 @@
     $clone_root_cfg && $rep_add "$rep/state0/libfoo.git$fragment"
 
     $* --no-progress 2>>~"%EOE%"
-      %fetching git:.+libfoo$fragment%
+      %fetched git:.+libfoo$fragment%
       1 package\(s\) in 1 repository\(s\)
       EOE
 

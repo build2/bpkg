@@ -27554,7 +27554,7 @@ test.arguments += --sys-no-query
 
     : explicitly
     :
-    : Here we also test that the package --path option overrides the global
+    : Here we also test that the package --patch option overrides the global
     : --upgrade option.
     :
     {
@@ -27684,16 +27684,26 @@ test.arguments += --sys-no-query
   : from-repository
   :
   {{
+    test.options    = $string.filter_out($test.options, --no-progress)
     test.arguments += --patch --auth all --trust-yes
 
     +$clone_cfg
 
-    +$* "libbaz/0.0.3@$rep/t0c" 2>>EOE
+    +$* "libbaz/0.0.3@$rep/t0c" 2>>~%EOE%
       added pkg:build2.org/pkg-build/t0c
       fetching pkg:build2.org/pkg-build/t0c
+      %querying .+t0c%
+      %.*
+      fetched pkg:build2.org/pkg-build/t0c
+      fetching libfoo/1.0.0
+      %.*
       fetched libfoo/1.0.0
+      unpacking libfoo/1.0.0
       unpacked libfoo/1.0.0
+      fetching libbaz/0.0.3
+      %.*
       fetched libbaz/0.0.3
+      unpacking libbaz/0.0.3
       unpacked libbaz/0.0.3
       configured libfoo/1.0.0
       configured libbaz/0.0.3
@@ -27706,12 +27716,18 @@ test.arguments += --sys-no-query
     {
       $clone_cfg
 
-      $* "libbaz@$rep/t0c" 2>>EOE
+      $* "libbaz@$rep/t0c" 2>>~%EOE%
         fetching pkg:build2.org/pkg-build/t0c
+        %querying .+t0c%
+        %.*
+        fetched pkg:build2.org/pkg-build/t0c
         disfigured libbaz/0.0.3
         disfigured libfoo/1.0.0
         purged libfoo/1.0.0
+        fetching libbaz/0.0.4
+        %.*
         fetched libbaz/0.0.4
+        unpacking libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         EOE
@@ -27724,13 +27740,19 @@ test.arguments += --sys-no-query
     {
       $clone_cfg
 
-      $* "@$rep/t0c" 2>>EOE
+      $* "@$rep/t0c" 2>>~%EOE%
         fetching pkg:build2.org/pkg-build/t0c
+        %querying .+t0c%
+        %.*
+        fetched pkg:build2.org/pkg-build/t0c
         info: package libbar is not present in configuration
         info: package libbox is not present in configuration
         info: package libfix is not present in configuration
         disfigured libbaz/0.0.3
+        fetching libbaz/0.0.4
+        %.*
         fetched libbaz/0.0.4
+        unpacking libbaz/0.0.4
         unpacked libbaz/0.0.4
         configured libbaz/0.0.4
         EOE
@@ -27985,11 +28007,14 @@ test.arguments += --sys-no-query
 
     d = $canonicalize([dir_path] $src/libfoo-1.1.0)
 
+    test.options = $string.filter_out($test.options, --no-progress)
+
     # Note that on Windows the local repository canonical name path part is
     # converted to lower case.
     #
     $* "libfoo@$d" 2>>~"%EOE%"
       fetching dir:($posix ? "$d" : $string.lcase("$d"))
+      fetched dir:($posix ? "$d" : $string.lcase("$d"))
       using libfoo/1.1.0 \(external\)
       configured libfoo/1.1.0
       %info: .+ is up to date%
@@ -28379,7 +28404,7 @@ test.arguments += --sys-no-query
 
   $* "libbar@$rep/t5" 2>>~%EOE%
     added pkg:build2.org/pkg-build/t5
-    fetching pkg:build2.org/pkg-build/t5
+    fetched pkg:build2.org/pkg-build/t5
     fetched libbar/1.2.0
     unpacked libbar/1.2.0
     configured libbar/1.2.0
@@ -28389,7 +28414,7 @@ test.arguments += --sys-no-query
 
   $* "libbar@$rep/t6" 2>>~%EOE%
     added pkg:build2.org/pkg-build/t6
-    fetching pkg:build2.org/pkg-build/t6
+    fetched pkg:build2.org/pkg-build/t6
     disfigured libbar/1.2.0
     fetched libBar/2.0.0
     unpacked libBar/2.0.0
@@ -28414,10 +28439,16 @@ if (!$remote && !$posix)
 {
   $clone_cfg
 
+  test.options = $string.filter_out($test.options, --no-progress)
+
   $* "libbar@$rep/t5" 2>>~%EOE%
     added pkg:build2.org/pkg-build/t5
     fetching pkg:build2.org/pkg-build/t5
+    %querying .+t5%
+    fetched pkg:build2.org/pkg-build/t5
+    fetching libbar/1.2.0
     fetched libbar/1.2.0
+    unpacking libbar/1.2.0
     unpacked libbar/1.2.0
     configured libbar/1.2.0
     %info: .+ is up to date%
@@ -28426,6 +28457,8 @@ if (!$remote && !$posix)
 
   $* "libbar@$rep/T5" 2>>~%EOE%
     fetching pkg:build2.org/pkg-build/t5
+    %querying .+t5%
+    fetched pkg:build2.org/pkg-build/t5
     %info: .+ is up to date%
     updated libbar/1.2.0
     EOE
@@ -28729,15 +28762,27 @@ else
       $cfg_link -d cfg     cfg-bar
       $cfg_link -d cfg-bar cfg-foo
 
+      test.options   = $string.filter_out($test.options, --no-progress)
       test.arguments = $regex.apply($test.arguments, cfg, cfg-bar)
 
       $* libbar@"$rep/t4b" ?libfoo +{ --config-id 2 } --trust-yes 2>>~%EOE%
         added pkg:build2.org/pkg-build/t4b
         fetching pkg:build2.org/pkg-build/t4b
+        %querying .+t4b%
+        %.*
         fetching pkg:build2.org/pkg-build/t4a (prerequisite of pkg:build2.org/pkg-build/t4b)
+        %querying .+t4a%
+        %.*
+        fetched pkg:build2.org/pkg-build/t4b
+        %fetching libfoo/1.1.0 \[cfg-foo.\]%
+        %.*
         %fetched libfoo/1.1.0 \[cfg-foo.\]%
+        %unpacking libfoo/1.1.0 \[cfg-foo.\]%
         %unpacked libfoo/1.1.0 \[cfg-foo.\]%
+        fetching libbar/1.1.0
+        %.*
         fetched libbar/1.1.0
+        unpacking libbar/1.1.0
         unpacked libbar/1.1.0
         %configured libfoo/1.1.0 \[cfg-foo.\]%
         configured libbar/1.1.0
@@ -28753,7 +28798,10 @@ else
         EOE
 
       $* libbaz 2>>~%EOE%
+        fetching libbaz/1.1.0
+        %.*
         fetched libbaz/1.1.0
+        unpacking libbaz/1.1.0
         unpacked libbaz/1.1.0
         configured libbaz/1.1.0
         %info: cfg[^-].+libbaz-1.1.0.+ is up to date%
@@ -30527,7 +30575,7 @@ else
       $* "libbuz@$rep/t7a" +{ --config-name cfg3 } --yes --trust-yes 2>!
 
       $* "libbix@$rep/t7a" --trust-yes 2>>/~%EOE% != 0
-        %(added|fetching).+%{2}
+        %(added|fetched).+%{2}
         error: building build system module libbuild2-bar in multiple configurations
         %  info: cfg(2|3)/.bpkg/build2/%{2}
         EOE
@@ -30835,7 +30883,7 @@ else
 
       $* "libbiz@$rep/t7a" +{ --config-uuid $cfg_uuid  } \
          "libbuz@$rep/t7a" +{ --config-uuid $cfg2_uuid } --yes --trust-yes 2>>~%EOE%
-        %(added|fetching) .+%{4}
+        %(added|fetched) .+%{4}
         %(fetched|unpacked) .+%{26}
         %configured .+%{13}
         %info: .+ is up to date%{2}

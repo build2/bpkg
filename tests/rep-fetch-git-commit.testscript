@@ -28,6 +28,7 @@
       %querying .+style-basic\.git%?
       %fetching .+style-basic\.git%
       $info
+      %fetched git:.+style-basic#$commit%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -48,6 +49,7 @@
       %querying .+style-basic\.git%?
       %fetching .+style-basic\.git%
       $info
+      %fetched git:.+style-basic#stable@$commit%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -73,6 +75,7 @@
       %fetching .+style-basic.\git%
       %querying .+style-basic\.git%?
       $info
+      %fetched git:.+style-basic#@$commit%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }
@@ -88,6 +91,7 @@
       %fetching .+style-basic\.git%
       %querying .+style-basic\.git%?
       $info
+      %fetched git:.+style-basic#stable@$commit%
       1 package\(s\) in 1 repository\(s\)
       EOE
   }

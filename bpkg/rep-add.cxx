@@ -48,7 +48,8 @@ namespace bpkg
       db.update (root);
 
     if (verb && !o.no_result ())
-      text << (added ? "added " : updated ? "updated " : "unchanged ") << rn;
+      text << (added ? "added " : updated ? "updated " : "unchanged ") << rn
+           << db;
 
     return r;
   }

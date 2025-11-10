@@ -156,6 +156,7 @@ sc = " " # Space character to append to here-document line when required.
     $rep_fetch 2>>/~%EOE%
       %fetching .+/no-auth/signed%
       %querying .+signed%
+      %fetched .+/no-auth/signed%
       1 package(s) in 1 repository(s)
       EOE
   }

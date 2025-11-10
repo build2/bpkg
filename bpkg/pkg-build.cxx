@@ -3735,7 +3735,18 @@ namespace bpkg
       // the main database will be used.
       //
       for (const auto& l: locations)
-        rep_fetch (o, l.first, l.second, o.fetch_shallow ());
+      {
+        database& db (l.first);
+        const vector<repository_location>& rls (l.second);
+
+        rep_fetch (o, db, rls, o.fetch_shallow ());
+
+        if (verb && !o.no_result ())
+        {
+          for (const repository_location& rl: rls)
+            text << "fetched " << rl.canonical_name () << db;
+        }
+      }
     }
 
     // Now, as repo_configs is filled and the repositories are fetched mask

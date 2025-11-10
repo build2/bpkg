@@ -1368,10 +1368,19 @@ namespace bpkg
              const string& reason,
              bool no_dir_progress)
   {
-    if (verb && (!no_dir_progress || !rl.directory_based ()))
+    if (((verb && !co.no_progress ()) || co.progress ()) &&
+        (!no_dir_progress || !rl.directory_based ()))
     {
       diag_record dr (text);
       dr << "fetching " << rl.canonical_name ();
+
+      // Note that we never print the database for rep-info, since db is
+      // always NULL in this case. That's, however, is an expected behavior,
+      // since there is always not more than one configuration involved for
+      // rep-info.
+      //
+      if (db != nullptr)
+        dr << *db;
 
       if (!reason.empty ())
         dr << " (" << reason << ")";
@@ -2556,7 +2565,12 @@ namespace bpkg
     t.commit ();
 
     if (verb && !o.no_result ())
+    {
+      for (const lazy_shared_ptr<repository>& r: repos)
+        text << "fetched " << r.object_id ();
+
       text << pcount << " package(s) in " << rcount << " repository(s)";
+    }
 
     return 0;
   }

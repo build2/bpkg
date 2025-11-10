@@ -368,6 +368,7 @@ $* 2>>/EOE != 0
         %querying .+stable%
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
         %querying .+extra%
+        fetched pkg:build2.org/rep-fetch/cycle/stable
         2 package(s) in 2 repository(s)
         EOE
 
@@ -401,6 +402,8 @@ $* 2>>/EOE != 0
         %querying .+stable%
         fetching pkg:build2.org/rep-fetch/cycle/extra (prerequisite of pkg:build2.org/rep-fetch/cycle/stable)
         %querying .+extra%
+        fetched pkg:build2.org/rep-fetch/cycle/math
+        fetched pkg:build2.org/rep-fetch/cycle/stable
         3 package(s) in 3 repository(s)
         EOE
 
@@ -490,7 +493,7 @@ y'
         warning: authenticity of the certificate for repository pkg:build2.org/rep-fetch/foo/stable cannot be established
         certificate is for build2.org, "Code Synthesis" <info@build2.org>
         %.+
-        %.+2 package\(s\) in 2 repository\(s\)%
+        %2 package\(s\) in 2 repository\(s\)%
         EOE
     }
 
@@ -559,6 +562,7 @@ if! $remote
     $* 2>>"EOE"
       fetching dir:($d/libbar.git)
       fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
+      fetched dir:($d/libbar.git)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
@@ -580,6 +584,7 @@ if! $remote
     $* "dir:($d/libbar.git)" 2>>"EOE"
       fetching dir:($d/libbar.git)
       fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
+      fetched dir:($d/libbar.git)
       3 package\(s\) in 2 repository\(s\)
       EOE
 
@@ -602,6 +607,7 @@ if! $remote
 
       $* --shallow "dir:($d/libbar.git)" 2>>~"%EOE%"
         %fetching .+libbar.git%
+        %fetched .+libbar.git%
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -619,6 +625,7 @@ if! $remote
       $* --shallow 2>>"EOE"
         fetching dir:($d/libbar.git)
         fetching dir:($d/style-basic.git) \(prerequisite of dir:($d/libbar.git)\)
+        fetched dir:($d/libbar.git)
         3 package\(s\) in 2 repository\(s\)
         EOE
 
@@ -760,6 +767,7 @@ if! $remote
 
     $* 2>>~%EOE%
       %fetching dir:.+libhello-1.0.0%
+      %fetched dir:.+libhello-1.0.0%
       1 package(s) in 1 repository(s)
       EOE
 
@@ -864,6 +872,7 @@ else
       %fetching git:.+style-basic#stable \(prerequisite of git:.+libbar#master\)%
       %querying .+style-basic%
       %fetching .+style-basic%
+      %fetched git:.+libbar#master%
       3 package(s) in 2 repository(s)
       EOE
 
@@ -894,6 +903,7 @@ else
       %fetching .+style-basic\.git for submodule 'libbar/extras'%
       %info: .+%{0,2}
       %submodule path 'libbar/extras': checked out '.+'%
+      %fetched git:.+libfox#master%
       2 package(s) in 1 repository(s)
       EOE
   }
@@ -915,6 +925,7 @@ else
       %  info: new location https://.+libfoo\.git#master%
       %  info: old location git://.+libfoo\.git#master%
       %querying .+libfoo\.git%
+      %fetched git:.+libfoo#master%
       1 package(s) in 1 repository(s)
       EOE
   }
@@ -968,6 +979,7 @@ else
           %querying .+libfoo\.git%
           %fetching .+libfoo\.git%
           %info: .+%{0,2}
+          %fetched .+libfoo#v\*\*%
           2 package(s) in 1 repository(s)
           EOE
       }
@@ -981,6 +993,7 @@ else
           %added .+libfoo#tags/mast\*%
           %fetching .+libfoo#tags/mast\*%
           %querying .+libfoo\.git%
+          %fetched .+libfoo#tags/mast\*%
           0 package(s) in 1 repository(s)
           EOE
       }
@@ -1072,6 +1085,7 @@ else
         %added .+libfoo#mast\*,-master%
         %fetching .+libfoo#mast\*,-master%
         %querying .+libfoo\.git%
+        %fetched .+libfoo#mast\*,-master%
         0 package(s) in 1 repository(s)
         EOE
     }
@@ -1087,6 +1101,7 @@ else
         %querying .+libfoo\.git%
         %fetching .+libfoo\.git%
         %info: .+%{0,2}
+        %fetched .+libfoo#tags/mast\*,\+master%
         1 package(s) in 1 repository(s)
         EOE
     }
@@ -1105,6 +1120,7 @@ else
           %querying .+libfoo\.git%
           %fetching .+libfoo\.git%
           %info: .+%{0,2}
+          %fetched .+libfoo%
           2 package(s) in 1 repository(s)
           EOE
       }
@@ -1120,6 +1136,7 @@ else
           %querying .+libfoo\.git%
           %fetching .+libfoo\.git%
           %info: .+%{0,2}
+          %fetched .+libfoo##-/tags/v1\*%
           1 package(s) in 1 repository(s)
           EOE
       }
