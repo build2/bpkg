@@ -391,11 +391,11 @@ namespace bpkg
   {
     database&                    db;
     shared_ptr<selected_package> package;
-    optional<version_constraint> constraint;
+    version_constraint           constraint;
 
     dependent_constraint (database& d,
                           shared_ptr<selected_package> p,
-                          optional<version_constraint> c)
+                          version_constraint c)
         : db (d), package (move (p)), constraint (move (c)) {}
   };
 
@@ -636,8 +636,7 @@ namespace bpkg
     }
 
     // Build a set of repository fragments the dependent packages come from.
-    // Also cache the dependents and the constraints they apply to this
-    // dependency.
+    // Also cache the constraints applied to this dependency by its dependents.
     //
     config_repo_fragments repo_frags;
     dependent_constraints dpt_constrs;
@@ -650,7 +649,8 @@ namespace bpkg
       shared_ptr<selected_package> p (ddb.load<selected_package> (dep.name));
       add_dependent_repo_fragments (ddb, p, repo_frags);
 
-      dpt_constrs.emplace_back (ddb, move (p), move (dep.constraint));
+      if (dep.constraint)
+        dpt_constrs.emplace_back (ddb, move (p), move (*dep.constraint));
     }
 
     return evaluate_dependency (o,
@@ -1461,8 +1461,7 @@ namespace bpkg
     assert (sp != nullptr);
 
     // Build a set of repository fragment the dependent packages come from.
-    // Also cache the dependents and the constraints they apply to this
-    // dependency.
+    // Also cache the constraints applied to this dependency by its dependents.
     //
     config_repo_fragments repo_frags;
     dependent_constraints dpt_constrs;
@@ -1479,7 +1478,8 @@ namespace bpkg
       {
         shared_ptr<selected_package> p (ddb.load<selected_package> (pd.name));
 
-        dpt_constrs.emplace_back (ddb, p, move (pd.constraint));
+        if (pd.constraint)
+          dpt_constrs.emplace_back (ddb, p, move (*pd.constraint));
 
         upgrade_deorphan u (upgrade_dependencies (ddb, pd.name, recs, cache));
 
