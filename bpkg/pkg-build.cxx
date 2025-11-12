@@ -6316,6 +6316,35 @@ namespace bpkg
         set<package_key> depts (
           pkgs.collect_dependents (rpt_depts, unsatisfied_depts));
 
+        // Cancel dropping the prerequisites of the configured dependencies,
+        // which we initially decided to drop but have changed our mind later
+        // (see cancel_drop_prerequisites() for details).
+        //
+        for (const dep& d: deps)
+        {
+          if (d.available == nullptr)
+          {
+            if (const build_package* p = pkgs.entered_build (d.db, d.name))
+            {
+              assert (p->action); // Initially drop, can be overwritten later.
+
+              if (*p->action != build_package::drop &&
+                  !p->system                        &&
+                  !p->dependencies)
+              {
+                const shared_ptr<selected_package>& sp (p->selected);
+
+                // Must be configured, since we have decided to drop it in the
+                // first place.
+                //
+                assert (sp != nullptr);
+
+                pkgs.cancel_drop_prerequisites (*sp, d.db);
+              }
+            }
+          }
+        }
+
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
         // package on the list only possibly depending on the ones after
@@ -6414,10 +6443,21 @@ namespace bpkg
         for (const dep& d: deps)
         {
           if (d.available == nullptr)
-            pkgs.order (d.db,
-                        d.name,
-                        find_prereq_database,
-                        false /* reorder */);
+          {
+            // Skip the canceled and overwritten entries. Note that the latter
+            // must have been ordered via their dependents.
+            //
+            if (const build_package* p = pkgs.entered_build (d.db, d.name))
+            {
+              assert (p->action); // Initially drop, can be overwritten later.
+
+              if (*p->action == build_package::drop)
+                pkgs.order (d.db,
+                            d.name,
+                            find_prereq_database,
+                            false /* reorder */);
+            }
+          }
         }
 
         // Make sure all the postponed dependencies of existing dependents
@@ -6590,6 +6630,7 @@ namespace bpkg
         // Verify that none of the previously-made upgrade/downgrade/drop
         // decisions have changed.
         //
+        size_t changed_desisions (0);
         for (auto i (deps.begin ()); i != deps.end (); )
         {
           bool s (false);
@@ -6615,8 +6656,6 @@ namespace bpkg
 
           if (s)
           {
-            scratch_exe = true; // Rebuild the plan from scratch.
-
             package_key pk (db, nm);
 
             auto j (find (existing_deps.begin (), existing_deps.end (), pk));
@@ -6626,14 +6665,21 @@ namespace bpkg
             deorphaned_deps.erase (pk);
 
             i = deps.erase (i);
+
+            ++changed_desisions;
           }
           else
             ++i;
         }
 
-        if (scratch_exe)
-          l5 ([&]{trace << "one of dependency evaluation decisions has "
-                        << "changed, re-collecting from scratch";});
+        if (changed_desisions != 0)
+        {
+          l5 ([&]{trace << changed_desisions << " of dependency evaluation "
+                        << "decision(s) has changed, re-collecting from "
+                        << "scratch";});
+
+          scratch_exe = true;
+        }
 
         // If the execute_plan() call was noop, there are no user expectations
         // regarding any dependency, and no upgrade is requested, then the

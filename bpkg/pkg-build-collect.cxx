@@ -5819,6 +5819,41 @@ namespace bpkg
   }
 
   void build_packages::
+  cancel_drop_prerequisites (const selected_package& sp, database& db)
+  {
+    tracer trace ("cancel_drop_prerequisites");
+
+    for (const auto& pr: sp.prerequisites)
+    {
+      database& pdb (pr.first.database ());
+      const package_name& nm (pr.first.object_id ());
+
+      auto i (map_.find (pdb, nm));
+
+      if (i != map_.end ())
+      {
+        build_package& bp (i->second.package);
+
+        if (bp.action && bp.action == build_package::drop)
+        {
+          shared_ptr<selected_package> dsp (move (bp.selected));
+          assert (dsp != nullptr); // See build_package::action_type::drop.
+
+          l5 ([&]{trace << "cancel drop of prerequisite " << *dsp << pdb
+                        << " of configured dependent " << sp << db;});
+
+          // Remove the entry first, not to traverse through the same
+          // prerequisite multiple times via different dependents.
+          //
+          map_.erase (i);
+
+          cancel_drop_prerequisites (*dsp, pdb);
+        }
+      }
+    }
+  }
+
+  void build_packages::
   collect_unhold (database& db, const shared_ptr<selected_package>& sp)
   {
     auto i (map_.find (db, sp->name));
