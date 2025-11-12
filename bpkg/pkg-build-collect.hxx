@@ -705,7 +705,9 @@ namespace bpkg
   // And yet, it doesn't seem plausible to ever create a replacement for the
   // drop: replacing one drop with another is meaningless (all drops are the
   // same) and replacing the package drop with a package version build can
-  // always been handled in-place.
+  // always been handled in-place. Note, however, that we need to be careful
+  // in this case and, potentially, cancel dropping prerequisites of such a
+  // package (see cancel_drop_prerequisites() for details).
   //
   // On the first glance, the map entries which have not been used for
   // replacement during the package collection (bogus entries) are harmless
@@ -1621,6 +1623,23 @@ namespace bpkg
                   database&,
                   shared_ptr<selected_package>,
                   replaced_versions&);
+
+    // Cancel dropping of the selected package prerequisites, recursively.
+    //
+    // Note that at some iteration of the dependency refinement loop we may
+    // decide that a dependency is unused and collect it as a drop,
+    // potentially together with some of its now unused recursive
+    // prerequisites. However, on some later refinement iteration some new
+    // dependent may be introduced for this dependency. This will result in
+    // collecting this dependency as a build, overwriting the current
+    // collection as a drop. If this dependency is not collected recursively
+    // (not being up/down-graded, etc), then dropping of its own recursive
+    // prerequisites, if any, needs to be canceled as well.
+    //
+    // Note: the database argument is only used for tracing.
+    //
+    void
+    cancel_drop_prerequisites (const selected_package&, database&);
 
     // Collect the package being unheld.
     //

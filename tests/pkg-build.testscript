@@ -3308,6 +3308,409 @@ test.arguments += --sys-no-query
       $pkg_status libbaz >'libbaz available 0.1.0 0.0.4 0.0.3 0.0.1'
       $pkg_status libfox >'libfox available 0.0.1'
     }
+
+    : cancel-drop
+    :
+    : Test that the initial decision to drop an unused dependency package,
+    : together with some of its own recursive prerequisites, can be canceled
+    : at some later dependency refinement iteration (see
+    : cancel_drop_prerequisites() for details).
+    :
+    : Regression test for GH issue #494.
+    :
+    {
+      mkdir -p prj/libbaz/build
+
+      cat <<EOI >=prj/libbaz/build/bootstrap.build
+        project = libbaz
+        using config
+        EOI
+
+      cat <<EOI >=prj/libbaz/buildfile
+        ./:
+        EOI
+
+      cat <<EOI >=prj/libbaz/manifest
+        : 1
+        name: libbaz
+        version: 1.0.0
+        summary: The baz utility
+        license: MIT
+        url: http://www.example.org/baz
+        email: baz-users@example.org
+        EOI
+
+      cat <<EOI >=prj/packages.manifest
+        : 1
+        location: libbaz
+        EOI
+
+      for nm: bar1 bar2 bar3 foo1 foo2 foo3
+      {
+        cp -r prj/libbaz prj/lib$nm
+
+        find prj/lib$nm -type f | for -n f
+          sed -i -e "s/baz/$nm/g" $f
+
+        cat <<"EOI" >+prj/packages.manifest
+          :
+          location: lib$nm
+          EOI
+      }
+
+      echo 'depends: libbar1' >+prj/libbaz/manifest
+      echo 'depends: libbar2' >+prj/libbar1/manifest
+      echo 'depends: libbar3' >+prj/libbar2/manifest
+      echo 'depends: libfoo1' >+prj/libbaz/manifest
+      echo 'depends: libfoo2' >+prj/libfoo1/manifest
+      echo 'depends: libfoo3' >+prj/libfoo2/manifest
+
+      $cfg_create -d cfg 2>- &cfg/***
+
+      $rep_add --type dir prj
+      $rep_fetch
+
+      $* libbaz --yes 2>>EOE
+        using libbar3/1.0.0 (external)
+        using libbar2/1.0.0 (external)
+        using libbar1/1.0.0 (external)
+        using libfoo3/1.0.0 (external)
+        using libfoo2/1.0.0 (external)
+        using libfoo1/1.0.0 (external)
+        using libbaz/1.0.0 (external)
+        configured libbar3/1.0.0
+        configured libbar2/1.0.0
+        configured libbar1/1.0.0
+        configured libfoo3/1.0.0
+        configured libfoo2/1.0.0
+        configured libfoo1/1.0.0
+        configured libbaz/1.0.0
+        EOE
+
+      $pkg_status -r libbaz >>EOO
+        !libbaz configured 1.0.0
+          libbar1 configured 1.0.0
+            libbar2 configured 1.0.0
+              libbar3 configured 1.0.0
+          libfoo1 configured 1.0.0
+            libfoo2 configured 1.0.0
+              libfoo3 configured 1.0.0
+        EOO
+
+      # Move the libbar1 dependency from the libbaz dependent to libfoo3.
+      #
+      sed -i -e 's/(depends: libbar1)/#\1/' prj/libbaz/manifest
+      echo 'depends: libbar1' >+prj/libfoo3/manifest
+
+      for nm: foo1 foo2 foo3
+        sed -i -e 's/(version: .*)/version: 1.0.1/' prj/lib$nm/manifest
+
+      $rep_fetch
+
+      $* libbaz --upgrade --recursive --yes --plan "" --verbose 5 2>>~%EOE%
+        %.*
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: add libfoo1/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.0 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip configured libfoo1/1.0.0
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_recursive: libbar3/1.0.0: no hit
+        trace: evaluate_recursive: libbar2/1.0.0: no hit
+        trace: evaluate_dependency: libbar1/1.0.0: unused
+        trace: evaluate_dependency: libfoo3/1.0.0: only
+        trace: evaluate_dependency: libfoo2/1.0.0: only
+        trace: evaluate_dependency: libfoo1/1.0.0: update to libfoo1/1.0.1
+        trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+        trace: pkg_build: refine package collection/plan execution
+        trace: collect_drop: add libbar1
+        trace: collect_build: pick libfoo1/1.0.1 over libfoo1/1.0.0
+        trace: collect_build: libfoo1/1.0.0 package version needs to be replaced with libfoo1/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: add libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.0 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip configured libfoo2/1.0.0
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_drop: add libbar1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.0 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_recursive: libbar3/1.0.0: no hit
+        trace: evaluate_dependency: libbar2/1.0.0: unused
+        trace: evaluate_dependency: libfoo3/1.0.0: only
+        trace: evaluate_dependency: libfoo2/1.0.0: update to libfoo2/1.0.1
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+        trace: pkg_build: refine package collection/plan execution
+        trace: collect_drop: overwrite libbar1
+        trace: collect_drop: add libbar2
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build: libfoo2/1.0.0 package version needs to be replaced with libfoo2/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: apply version replacement for libfoo2/1.0.0
+        trace: collect_build: replacement: libfoo2/1.0.1
+        trace: collect_build: add libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: add libfoo3/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.0 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: skip configured libfoo3/1.0.0
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_drop: add libbar1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_drop: add libbar2
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.0 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libbar3/1.0.0: unused
+        trace: evaluate_dependency: libfoo3/1.0.0: update to libfoo3/1.0.1
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+        trace: pkg_build: refine package collection/plan execution
+        trace: collect_drop: overwrite libbar1
+        trace: collect_drop: overwrite libbar2
+        trace: collect_drop: add libbar3
+        trace: collect_build: pick libfoo3/1.0.1 over libfoo3/1.0.0
+        trace: collect_build: libfoo3/1.0.0 package version needs to be replaced with libfoo3/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: apply version replacement for libfoo2/1.0.0
+        trace: collect_build: replacement: libfoo2/1.0.1
+        trace: collect_build: add libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: apply version replacement for libfoo3/1.0.0
+        trace: collect_build: replacement: libfoo3/1.0.1
+        trace: collect_build: add libfoo3/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.1 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo2 of dependency libfoo3
+        trace: collect_build_prerequisites: begin libfoo3/1.0.1
+        trace: collect_build: add libbar1/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libbar1/1.0.0 of dependent libfoo3/1.0.1
+        trace: collect_build_prerequisites: skip configured libbar1/1.0.0
+        trace: collect_build_prerequisites: end libfoo3/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_drop: libbar1 cannot be dropped since it is required by libfoo3/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_drop: add libbar2
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: pick libfoo3/1.0.1 over libfoo3/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.1 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_drop: add libbar3
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo2 of dependency libfoo3
+        trace: collect_build_prerequisites: begin libfoo3/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libbar1/1.0.0 of dependent libfoo3/1.0.1
+        trace: collect_build_prerequisites: end libfoo3/1.0.1
+        trace: cancel_drop_prerequisites: cancel drop of prerequisite libbar2/1.0.0 of configured dependent libbar1/1.0.0
+        trace: cancel_drop_prerequisites: cancel drop of prerequisite libbar3/1.0.0 of configured dependent libbar2/1.0.0
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libbar1/1.0.0: unchanged
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_dependency: libbar2/1.0.0: unchanged
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libbar3/1.0.0: unchanged
+        trace: evaluate_dependency: libfoo3/1.0.1: unchanged
+        trace: pkg_build: 3 dependency evaluation decision(s) has changed, re-collecting from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: add libfoo1/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.0 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip configured libfoo1/1.0.0
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_build: pick libfoo1/1.0.1 over libfoo1/1.0.0
+        trace: collect_build: libfoo1/1.0.0 package version needs to be replaced with libfoo1/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: add libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.0 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip configured libfoo2/1.0.0
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.0 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build: libfoo2/1.0.0 package version needs to be replaced with libfoo2/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: apply version replacement for libfoo2/1.0.0
+        trace: collect_build: replacement: libfoo2/1.0.1
+        trace: collect_build: add libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: add libfoo3/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.0 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: skip configured libfoo3/1.0.0
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.0 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build: pick libfoo3/1.0.1 over libfoo3/1.0.0
+        trace: collect_build: libfoo3/1.0.0 package version needs to be replaced with libfoo3/1.0.1
+        trace: pkg_build: collection failed due to package version replacement, retry from scratch
+        trace: pkg_build: refine package collection/plan execution from scratch
+        trace: collect_build: add libbaz/1.0.0#1
+        trace: collect_build_prerequisites: begin libbaz/1.0.0#1
+        trace: collect_build: apply version replacement for libfoo1/1.0.0
+        trace: collect_build: replacement: libfoo1/1.0.1
+        trace: collect_build: add libfoo1/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo1/1.0.1 of dependent libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: apply version replacement for libfoo2/1.0.0
+        trace: collect_build: replacement: libfoo2/1.0.1
+        trace: collect_build: add libfoo2/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: apply version replacement for libfoo3/1.0.0
+        trace: collect_build: replacement: libfoo3/1.0.1
+        trace: collect_build: add libfoo3/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.1 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo2 of dependency libfoo3
+        trace: collect_build_prerequisites: begin libfoo3/1.0.1
+        trace: collect_build: add libbar1/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libbar1/1.0.0 of dependent libfoo3/1.0.1
+        trace: collect_build_prerequisites: skip configured libbar1/1.0.0
+        trace: collect_build_prerequisites: end libfoo3/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libbaz/1.0.0#1
+        trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libfoo1
+        trace: collect_build_prerequisites: begin libfoo1/1.0.1
+        trace: collect_build: pick libfoo2/1.0.1 over libfoo2/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo2/1.0.1 of dependent libfoo1/1.0.1
+        trace: collect_build_prerequisites: end libfoo1/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo1 of dependency libfoo2
+        trace: collect_build_prerequisites: begin libfoo2/1.0.1
+        trace: collect_build: pick libfoo3/1.0.1 over libfoo3/1.0.0
+        trace: collect_build_prerequisites: no cfg-clause for dependency libfoo3/1.0.1 of dependent libfoo2/1.0.1
+        trace: collect_build_prerequisites: end libfoo2/1.0.1
+        trace: collect_build_prerequisites: skip being built existing dependent libfoo2 of dependency libfoo3
+        trace: collect_build_prerequisites: begin libfoo3/1.0.1
+        trace: collect_build_prerequisites: no cfg-clause for dependency libbar1/1.0.0 of dependent libfoo3/1.0.1
+        trace: collect_build_prerequisites: end libfoo3/1.0.1
+        trace: execute_plan: simulate: yes
+        %.*
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo3/1.0.1: unchanged
+        trace: evaluate_dependency: libbar3/1.0.0: unchanged
+        trace: evaluate_dependency: libbar2/1.0.0: unchanged
+        trace: evaluate_dependency: libbar1/1.0.0: unchanged
+        trace: evaluate_dependency: libfoo3/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+        trace: evaluate_dependency: libbar3/1.0.0: unchanged
+        trace: evaluate_dependency: libbar2/1.0.0: unchanged
+        trace: evaluate_dependency: libbar1/1.0.0: unchanged
+        trace: evaluate_dependency: libfoo3/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo2/1.0.1: unchanged
+        trace: evaluate_dependency: libfoo1/1.0.1: unchanged
+        trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+          upgrade libfoo3/1.0.1
+          upgrade libfoo2/1.0.1
+          upgrade libfoo1/1.0.1
+          upgrade libbaz/1.0.0#1
+        trace: execute_plan: simulate: no
+        %.*
+        EOE
+
+      $pkg_status -r libbaz >>EOO
+        !libbaz configured 1.0.0#1
+          libfoo1 configured 1.0.1
+            libfoo2 configured 1.0.1
+              libfoo3 configured 1.0.1
+                libbar1 configured 1.0.0
+                  libbar2 configured 1.0.0
+                    libbar3 configured 1.0.0
+        EOO
+    }
   }}
 
   : apply-constraints
@@ -4991,7 +5394,7 @@ test.arguments += --sys-no-query
           trace: collect_drop: libbaz cannot be dropped since it is required by command line, libfox/2.1.0
           trace: execute_plan: simulate: yes
           %.*
-          trace: pkg_build: one of dependency evaluation decisions has changed, re-collecting from scratch
+          trace: pkg_build: 1 dependency evaluation decision(s) has changed, re-collecting from scratch
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build_prerequisites: pre-reeval libfix/1.0.0
           trace: collect_build_prerequisites: pre-reevaluated libfix/1.0.0: end reached
@@ -9411,7 +9814,7 @@ test.arguments += --sys-no-query
             trace: execute_plan: simulate: yes
             %.*
             trace: evaluate_dependency: fux/1.0.0: unused
-            trace: pkg_build: one of dependency evaluation decisions has changed, re-collecting from scratch
+            trace: pkg_build: 1 dependency evaluation decision(s) has changed, re-collecting from scratch
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfoo/0.1.0
             trace: collect_build_prerequisites: skip configured libfoo/0.1.0

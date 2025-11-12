@@ -6316,6 +6316,40 @@ namespace bpkg
         set<package_key> depts (
           pkgs.collect_dependents (rpt_depts, unsatisfied_depts));
 
+        // Cancel dropping prerequisites of the configured dependencies, which
+        // we initially decided to drop but have changed our mind later (see
+        // cancel_drop_prerequisites() for details).
+        //
+        for (const dep& d: deps)
+        {
+          if (d.available == nullptr)
+          {
+            // Note: the entry may not be present in the map, if it has
+            // already been removed by cancel_drop_prerequisites().
+            //
+            if (const build_package* p = pkgs.entered_build (d.db, d.name))
+            {
+              // Initially is a drop but could have been overwritten later.
+              //
+              assert (p->action);
+
+              if (*p->action != build_package::drop &&
+                  !p->system                        &&
+                  !p->dependencies)
+              {
+                const shared_ptr<selected_package>& sp (p->selected);
+
+                // Must be configured, since we have decided to drop it in the
+                // first place.
+                //
+                assert (sp != nullptr);
+
+                pkgs.cancel_drop_prerequisites (*sp, d.db);
+              }
+            }
+          }
+        }
+
         // Now that we have collected all the package versions that we need to
         // build, arrange them in the "dependency order", that is, with every
         // package on the list only possibly depending on the ones after
@@ -6411,13 +6445,26 @@ namespace bpkg
 
         // And, finally, order the package drops.
         //
+        // Skip the canceled and overwritten entries. Note that the latter
+        // must have been ordered via their dependents.
+        //
         for (const dep& d: deps)
         {
           if (d.available == nullptr)
-            pkgs.order (d.db,
-                        d.name,
-                        find_prereq_database,
-                        false /* reorder */);
+          {
+            if (const build_package* p = pkgs.entered_build (d.db, d.name))
+            {
+              // Initially is a drop but could have been overwritten later.
+              //
+              assert (p->action);
+
+              if (*p->action == build_package::drop)
+                pkgs.order (d.db,
+                            d.name,
+                            find_prereq_database,
+                            false /* reorder */);
+            }
+          }
         }
 
         // Make sure all the postponed dependencies of existing dependents
@@ -6590,14 +6637,15 @@ namespace bpkg
         // Verify that none of the previously-made upgrade/downgrade/drop
         // decisions have changed.
         //
+        size_t changed_desisions_count (0);
         for (auto i (deps.begin ()); i != deps.end (); )
         {
-          bool s (false);
+          bool cd (false);
 
           database& db (i->db);
           const package_name& nm (i->name);
 
-          // Here we scratch if evaluate changed its mind or if the resulting
+          // Here we check if evaluate changed its mind or if the resulting
           // version doesn't match what we expect it to be.
           //
           if (auto sp = db.find<selected_package> (nm))
@@ -6605,17 +6653,17 @@ namespace bpkg
             const version& dv (target_version (db, i->available, i->system));
 
             if (optional<evaluate_result> r = eval_dep (db, sp))
-              s = dv != target_version (db, r->available, r->system) ||
-                  i->system != r->system;
+              cd = dv != target_version (db, r->available, r->system) ||
+                   i->system != r->system;
             else
-              s = dv != sp->version || i->system != sp->system ();
+              cd = dv != sp->version || i->system != sp->system ();
           }
           else
-            s = i->available != nullptr;
+            cd = i->available != nullptr;
 
-          if (s)
+          if (cd)
           {
-            scratch_exe = true; // Rebuild the plan from scratch.
+            ++changed_desisions_count;
 
             package_key pk (db, nm);
 
@@ -6631,9 +6679,17 @@ namespace bpkg
             ++i;
         }
 
-        if (scratch_exe)
-          l5 ([&]{trace << "one of dependency evaluation decisions has "
-                        << "changed, re-collecting from scratch";});
+        // Rebuild the plan from scratch, if any previously-made decisions
+        // have changed.
+        //
+        if (changed_desisions_count != 0)
+        {
+          l5 ([&]{trace << changed_desisions_count << " dependency "
+                        << "evaluation decision(s) has changed, "
+                        << "re-collecting from scratch";});
+
+          scratch_exe = true;
+        }
 
         // If the execute_plan() call was noop, there are no user expectations
         // regarding any dependency, and no upgrade is requested, then the
