@@ -358,7 +358,7 @@ namespace bpkg
     return pem
       ? real_fingerprint (co, *pem, rl)
       : fingerprint {string (),
-                     sha256 (name_prefix (rl)).abbreviated_string (12)};
+                     sha256 (name_prefix (rl)).abbreviated_string (16)};
   }
 
   // Parse the PEM-encoded certificate representation.
