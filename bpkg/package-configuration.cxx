@@ -75,7 +75,7 @@ namespace bpkg
   }
 
   void
-  to_checksum (sha256& cs, const config_variable_value& v)
+  to_checksum (xxh64& cs, const config_variable_value& v)
   {
     using namespace build2;
 

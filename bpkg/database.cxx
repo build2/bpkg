@@ -4,6 +4,7 @@
 #include <bpkg/database.hxx>
 
 #include <map>
+#include <array>
 
 #include <odb/schema-catalog.hxx>
 #include <odb/sqlite/exceptions.hxx>
@@ -516,11 +517,13 @@ namespace bpkg
       //
       std::string schema;
       {
-        sha256 h (d.string ());
+        array<char, 17> h (xxh64::string (d.string ()));
 
         for (size_t n (4);; ++n)
         {
-          schema = h.abbreviated_string (n);
+          assert (n != 17);
+
+          schema.assign (h.data (), n);
 
           if (find_if (am.begin (), am.end (),
                        [&schema] (const map<dir_path, database>::value_type& v)

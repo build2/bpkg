@@ -87,7 +87,7 @@ namespace bpkg
   };
 
   void
-  to_checksum (sha256&, const config_variable_value&);
+  to_checksum (xxh64&, const config_variable_value&);
 
   // A subset of config_variable_value for variable values set by the
   // dependents (origin is buildfile). Used to track change history.

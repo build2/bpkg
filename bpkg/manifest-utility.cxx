@@ -276,6 +276,11 @@ namespace bpkg
         repository_url u (rl.url ());
         u.fragment = nullopt;
 
+        // Note that we use sha256() for historical reasons. Switching to
+        // using a faster xxh64() in a backward compatible manner feels a bit
+        // hairy at the moment. This is probably ok since the hashed data is
+        // normally pretty small.
+        //
         repository_location l (u, rl.type ());
         return dir_path (sha256 (l.canonical_name ()).abbreviated_string (16));
       }
@@ -344,24 +349,42 @@ namespace bpkg
   string
   package_checksum (const common_options& o,
                     const dir_path& d,
-                    const package_info* pi)
+                    const package_info* pi,
+                    size_t n)
   {
+    assert (n == 64 || n == 16);
+
     path f (d / manifest_file);
 
     try
     {
-      ifdstream is (f, fdopen_mode::binary);
-      sha256 cs (is);
-
       const vector<package_info::subproject>& sps (
         pi != nullptr
         ? pi->subprojects
         : package_b_info (o, d, b_info_flags::subprojects).subprojects);
 
-      for (const package_info::subproject& sp: sps)
-        cs.append (sp.path.string ());
+      auto checksum = [&sps] (auto& cs)
+      {
+        for (const package_info::subproject& sp: sps)
+          cs.append (sp.path.string ());
 
-      return cs.string ();
+        return cs.string ();
+      };
+
+      ifdstream is (f, fdopen_mode::binary);
+
+      // @@ TMP See the function description for details.
+      //
+      if (n != 64) // Not sha256?
+      {
+        xxh64 cs (is);
+        return checksum (cs);
+      }
+      else
+      {
+        sha256 cs (is);
+        return checksum (cs);
+      }
     }
     catch (const io_error& e)
     {
@@ -417,30 +440,46 @@ namespace bpkg
                                const vector<buildfile>& bs,
                                const dir_path& d,
                                const vector<path>& bps,
-                               optional<bool> an)
+                               optional<bool> an,
+                               size_t n)
   {
+    assert (n == 64 || n == 16);
+
     if (d.empty ())
     {
+      auto checksum = [&rb, &bs] (auto& cs)
+      {
+        if (rb)
+          cs.append (*rb);
+
+        for (const buildfile& b: bs)
+          cs.append (b.content);
+
+        return cs.string ();
+      };
+
       assert (bb);
 
-      sha256 cs (*bb);
-
-      if (rb)
-        cs.append (*rb);
-
-      for (const buildfile& b: bs)
-        cs.append (b.content);
-
-      return cs.string ();
+      // @@ TMP See the function description for details.
+      //
+      if (n != 64) // Not sha256?
+      {
+        xxh64 cs (*bb);
+        return checksum (cs);
+      }
+      else
+      {
+        sha256 cs (*bb);
+        return checksum (cs);
+      }
     }
 
-    auto checksum = [&bb, &rb, &bs, &bps] (const path& b,
+    auto checksum = [&bb, &rb, &bs, &bps] (auto& cs,
+                                           const path& b,
                                            const path& r,
                                            const dir_path& c,
-                                           const string& e)
+                                           const string& ext)
     {
-      sha256 cs;
-
       auto append_file = [&cs] (const path& f)
       {
         try
@@ -483,7 +522,7 @@ namespace bpkg
         for (const path& p: bps)
         {
           path f (bd / p);
-          f += '.' + e;
+          f += '.' + ext;
 
           append_file (f);
         }
@@ -492,7 +531,7 @@ namespace bpkg
       if (root && exists (c))
       try
       {
-        for (auto& f: find_buildfiles (c, e, bs, bps))
+        for (auto& f: find_buildfiles (c, ext, bs, bps))
           append_file (f.first);
       }
       catch (const system_error& e)
@@ -523,20 +562,48 @@ namespace bpkg
       if (an)
         verify (true /* alt_naming */);
 
-      return checksum (bf,
-                       d / alt_root_file,
-                       d / alt_config_dir,
-                       alt_build_ext);
+      if (n != 64) // @@ TMP See above.
+      {
+        xxh64 cs;
+        return checksum (cs,
+                         bf,
+                         d / alt_root_file,
+                         d / alt_config_dir,
+                         alt_build_ext);
+      }
+      else
+      {
+        sha256 cs;
+        return checksum (cs,
+                         bf,
+                         d / alt_root_file,
+                         d / alt_config_dir,
+                         alt_build_ext);
+      }
     }
     else if (exists (bf = d / std_bootstrap_file))
     {
       if (an)
         verify (false /* alt_naming */);
 
-      return checksum (bf,
-                       d / std_root_file,
-                       d / std_config_dir,
-                       std_build_ext);
+      if (n != 64) // @@ TMP See above.
+      {
+        xxh64 cs;
+        return checksum (cs,
+                         bf,
+                         d / std_root_file,
+                         d / std_config_dir,
+                         std_build_ext);
+      }
+      else
+      {
+        sha256 cs;
+        return checksum (cs,
+                         bf,
+                         d / std_root_file,
+                         d / std_config_dir,
+                         std_build_ext);
+      }
     }
     else
       fail << "unable to find bootstrap.build file in package directory "

@@ -789,7 +789,9 @@ namespace bpkg
       //
       assert (p->manifest_checksum);
 
-      changed = (package_checksum (o, d, pi) != *p->manifest_checksum);
+      changed =
+        (package_checksum (o, d, pi, p->manifest_checksum->size ()) !=
+         *p->manifest_checksum);
 
       // If the manifest hasn't changed and the package has buildfile clauses
       // in the dependencies, then check if the buildfiles haven't changed
@@ -804,7 +806,10 @@ namespace bpkg
           nullopt /* bootstrap_build */,
           nullopt /* root_build */,
           {}      /* buildfiles */,
-          d) != *p->buildfiles_checksum;
+          d,
+          {} /* buildfile_paths */,
+          {} /* alt_naming */,
+          p->buildfiles_checksum->size ()) != *p->buildfiles_checksum;
       }
 
       // If the manifest hasn't changed but the selected package points to an

@@ -1272,7 +1272,7 @@ namespace bpkg
       {
         assert (!repositories_checksum.empty ()); // Shouldn't be here otherwise.
 
-        dir_path dn (sha256 (u.string ()).abbreviated_string (16));
+        dir_path dn (xxh64::string (u.string ()).data ());
         dir_path d (pkg_repository_metadata_directory_ / dn);
 
         // If the metadata directory already exists, probably as a result of
@@ -1477,7 +1477,7 @@ namespace bpkg
   inline static dir_path
   git_repository_state_name (const repository_url& u)
   {
-    return dir_path (sha256 (u.string ()).abbreviated_string (16));
+    return dir_path (xxh64::string (u.string ()).data ());
   }
 
   fetch_cache::loaded_git_repository_state fetch_cache::

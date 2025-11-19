@@ -1643,7 +1643,7 @@ namespace bpkg
           dep_pkgs_ (dps) {}
 
     // Apply the specified adjustment to the command line, push the adjustment
-    // to the stack, and record the resulting command line state as the SHA256
+    // to the stack, and record the resulting command line state as the XXH64
     // checksum.
     //
     void
@@ -2001,6 +2001,8 @@ namespace bpkg
     bool
     tried_earlier (database& db, const package_name& n, const version& v) const
     {
+      // NOTE: remember to update state() if changing anything here.
+      //
       if (former_states_.empty ())
         return false;
 
@@ -2012,7 +2014,7 @@ namespace bpkg
       // we shouldn't be trying to replace with the package version which is
       // already in the command line.
       //
-      sha256 cs;
+      xxh64 cs;
 
       auto lt = [&db, &n, &v] (const package_version_key& pvk)
       {
@@ -2085,14 +2087,14 @@ namespace bpkg
     }
 
   private:
-    // Return the SHA256 checksum of the current command line state.
+    // Return the XXH64 checksum of the current command line state.
     //
     string
     state () const
     {
       // NOTE: remember to update tried_earlier() if changing anything here.
       //
-      sha256 cs;
+      xxh64 cs;
       for (const package_version_key& p: packages_)
       {
         assert (p.version); // Only the real packages can be here.
@@ -7557,7 +7559,7 @@ namespace bpkg
     // it is not empty.
     //
     string plan;
-    sha256 csum;
+    xxh64 csum;
     bool need_prompt (false);
 
     if (!o.yes ()           ||

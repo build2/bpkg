@@ -216,8 +216,18 @@ namespace bpkg
     // Return the checksum of the configuration variables that will be
     // returned by the collect_config() function call.
     //
+    // @@ TMP We have used the butl::sha256 type to calculate the checksum,
+    //        before we switched to a faster butl::xxh64 in 0.18.0. Not to
+    //        confuse the user with spurious reconfigurations after the
+    //        toolchain upgrade, let's pass the current config checksum length
+    //        when calculate the new config checksum for change detection.
+    //        This way the compatible hashing algorithm will be selected.
+    //
+    //        Remove the argument some time after the toolchain 0.18.0 is
+    //        released.
+    //
     string
-    config_checksum ();
+    config_checksum (size_t n = 16);
 
     // Implementation details.
     //

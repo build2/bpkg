@@ -2137,8 +2137,10 @@ namespace bpkg
   }
 
   string package_skeleton::
-  config_checksum ()
+  config_checksum (size_t n)
   {
+    assert (n == 64 || n == 16 || n == 0);
+
     // Note: this is parallel to collect_config() logic but is not destructive.
 
     assert (db_ != nullptr); // Must be called before collect_config().
@@ -2146,47 +2148,61 @@ namespace bpkg
     if (!loaded_old_config_)
       load_old_config_impl ();
 
-    sha256 cs;
-
-    if (!config_vars_.empty ())
+    auto checksum = [this] (auto& cs) -> string
     {
-      cstrings vs;
-      size_t pn (var_prefix_.size ());
-      for (const string& v: config_vars_)
+      if (!config_vars_.empty ())
       {
-        size_t vn;
-        if (project_override (v, var_prefix_, &vn))
+        cstrings vs;
+        size_t pn (var_prefix_.size ());
+        for (const string& v: config_vars_)
         {
-          // Skip config.<project>.develop (can potentially be passed by
-          // bdep-init) if the package doesn't use it.
-          //
-          if (develop_ || v.compare (pn, vn - pn, ".develop") != 0)
-            cs.append (v);
-        }
-        else
-        {
-          if (!system)
-            cs.append (v);
+          size_t vn;
+          if (project_override (v, var_prefix_, &vn))
+          {
+            // Skip config.<project>.develop (can potentially be passed by
+            // bdep-init) if the package doesn't use it.
+            //
+            if (develop_ || v.compare (pn, vn - pn, ".develop") != 0)
+              cs.append (v);
+          }
+          else
+          {
+            if (!system)
+              cs.append (v);
+          }
         }
       }
-    }
 
-    if (!dependent_vars_.empty ())
-    {
-      for (const string& v: dependent_vars_)
-        cs.append (v);
-    }
-
-    if (!reflect_.empty ())
-    {
-      for (const reflect_variable_value& v: reflect_)
+      if (!dependent_vars_.empty ())
       {
-        if (v.origin != build2::config::variable_origin::override_)
-          cs.append (serialize_cmdline (v.name, v.value));
+        for (const string& v: dependent_vars_)
+          cs.append (v);
       }
-    }
 
-    return !cs.empty () ? cs.string () : string ();
+      if (!reflect_.empty ())
+      {
+        for (const reflect_variable_value& v: reflect_)
+        {
+          if (v.origin != build2::config::variable_origin::override_)
+            cs.append (serialize_cmdline (v.name, v.value));
+        }
+      }
+
+      return !cs.empty () ? cs.string () : string ();
+    };
+
+    // @@ TMP See the function description for details.
+    //
+    if (n != 64) // Not sha256?
+    {
+      xxh64 cs;
+      return checksum (cs);
+    }
+    else
+    {
+      sha256 cs;
+      return checksum (cs);
+    }
   }
 
   const strings& package_skeleton::

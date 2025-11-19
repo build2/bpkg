@@ -104,8 +104,7 @@ namespace bpkg
     repository_url url;
 
     // Directory for this repository relative to the metadata/ directory.
-    // Calculated as a 16-character abbreviated SHA256 checksum of the
-    // canonicalized repository URL.
+    // Calculated as a XXH64 checksum of the canonicalized repository URL.
     //
     dir_path directory;
 
@@ -205,8 +204,7 @@ namespace bpkg
     repository_url url;
 
     // Directory for this repository relative to the git/ directory.
-    // Calculated as a 16-character abbreviated SHA256 checksum of the
-    // canonicalized repository URL.
+    // Calculated as a XXH64 checksum of the canonicalized repository URL.
     //
     dir_path directory;
 

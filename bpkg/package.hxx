@@ -1078,7 +1078,7 @@ namespace bpkg
     //
     vector<config_variable> config_variables;
 
-    // SHA256 checksum of variables (names and values) referred to by the
+    // XXH64 checksum of variables (names and values) referred to by the
     // config_variables member.
     //
     std::string config_checksum;

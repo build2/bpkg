@@ -79,10 +79,10 @@ namespace bpkg
   // src/
   // `-- libfoo-1.2.3/
   //
-  // The directories inside metadata/ are abbreviated SHA256 hashes of
-  // repository URLs. Note that the signature.manifest files are not stored:
-  // the signature is verified immediately after downloading and the checksum
-  // is stored in the database.
+  // The directories inside metadata/ are XXH64 hashes of repository URLs.
+  // Note that the signature.manifest files are not stored: the signature is
+  // verified immediately after downloading and the checksum is stored in the
+  // database.
   //
   // The package archive directory is shared among all the repositories,
   // meaning that if two repositories contain the same package version, we

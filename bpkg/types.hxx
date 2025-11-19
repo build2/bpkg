@@ -34,6 +34,7 @@
 #include <libbutl/path.hxx>
 #include <libbutl/uuid.hxx>
 #include <libbutl/uuid-io.hxx>
+#include <libbutl/xxh64.hxx>
 #include <libbutl/sha256.hxx>
 #include <libbutl/process.hxx>
 #include <libbutl/utility.hxx>         // icase_compare_string,
@@ -137,6 +138,10 @@ namespace bpkg
   using butl::sha256;
   using butl::sha256_to_fingerprint;
   using butl::fingerprint_to_sha256;
+
+  // <libbutl/xxh64.hxx>
+  //
+  using butl::xxh64;
 
   // <libbutl/process.hxx>
   //

@@ -114,7 +114,7 @@ namespace bpkg
     //
     vector<config_variable> config_sources; // Note: name and source.
 
-    // SHA256 checksum of variables (names and values) referred to by the
+    // XXH64 checksum of variables (names and values) referred to by the
     // config_sources member.
     //
     string config_checksum;

@@ -355,6 +355,9 @@ namespace bpkg
                     const optional<string>& pem,
                     const repository_location& rl)
   {
+    // Let's use the cryptographically strong sha256() rather than the fast
+    // xxh64() for calculating ids of the dummy certificates.
+    //
     return pem
       ? real_fingerprint (co, *pem, rl)
       : fingerprint {string (),

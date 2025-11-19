@@ -4751,7 +4751,8 @@ namespace bpkg
 
                   if (sp != nullptr                          &&
                       sp->state == package_state::configured &&
-                      sp->config_checksum != ps.config_checksum ())
+                      sp->config_checksum !=
+                      ps.config_checksum (sp->config_checksum.size ()))
                   {
                     b->flags |= build_package::adjust_reconfigure;
                   }
@@ -6551,7 +6552,8 @@ namespace bpkg
 
           if (sp != nullptr                          &&
               sp->state == package_state::configured &&
-              sp->config_checksum != ps.config_checksum ())
+              sp->config_checksum !=
+              ps.config_checksum (sp->config_checksum.size ()))
           {
             b->flags |= build_package::adjust_reconfigure;
           }
@@ -7355,7 +7357,7 @@ namespace bpkg
         // On the second pass calculate the checksum of all the negotiated
         // clusters.
         //
-        sha256 cs;
+        xxh64 cs;
         for (postponed_configuration& pcfg: postponed_cfgs)
         {
           if (pcfg.negotiated && *pcfg.negotiated)

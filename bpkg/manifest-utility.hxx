@@ -154,10 +154,18 @@ namespace bpkg
   // implementation). In the former case it is assumed that the package info
   // has been retrieved with the b_info_flags::subprojects flag.
   //
+  // @@ TMP Pass the current manifest checksum length when calculate the new
+  //        manifest checksum for change detection (see
+  //        package_skeleton::config_checksum() for the reasoning).
+  //
+  //        Remove the 'n' argument some time after the toolchain 0.18.0 is
+  //        released.
+  //
   string
   package_checksum (const common_options&,
                     const dir_path& src_dir,
-                    const package_info*);
+                    const package_info*,
+                    size_t n = 16);
 
   // Calculate the checksum of the buildfiles using the *-build manifest
   // values and, if the package source directory is specified (not empty),
@@ -166,13 +174,21 @@ namespace bpkg
   // the alt_naming flag is specified, then verify the package's buildfile
   // naming scheme against its value and fail on mismatch.
   //
+  // @@ TMP Pass the current buildfiles checksum length when calculate the new
+  //        buildfiles checksum for change detection (see
+  //        package_skeleton::config_checksum() for the reasoning).
+  //
+  //        Remove the 'n' argument some time after the toolchain 0.18.0 is
+  //        released.
+  //
   string
   package_buildfiles_checksum (const optional<string>& bootstrap_build,
                                const optional<string>& root_build,
                                const vector<buildfile>& buildfiles,
                                const dir_path& src_dir = {},
                                const vector<path>& buildfile_paths = {},
-                               optional<bool> alt_naming = nullopt);
+                               optional<bool> alt_naming = nullopt,
+                               size_t n = 16);
 
   // Load the package's buildfiles for unspecified manifest values. Throw
   // std::runtime_error for underlying errors (unable to find bootstrap.build,
