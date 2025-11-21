@@ -4740,23 +4740,6 @@ namespace bpkg
                                 << pkg.available_name_version_db ()
                                 << " is already (being) recursively "
                                 << "collected, skipping";});
-
-                // Unless the dependency collection has been postponed or it
-                // is already being reconfigured, reconfigure it if its
-                // configuration changes.
-                //
-                if (!b->recursive_collection_postponed () && !b->reconfigure ())
-                {
-                  const shared_ptr<selected_package>& sp (b->selected);
-
-                  if (sp != nullptr                          &&
-                      sp->state == package_state::configured &&
-                      sp->config_checksum !=
-                      ps.config_checksum (sp->config_checksum.size ()))
-                  {
-                    b->flags |= build_package::adjust_reconfigure;
-                  }
-                }
               }
 
               return true;
@@ -6537,27 +6520,6 @@ namespace bpkg
           l5 ([&]{trace << "dependency " << b->available_name_version_db ()
                         << " is already (being) recursively collected, "
                         << "skipping";});
-
-        // Unless the dependency collection has been postponed or it is
-        // already being reconfigured, reconfigure it if its configuration
-        // changes.
-        //
-        if (!b->recursive_collection_postponed () && !b->reconfigure ())
-        {
-          const shared_ptr<selected_package>& sp (b->selected);
-
-          assert (b->skeleton); // Should have been init'ed above.
-
-          package_skeleton& ps (*b->skeleton);
-
-          if (sp != nullptr                          &&
-              sp->state == package_state::configured &&
-              sp->config_checksum !=
-              ps.config_checksum (sp->config_checksum.size ()))
-          {
-            b->flags |= build_package::adjust_reconfigure;
-          }
-        }
       }
 
       // Continue processing dependents with this config.
@@ -6910,13 +6872,65 @@ namespace bpkg
                                      apc,
                                      pc);
 
-            // If collect() returns (instead of throwing), this means it
-            // processed everything that was postponed.
+            // If collect_build_postponed() returns (instead of throwing),
+            // this means it processed everything that was postponed.
             //
             assert (postponed_repo.empty ()      &&
                     postponed_cfgs.negotiated () &&
                     postponed_alts.empty ()      &&
                     !postponed_deps.has_bogus ());
+
+            // Now, as all the configuration clusters are negotiated, go
+            // through their already configured dependencies and reconfigure
+            // those which have a negotiated configuration that differs from
+            // the current one. Skip the already being reconfigured
+            // dependencies (up/down-graded, etc).
+            //
+            // Why don't we set the adjust_reconfigure flag for such packages
+            // right after they are recursively collected as the dependencies
+            // of an (up-)negotiated cluster? The problem is that the
+            // dependency's configuration may not be final at this time if
+            // it's recursive collection is postponed for some reason.
+            //
+            if (pcfg == nullptr) // Outermost collect_build_postponed() call?
+            {
+              for (const postponed_configuration& pc: postponed_cfgs)
+              {
+                for (const package_key& p: pc.dependencies)
+                {
+                  build_package* b (entered_build (p));
+
+                  // Wouldn't be here otherwise.
+                  //
+                  assert (b != nullptr            &&
+                          b->recursive_collection &&
+                          !b->recursive_collection_postponed ());
+
+                  const shared_ptr<selected_package>& sp (b->selected);
+
+                  if (sp != nullptr                          &&
+                      sp->state == package_state::configured &&
+                      !b->reconfigure ())
+                  {
+                    assert (b->skeleton); // Wouldn't be here otherwise.
+
+                    package_skeleton& ps (*b->skeleton);
+
+                    if (sp->config_checksum !=
+                        ps.config_checksum (sp->config_checksum.size ()))
+                    {
+                      l5 ([&]{trace << "negotiated configuration of dependency "
+                                    << b->available_name_version_db ()
+                                    << " in cluster " << pc << " differs "
+                                    << "from the current one, force "
+                                    << "reconfiguration";});
+
+                      b->flags |= build_package::adjust_reconfigure;
+                    }
+                  }
+                }
+              }
+            }
 
             l5 ([&]{trace << "end" << trace_suffix;});
 

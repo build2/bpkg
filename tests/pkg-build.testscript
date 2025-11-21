@@ -295,6 +295,7 @@
 # |   |-- fux-1.0.0.tar.gz      -> libfoo
 # |   |-- fix-0.1.0.tar.gz      -> foo == 0.1.0
 # |   |-- fix-1.0.0.tar.gz      -> foo {require {config.foo.extras=true}}
+# |   |-- fex-0.0.1.tar.gz      -> fux
 # |   |-- fex-0.1.0.tar.gz      -> fux {require {config.fux.extras=true}}
 # |   |-- fex-1.0.0.tar.gz      -> foo, libfoo {require {config.libfoo.extras=true}}
 # |   |-- bar-0.1.0.tar.gz      -> libbar == 0.1.0 {require {config.libbar.extras=true}}
@@ -8551,10 +8552,6 @@ test.arguments += --sys-no-query
           %.*
           EOO
 
-        # @@ Strangely, if upgrade with -ur instead of ?libfoo, then status
-        #    prints 'libfoo configured !2.0.0' instead of
-        #    'libfoo configured 2.0.0'.
-        #
         $* ?libfoo 2>>~%EOE%
           disfigured tex/1.0.0
           disfigured libfoo/1.0.0
@@ -9431,6 +9428,101 @@ test.arguments += --sys-no-query
         $pkg_drop fex
       }
 
+      : reconf-existing-dep
+      :
+      : Regression test for GH issue #499
+      :
+      {
+        $clone_cfg
+
+        #  Dependencies:
+        #
+        #  fex/0.0.1: depends: fux
+        #  fex/0.1.0: depends: fux(c)
+        #
+        #  fux: depends: libfoo(c) ?
+        #
+        $* fex/0.0.1 ?fux/0.2.0 +{ config.fux.network=true } 2>!
+
+        $pkg_status -r >>EOO
+          !fex configured !0.0.1 available 1.0.0 0.1.0
+            fux configured !0.2.0 available 1.0.0
+          EOO
+
+        cat cfg/fux-0.2.0/build/config.build >>~%EOO%
+          %.*
+
+          config.fux.extras = false
+          config.fux.network = true
+          EOO
+
+        $* fex/0.1.0 2>&1 | $filter 2>>~%EOE%
+          %.*
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add fex/0.1.0
+          trace: collect_build_prerequisites: begin fex/0.1.0
+          trace: collect_build: add fux/0.2.0
+          trace: collect_build_prerequisites: cfg-postpone dependency fux/0.2.0 of dependent fex/0.1.0
+          trace: postponed_configurations::add: create {fex | fux->{fex/1,1}}
+          trace: collect_build_prerequisites: postpone fex/0.1.0
+          trace: collect_build_postponed (0): begin
+          trace: collect_build_postponed (1): begin {fex | fux->{fex/1,1}}
+          trace: collect_build_postponed (1): skip being built existing dependent fex of dependency fux
+          trace: collect_build_postponed (1): cfg-negotiate begin {fex | fux->{fex/1,1}}
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin fux/0.2.0
+          trace: collect_build: add libfoo/1.0.0
+          trace: collect_build_prerequisites: cfg-postpone dependency libfoo/1.0.0 of dependent fux/0.2.0
+          trace: postponed_configurations::add: create {fux | libfoo->{fux/1,1}}
+          trace: collect_build_prerequisites: postpone fux/0.2.0
+          trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fex/0.1.0
+          trace: collect_build_prerequisites: resume fex/0.1.0
+          trace: collect_build_prerequisites: end fex/0.1.0
+          trace: collect_build_postponed (1): cfg-negotiate end {fex | fux->{fex/1,1}}!
+          trace: collect_build_postponed (2): begin {fux | libfoo->{fux/1,1}}
+          trace: collect_build_postponed (2): cfg-negotiate begin {fux | libfoo->{fux/1,1}}
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependencies
+          trace: collect_build_prerequisites: begin libfoo/1.0.0
+          trace: collect_build_prerequisites: end libfoo/1.0.0
+          trace: collect_build_postponed (2): recursively collect cfg-negotiated dependents
+          trace: collect_build_postponed (2): select cfg-negotiated dependency alternative for dependent fux/0.2.0
+          trace: collect_build_prerequisites: resume fux/0.2.0
+          trace: collect_build_prerequisites: end fux/0.2.0
+          trace: collect_build_postponed (2): cfg-negotiate end {fux | libfoo->{fux/1,1}}!
+          trace: collect_build_postponed (2): end {fux | libfoo->{fux/1,1}}
+          trace: collect_build_postponed (1): end {fex | fux->{fex/1,1}}
+          trace: collect_build_postponed (0): negotiated configuration of dependency fux/0.2.0 in cluster {fex | fux->{fex/1,1}}! differs from the current one, force reconfiguration
+          trace: collect_build_postponed (0): end
+          trace: execute_plan: simulate: yes
+          %.*
+          build plan:
+            new libfoo/1.0.0 (required by fux)
+              config.libfoo.extras=true (set by fux)
+            reconfigure/update fux/0.2.0 (required by fex)
+              config.fux.network=true (user configuration)
+              config.fux.extras=true (set by fex)
+            upgrade fex/0.1.0
+          trace: execute_plan: simulate: no
+          %.*
+          EOE
+
+        $pkg_status -r >>EOO
+          !fex configured !0.1.0 available 1.0.0
+            fux configured !0.2.0 available 1.0.0
+              libfoo configured 1.0.0
+          EOO
+
+        cat cfg/fux-0.2.0/build/config.build >>~%EOO%
+          %.*
+
+          config.fux.extras = true
+          config.fux.network = true
+          EOO
+
+        $pkg_drop fex
+      }
+
       : reconf-existing-dept
       :
       {{
@@ -9465,9 +9557,9 @@ test.arguments += --sys-no-query
 
             cat cfg/fux-1.0.0/build/config.build >>~%EOO%
               %.*
+
               config.fux.extras = true
               config.fux.network = false
-              %.*
               EOO
 
             $* libfoo/0.1.0 2>!
@@ -9483,9 +9575,9 @@ test.arguments += --sys-no-query
 
             cat cfg/fux-1.0.0/build/config.build >>~%EOO%
               %.*
+
               config.fux.extras = true
               config.fux.network = false
-              %.*
               EOO
 
             $pkg_drop fex fux libfoo
@@ -10224,6 +10316,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: end foo/1.0.0
           trace: collect_build_postponed (1): cfg-negotiate end {foo | libfoo->{foo/1,1}}!
           trace: collect_build_postponed (1): end {foo | libfoo->{foo/1,1}}
+          trace: collect_build_postponed (0): negotiated configuration of dependency libfoo/1.0.0 in cluster {foo | libfoo->{foo/1,1}}! differs from the current one, force reconfiguration
           trace: collect_build_postponed (0): end
           %.*
           trace: execute_plan: simulate: yes
@@ -13549,6 +13642,7 @@ test.arguments += --sys-no-query
           trace: collect_build_postponed (3): end {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
           trace: collect_build_postponed (2): end {tez | libbox->{tez/1,1}}
           trace: collect_build_postponed (1): end {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (0): negotiated configuration of dependency libfoo/1.0.0 in cluster {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}! differs from the current one, force reconfiguration
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
@@ -13869,6 +13963,7 @@ test.arguments += --sys-no-query
           trace: collect_build_postponed (3): end {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}
           trace: collect_build_postponed (2): end {tez | libbox->{tez/1,1}}
           trace: collect_build_postponed (1): end {tvz | toz->{tvz/1,1}}
+          trace: collect_build_postponed (0): negotiated configuration of dependency libfoo/1.0.0 in cluster {bax toz tvz | libfoo->{bax/1,1 toz/1,1 tvz/3,1}}! differs from the current one, force reconfiguration
           trace: collect_build_postponed (0): end
           trace: execute_plan: simulate: yes
           %.*
@@ -15343,6 +15438,19 @@ test.arguments += --sys-no-query
             #
             $* tex --verbose 1 2>!
 
+            $pkg_status -r >>EOO
+              !tex configured 1.0.0
+                libbar configured 1.0.0
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/tex-1.0.0/build/config.build >>~%EOO%
+              %.*
+
+              config.tex.extras = false
+              config.tex.libfoo_extras = true
+              EOO
+
             # Build new dependency of an existing dependent.
             #
             $* tix 2>&1 | $filter 2>>~%EOE%
@@ -15431,10 +15539,14 @@ test.arguments += --sys-no-query
               trace: collect_build_postponed (3): end {tex | libfoo->{tex/2,1}}
               trace: collect_build_postponed (2): end {tix | tex->{tix/2,1}}
               trace: collect_build_postponed (1): end {tix | libbar->{tix/1,1}}
+              trace: collect_build_postponed (0): negotiated configuration of dependency tex/1.0.0 in cluster {tix | tex->{tix/2,1}}! differs from the current one, force reconfiguration
               trace: collect_build_postponed (0): end
               trace: execute_plan: simulate: yes
               %.*
               build plan:
+                reconfigure/update tex/1.0.0 (required by tix)
+                  config.tex.extras=true (set by tix)
+                  config.tex.libfoo_extras=true (set by tex)
                 new tix/1.0.0
               trace: execute_plan: simulate: no
               %.*
@@ -15449,6 +15561,13 @@ test.arguments += --sys-no-query
                 !tex configured 1.0.0
                   libbar configured 1.0.0
                   libfoo configured 1.0.0
+              EOO
+
+            cat cfg/tex-1.0.0/build/config.build >>~%EOO%
+              %.*
+
+              config.tex.extras = true
+              config.tex.libfoo_extras = true
               EOO
 
             # Downgrade the existing dependency of an existing dependent.
@@ -15540,6 +15659,12 @@ test.arguments += --sys-no-query
               trace: execute_plan: simulate: no
               %.*
               EOE
+
+            cat cfg/tex-0.3.0/build/config.build >>~%EOO%
+              %.*
+
+              config.tex.extras = true
+              EOO
 
             $pkg_drop tex tix
           }
@@ -17364,6 +17489,19 @@ test.arguments += --sys-no-query
             #
             $* dex --verbose 1 2>!
 
+            $pkg_status -r >>EOO
+              !dex configured 1.0.0
+                bar configured 1.0.0
+                  libbar configured 1.0.0
+                libfoo configured 1.0.0
+              EOO
+
+            cat cfg/dex-1.0.0/build/config.build >>~%EOO%
+              %.*
+
+              config.dex.extras = false
+              EOO
+
             $* dix 2>&1 | $filter 2>>~%EOE%
               %.*
               trace: pkg_build: refine package collection/plan execution from scratch
@@ -17525,12 +17663,15 @@ test.arguments += --sys-no-query
               trace: collect_build_postponed (3): end {dix | dox->{dix/3,1}}
               trace: collect_build_postponed (2): end {dix | libbox->{dix/2,1}}
               trace: collect_build_postponed (1): end {dix | libbar->{dix/1,1}}
+              trace: collect_build_postponed (0): negotiated configuration of dependency dex/1.0.0 in cluster {dox | dex->{dox/1,1}}! differs from the current one, force reconfiguration
               trace: collect_build_postponed (0): end
               trace: execute_plan: simulate: yes
               %.*
               build plan:
                 new libbox/1.0.0 (required by dix)
                   config.libbox.extras=true (set by dix)
+                reconfigure/update dex/1.0.0 (required by dox)
+                  config.dex.extras=true (set by dox)
                 new dox/1.0.0 (required by dix)
                   config.dox.extras=true (set by dix)
                 new dix/1.0.0
@@ -17551,6 +17692,12 @@ test.arguments += --sys-no-query
                     libfoo configured 1.0.0
                 libbar configured 1.0.0
                 libbox configured 1.0.0
+              EOO
+
+            cat cfg/dex-1.0.0/build/config.build >>~%EOO%
+              %.*
+
+              config.dex.extras = true
               EOO
 
             # @@ Note that if --drop-dependent is unspecified, the following
@@ -22054,6 +22201,7 @@ test.arguments += --sys-no-query
        trace: collect_build_postponed (3): end {bax toz | libbox->{bax/2,1} libbar->{bax/2,1 toz/2,1}}
        trace: collect_build_postponed (2): end {toz tvz | libfoo->{toz/1,1 tvz/3,1}}
        trace: collect_build_postponed (1): end {tvz | toz->{tvz/1,1}}
+       trace: collect_build_postponed (0): negotiated configuration of dependency libfoo/1.0.0 in cluster {bax^ tex toz tvz | libfoo->{bax/1,1 tex/2,1 toz/1,1 tvz/3,1}}! differs from the current one, force reconfiguration
        trace: collect_build_postponed (0): end
        trace: execute_plan: simulate: yes
        %.*
