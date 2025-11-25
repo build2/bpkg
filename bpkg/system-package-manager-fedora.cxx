@@ -308,8 +308,9 @@ namespace bpkg
     // Lists all packages: installed, available, or both.
     //
     // The --quiet option makes sure we don't get 'Last metadata expiration
-    // check: <timestamp>' printed to stderr. It does not appear to affect
-    // error diagnostics (try specifying a single unknown package).
+    // check: <timestamp>' or 'Updating Subscription Management repositories'
+    // printed to stdout. It does not appear to affect error diagnostics (try
+    // specifying a single unknown package).
     //
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
@@ -594,7 +595,16 @@ namespace bpkg
       catch (const io_error& e)
       {
         if (pr.wait ())
-          fail << "unable to read " << args[0] << " list output: " << e;
+        {
+          diag_record dr (fail);
+          dr << "unable to read dnf list output: " << e;
+
+          if (verb < 3)
+          {
+            dr << info << "command line: ";
+            print_process (dr, pe, args);
+          }
+        }
 
         // Fall through.
       }
@@ -602,7 +612,7 @@ namespace bpkg
       if (!pr.wait ())
       {
         diag_record dr (fail);
-        dr << args[0] << " list exited with non-zero code";
+        dr << "dnf list exited with non-zero code";
 
         if (verb < 3)
         {
@@ -902,9 +912,18 @@ namespace bpkg
       catch (const io_error& e)
       {
         if (pr.wait ())
-          fail << "unable to read " << args[0] << " repoquery "
-               << (dnf5 () ? "--providers-of=requires" : "--requires")
-               << " output: " << e;
+        {
+          diag_record dr (fail);
+          dr << "unable to read dnf repoquery "
+             << (dnf5 () ? "--providers-of=requires" : "--requires")
+             << " output: " << e;
+
+          if (verb < 3)
+          {
+            dr << info << "command line: ";
+            print_process (dr, pe, args);
+          }
+        }
 
         // Fall through.
       }
@@ -912,7 +931,9 @@ namespace bpkg
       if (!pr.wait ())
       {
         diag_record dr (fail);
-        dr << args[0] << " repoquery --requires exited with non-zero code";
+        dr << "dnf repoquery "
+           << (dnf5 () ? "--providers-of=requires" : "--requires")
+           << " exited with non-zero code";
 
         if (verb < 3)
         {
