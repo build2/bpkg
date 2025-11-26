@@ -305,12 +305,85 @@ namespace bpkg
 
     assert (n != 0 && n <= pis.size ());
 
-    // Lists all packages: installed, available, or both.
+    // Note that it is preferable to run dnf-list specifying --cacheonly
+    // option to avoid any network interaction for the performance reasons and
+    // to make the function usable in the offline mode. That, however, may not
+    // be possible if there is no repositories metadata cached yet. Thus, the
+    // overall plan is as follows:
     //
-    // The --quiet option makes sure we don't get 'Last metadata expiration
-    // check: <timestamp>' or 'Updating Subscription Management repositories'
-    // printed to stdout. It does not appear to affect error diagnostics (try
-    // specifying a single unknown package).
+    // - Detect if the repositories metadata is cached.
+    //
+    // - If it is cached, then run dnf-list with the --cacheonly option.
+    //
+    // - Otherwise, if we are in the offline mode, still run dnf-list with the
+    //   --cacheonly option, expecting the command to issue the respective
+    //   diagnostics and fail.
+    //
+    // - Otherwise, run dnf-list without --cacheonly option.
+    //
+
+    // Detect if the repositories metadata is cached.
+    //
+    // Note that there is no dnf command that can give a straight answer to
+    // the question whether all the repositories metadata is cached or
+    // not. Thus, we will just run dnf-list with the --cacheonly option for
+    // the rpm package, redirecting all the streams to /dev/null. If this
+    // command fails, we assume that the repositories metadata is not
+    // cached. If we are wrong and it fails for some other reason, then
+    // something is probably severely damaged and the subsequent dnf-list
+    // command without --cacheonly option will likely to also fail.
+    //
+    // Also note that in the offline and simulation modes we actually don't
+    // need to check for the metadata cache presence and can go straight to
+    // running dnf-list with the --cacheonly option.
+    //
+    bool cacheonly (true);
+
+    if (!offline_ && !simulate_)
+    {
+      strings args_storage;
+      pair<cstrings, const process_path&> args_pp (
+        dnf_common ("list",
+                    modify_system,
+                    nullopt /* fetch_timeout */,
+                    false /* progress */,
+                    false /* interactive */,
+                    args_storage));
+
+      cstrings& args (args_pp.first);
+      const process_path& pp (args_pp.second);
+
+      args.push_back ("--cacheonly");
+
+      // Decrease the amount of the output to scrap.
+      //
+      args.push_back ("--quiet");
+
+      args.push_back ("rpm");
+      args.push_back (nullptr);
+
+      try
+      {
+        if (verb >= 3)
+          print_process (args);
+
+        // Optimize by redirecting stdout to stderr and stderr to /dev/null.
+        //
+        process pr (pp, args, -2 /* stdin */, 2 /* stdout */, -2 /* stderr */);
+        cacheonly = pr.wait ();
+      }
+      catch (const process_error& e)
+      {
+        error << "unable to execute " << args[0] << ": " << e;
+
+        if (e.child)
+          exit (1);
+
+        throw failed ();
+      }
+    }
+
+    // Lists all packages: installed, available, or both.
     //
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
@@ -324,8 +397,21 @@ namespace bpkg
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
 
-    args.push_back ("--cacheonly"); // Don't automatically update the metadata.
-    args.push_back ("--quiet");
+    // If we run without --cacheonly option, then don't pass the --quiet
+    // option either to enable the progress indication for potential network
+    // interactions.
+    //
+    // Note that besides the download progress lines for the repositories
+    // metadata, the --quiet option also suppresses the 'Last metadata
+    // expiration check: <timestamp>' and 'Updating Subscription Management
+    // repositories' lines. It does not appear to affect error diagnostics
+    // (try specifying a single unknown package).
+    //
+    if (cacheonly)
+    {
+      args.push_back ("--cacheonly");
+      args.push_back ("--quiet");
+    }
 
     for (size_t i (0); i != n; ++i)
     {
@@ -366,6 +452,28 @@ namespace bpkg
 
       if (verb >= 3)
         print_process (pe, args);
+
+      // Note that dnf-list prints the progress indication lines to stdout,
+      // prior to the packages information. Thus, we consider the lines which
+      // come before the 'Installed packages' and 'Available packages' lines
+      // as progress indication. We skip them in the (quiet) cacheonly mode
+      // and print them to stderr otherwise, unless the progress indication is
+      // disabled.
+      //
+      bool progress (false);
+
+      if (!cacheonly)
+      {
+        bool np (progress_ && !*progress_);
+        bool pr (progress_ &&  *progress_);
+
+        progress = ((verb && !np) || pr);
+      }
+
+      // Attribute the potential progress indication.
+      //
+      if (progress)
+        text << "fetching " << os_release.name_id << " repositories metadata";
 
       // Redirect stdout to a pipe. For good measure also redirect stdin to
       // /dev/null to make sure there are no prompts of any kind.
@@ -484,8 +592,15 @@ namespace bpkg
               continue;
             }
 
+            // Handle the progress indication lines.
+            //
             if (!installed)
-              fail << "unexpected line '" << l << "'";
+            {
+              if (progress)
+                text << l;
+
+              continue;
+            }
 
             // Parse the package name.
             //
@@ -696,10 +811,6 @@ namespace bpkg
     //
     string spec (name + '-' + ver + '.' + qarch);
 
-    // The --quiet option makes sure we don't get 'Last metadata expiration
-    // check: <timestamp>' printed to stderr. It does not appear to affect
-    // error diagnostics (try specifying an unknown option).
-    //
     strings args_storage;
     pair<cstrings, const process_path&> args_pp (
       dnf_common ("repoquery",
@@ -712,7 +823,15 @@ namespace bpkg
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
 
-    args.push_back ("--cacheonly"); // Don't automatically update the metadata.
+    // Don't automatically update the metadata.
+    //
+    // Note that dnf_list() must have already been called, so we can pass this
+    // option unconditionally.
+    //
+    args.push_back ("--cacheonly");
+
+    // Make sure we only get the package lines (see dnf_list() for details).
+    //
     args.push_back ("--quiet");
 
     // Resolve requirements to packages/versions.
@@ -1398,6 +1517,11 @@ namespace bpkg
     cstrings& args (args_pp.first);
     const process_path& pp (args_pp.second);
 
+    // Don't automatically update the metadata.
+    //
+    // Note that dnf_list() must have already been called, so we can pass this
+    // option unconditionally.
+    //
     args.push_back ("--cacheonly");
 
     for (const string& p: pkgs)
