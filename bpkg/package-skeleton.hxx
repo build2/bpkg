@@ -52,13 +52,14 @@ namespace bpkg
     // The disfigure argument should indicate whether the package is being
     // reconfigured from scratch (--disfigure).
     //
-    // The config_vars argument contains configuration variables specified by
-    // the user in this bpkg execution. Optional config_srcs is used to
-    // extract (from config.build or equivalent) configuration variables
-    // specified by the user in previous bpkg executions. It should be NULL if
-    // this is the first build of the package. The extracted variables are
-    // merged with config_vars and the combined result is returned by
-    // collect_config() below.
+    // The config_vars argument contains configuration variable overrides
+    // (potentially prefixed with '!', '.../', etc) specified by the user in
+    // this bpkg execution. Optional config_srcs is used to extract (from
+    // config.build or equivalent) configuration variables specified by the
+    // user in previous bpkg executions. It should be NULL if this is the
+    // first build of the package. The extracted variables are merged with
+    // config_vars and the combined result is returned by collect_config()
+    // below.
     //
     // @@ TODO: speaking of the "config.build or equivalent" part, the
     //    equivalent is likely to be extracted configuration (probably saved
@@ -200,9 +201,10 @@ namespace bpkg
     void
     load_old_config ();
 
-    // Return the accumulated configuration variables (first) and
-    // configuration variable sources (second). Note that the arrays are not
-    // necessarily parallel (config_vars may contain config.*.develop, etc).
+    // Return the accumulated configuration variable overrides (first;
+    // potentially prefixed with '!', '.../', etc) and configuration variable
+    // sources (second). Note that the arrays are not necessarily parallel
+    // (config_vars may contain config.*.develop, etc).
     //
     // Note that the dependent and reflect variables are merged with
     // config_vars/config_srcs and should be used instead rather than in
@@ -296,9 +298,9 @@ namespace bpkg
 
     strings config_vars_;
 
-    // Configuration sources for variables in config_vars_ (parallel). Can
-    // only contain config_source::{user,dependent} entries (see
-    // load_old_config_impl() for details).
+    // Configuration sources for variable overrides in config_vars_
+    // (parallel). Can only contain config_source::{user,dependent} entries
+    // (see load_old_config_impl() for details).
     //
     vector<config_source> config_var_srcs_;
 
