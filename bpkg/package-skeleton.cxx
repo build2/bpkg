@@ -33,9 +33,35 @@ using namespace butl;
 
 namespace bpkg
 {
+  // Strip the prefix ('!', '.../', etc) from a variable override. If the
+  // prefix is present, return the reference to the storage argument
+  // containing the result. Otherwise, return the reference to the original
+  // override string.
+  //
+  static inline const string&
+  strip_variable_prefix (const string& vo, string& storage)
+  {
+    size_t n (vo[0] == '!' ? 1 : 0);       // Prefix length.
+    size_t p (vo.find_first_of ("=/", n));
+
+    assert (p != string::npos); // Wouldn't be here otherwise.
+
+    if (vo[p] == '/')
+      n = p + 1;
+
+    if (n != 0)
+    {
+      storage.assign (vo, n, vo.size () - n);
+      return storage;
+    }
+    else
+      return vo;
+  }
+
   // Check whether the specified configuration variable override has a project
-  // variable (i.e., its name starts with config.<project>). If the last
-  // argument is not NULL, then set it to the length of the variable portion.
+  // variable (i.e., its name starts with config.<project>). The override
+  // should not have a prefix. If the last argument is not NULL, then set it
+  // to the length of the variable portion.
   //
   // Note that some user-specified variables may have qualifications
   // (global, scope, etc) but there is no reason to expect any project
@@ -66,6 +92,17 @@ namespace bpkg
     }
 
     return false;
+  }
+
+  // Same as above, but strip the override prefix, if present.
+  //
+  static inline bool
+  project_override (const string& vo,
+                    const string& p,
+                    string& storage,
+                    size_t* l = nullptr)
+  {
+    return project_override (strip_variable_prefix (vo, storage), p, l);
   }
 
   // Check whether the specified configuration variable name is a project
@@ -629,10 +666,11 @@ namespace bpkg
             available == nullptr         &&
             system);
 
+    string sv; // Variable storage.
     if (find_if (config_vars_.begin (), config_vars_.end (),
-                 [this] (const string& v)
+                 [&sv, this] (const string& vo)
                  {
-                   return project_override (v, var_prefix_);
+                   return project_override (vo, var_prefix_, sv);
                  }) == config_vars_.end ())
       return;
 
@@ -654,8 +692,10 @@ namespace bpkg
       scope& gs (ctx.global_scope.rw ());
       auto& vp (gs.var_pool (true /* public */));
 
-      for (const string& v: config_vars_)
+      for (const string& vo: config_vars_)
       {
+        const string& v (strip_variable_prefix (vo, sv));
+
         size_t vn;
         if (!project_override (v, var_prefix_, &vn))
           continue;
@@ -1870,13 +1910,16 @@ namespace bpkg
     if (!loaded_old_config_)
       load_old_config_impl ();
 
+    string sv; // Variable storage.
     return (dependent_vars_.empty () &&
             reflect_.empty ()        &&
             find_if (config_vars_.begin (), config_vars_.end (),
-                     [this] (const string& v)
+                     [&sv, this] (const string& vo)
                      {
                        // See print_config() for details.
                        //
+                       const string& v (strip_variable_prefix (vo, sv));
+
                        size_t vn;
                        if (project_override (v, var_prefix_, &vn))
                        {
@@ -1928,9 +1971,11 @@ namespace bpkg
 
     // First comes the user configuration.
     //
+    string sv; // Variable storage.
     for (size_t i (0); i != config_vars_.size (); ++i)
     {
-      const string& v (config_vars_[i]);
+      const string& vo (config_vars_[i]);
+      const string& v  (strip_variable_prefix (vo, sv));
 
       // To reduce the noise (e.g., during bdep-init), skip
       // config.<project>.develop if the package doesn't use it. Also skip
@@ -1963,8 +2008,10 @@ namespace bpkg
       case config_source::reflect: assert (false); // Must never be loaded.
       }
 
-      print (v) << " (" << (system ? "expected " : "") << s
-                << " configuration)";
+      // Note: print the override with a potential prefix.
+      //
+      print (vo) << " (" << (system ? "expected " : "") << s
+                 << " configuration)";
     }
 
     // Next dependent configuration.
@@ -2054,9 +2101,12 @@ namespace bpkg
         //   currently don't save the expected configuration for system
         //   packages, we will probably need to implement that in the future.
         //
+        string sv; // Variable storage.
         size_t pn (var_prefix_.size ());
-        for (const string& v: config_vars_)
+        for (const string& vo: config_vars_)
         {
+          const string& v (strip_variable_prefix (vo, sv));
+
           size_t vn;
           if (project_override (v, var_prefix_, &vn))
           {
@@ -2071,7 +2121,17 @@ namespace bpkg
             vn = v.find_first_of ("=+ \t");
           }
 
-          string n (v, 0, vn);
+          assert (vn != string::npos); // Wouldn't be here otherwise.
+
+          string n; // Variable name.
+
+          if (&v == &sv)
+          {
+            sv.resize (vn); // Turn the variable assignment to just a name.
+            n = move (sv);
+          }
+          else
+            n.assign (v, 0, vn);
 
           // Check for a duplicate.
           //
@@ -2081,6 +2141,11 @@ namespace bpkg
                              return cv.name == n;
                            }));
 
+          // @@ Actually, we loose the override prefix information here ('!',
+          //    '.../', etc). So that on the package reconfiguration on some
+          //    later bpkg run the prefix will be missing. Should we add an
+          //    optional prefix member to config_variable?
+          //
           if (i == srcs.end ())
             srcs.push_back (config_variable {move (n), config_source::user});
         }
@@ -2152,10 +2217,15 @@ namespace bpkg
     {
       if (!config_vars_.empty ())
       {
-        cstrings vs;
+        // Note that we calculate the checksum over the original variable
+        // override, including a potential prefix.
+        //
+        string sv; // Variable storage.
         size_t pn (var_prefix_.size ());
-        for (const string& v: config_vars_)
+        for (const string& vo: config_vars_)
         {
+          const string& v (strip_variable_prefix (vo, sv));
+
           size_t vn;
           if (project_override (v, var_prefix_, &vn))
           {
@@ -2163,12 +2233,12 @@ namespace bpkg
             // bdep-init) if the package doesn't use it.
             //
             if (develop_ || v.compare (pn, vn - pn, ".develop") != 0)
-              cs.append (v);
+              cs.append (vo);
           }
           else
           {
             if (!system)
-              cs.append (v);
+              cs.append (vo);
           }
         }
       }
@@ -2386,6 +2456,10 @@ namespace bpkg
               // Doesn't really matter where we add them though conceptually
               // feels like old should go before new (and in the original
               // order).
+              //
+              // @@ Note that the resulting override will potentially be
+              //    missing the prefix (see collect_config() implementation
+              //    for details).
               //
               i = config_vars_.insert (
                 i,
