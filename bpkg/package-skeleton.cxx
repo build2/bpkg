@@ -143,6 +143,8 @@ namespace bpkg
   static build2::scope_map::iterator
   bootstrap (package_skeleton&, const strings&, bool old = false);
 
+  strings package_skeleton::global_config_vars;
+
   package_skeleton::
   ~package_skeleton ()
   {
@@ -326,6 +328,25 @@ namespace bpkg
         disfigure_ (df),
         config_srcs_ (df ? nullptr : css)
   {
+    // Verify that none of the global overrides apply to a configuration
+    // variable of this package.
+    //
+    {
+      size_t n (var_prefix_.size ());
+
+      for (const string& v: global_config_vars)
+      {
+        if (v.compare (1, n, var_prefix_) == 0)
+        {
+          char c (v[n + 1]);
+
+          if (c == '.' || strchr ("=+ \t", c) != nullptr)
+            fail << "global override of project-specific configuration "
+                 << "variable '" << v << "'";
+        }
+      }
+    }
+
     if (available != nullptr)
       assert (available->bootstrap_build); // Should have skeleton info.
     else
@@ -367,7 +388,9 @@ namespace bpkg
     if (available == nullptr)
       loaded_old_config_ = true;
     else
-      loaded_old_config_ = (config_srcs_ == nullptr && config_vars_.empty ());
+      loaded_old_config_ = (config_srcs_ == nullptr &&
+                            config_vars_.empty ()   &&
+                            global_config_vars.empty ());
 
     if (src_root)
     {
@@ -1870,8 +1893,9 @@ namespace bpkg
     if (!loaded_old_config_)
       load_old_config_impl ();
 
-    return (dependent_vars_.empty () &&
-            reflect_.empty ()        &&
+    return (dependent_vars_.empty ()                &&
+            reflect_.empty ()                       &&
+            (global_config_vars.empty () || system) &&
             find_if (config_vars_.begin (), config_vars_.end (),
                      [this] (const string& v)
                      {
@@ -1926,7 +1950,15 @@ namespace bpkg
     //    have kept them as reflect_variable_values rather than strings)?
     //    Maybe one day.
 
-    // First comes the user configuration.
+    // First comes the global user configuration.
+    //
+    if (!system)
+    {
+      for (const string& v: global_config_vars)
+        print (v) << " (user configuration)";
+    }
+
+    // Next the non-global user configuration.
     //
     for (size_t i (0); i != config_vars_.size (); ++i)
     {
@@ -2016,8 +2048,9 @@ namespace bpkg
     strings vars;
     vector<config_variable> srcs;
 
-    if (size_t n = (config_vars_.size () +
-                    dependent_vars_.size () +
+    if (size_t n = (global_config_vars.size () +
+                    config_vars_.size ()       +
+                    dependent_vars_.size ()    +
                     reflect_.size ()))
     {
       // For vars we will steal the first non-empty *_vars_. But for sources
@@ -2034,10 +2067,35 @@ namespace bpkg
         return string (v, 0, p);
       };
 
-      // Note that we assume the three sets of variables do not clash.
+      // Note that we assume the three sets of variables -- config (including
+      // global), dependent and reflect -- do not clash.
       //
 
-      // First comes the user configuration.
+      // First comes the global user configuration.
+      //
+      if (!global_config_vars.empty () && !system)
+      {
+        for (const string& v: global_config_vars)
+        {
+          size_t vn (v.find_first_of ("=+ \t", 1));
+          string n (v, 1, vn - 1);
+
+          // Check for a duplicate.
+          //
+          auto i (find_if (srcs.begin (), srcs.end (),
+                           [&n] (const config_variable& cv)
+                           {
+                             return cv.name == n;
+                           }));
+
+          if (i == srcs.end ())
+            srcs.push_back (config_variable {move (n), config_source::user});
+        }
+
+        vars = global_config_vars;
+      }
+
+      // Next the non-global user configuration.
       //
       if (!config_vars_.empty ())
       {
@@ -2085,7 +2143,15 @@ namespace bpkg
             srcs.push_back (config_variable {move (n), config_source::user});
         }
 
-        vars = move (config_vars_);
+        if (vars.empty ())
+          vars = move (config_vars_);
+        else
+        {
+          vars.reserve (n);
+          vars.insert (vars.end (),
+                       make_move_iterator (config_vars_.begin ()),
+                       make_move_iterator (config_vars_.end ()));
+        }
       }
 
       // Next dependent configuration.
@@ -2150,9 +2216,14 @@ namespace bpkg
 
     auto checksum = [this] (auto& cs) -> string
     {
+      if (!system)
+      {
+        for (const string& v: global_config_vars)
+          cs.append (v);
+      }
+
       if (!config_vars_.empty ())
       {
-        cstrings vs;
         size_t pn (var_prefix_.size ());
         for (const string& v: config_vars_)
         {
@@ -2219,14 +2290,15 @@ namespace bpkg
         build2_parse_cmdline (*co_);
 
       const strings& vs1 (*build2_cmd_vars);
-      const strings& vs2 (config_vars_);
-      const strings& vs3 (dependent_vars);  // Should not override.
-      const strings& vs4 (dependency_vars); // Should not override.
+      const strings& vs2 (global_config_vars);
+      const strings& vs3 (config_vars_);
+      const strings& vs4 (dependent_vars);     // Should not override.
+      const strings& vs5 (dependency_vars);    // Should not override.
 
       // Try to reuse both vector and string buffers.
       //
       cmd_vars_.resize (
-        1 + vs1.size () + vs2.size () + vs3.size () + vs4.size ());
+        1 + vs1.size () + vs2.size () + vs3.size () + vs4.size () + vs5.size ());
 
       size_t i (0);
       {
@@ -2254,6 +2326,7 @@ namespace bpkg
       for (const string& v: vs2) cmd_vars_[i++] = v;
       for (const string& v: vs3) cmd_vars_[i++] = v;
       for (const string& v: vs4) cmd_vars_[i++] = v;
+      for (const string& v: vs5) cmd_vars_[i++] = v;
 
       cmd_vars_cache_ = cache;
     }
@@ -2285,16 +2358,23 @@ namespace bpkg
           build2_parse_cmdline (*co_);
 
         const strings& vs1 (*build2_cmd_vars);
-        const strings& vs2 (config_vars_);
+        const strings& vs2 (global_config_vars);
+        const strings& vs3 (config_vars_);
 
         if (!disfigure_)
-          cmd_vars = (vs2.empty () ? &vs1 : vs1.empty () ? &vs2 : nullptr);
+          cmd_vars = (vs1.empty () && vs2.empty () ? &vs3 :
+                      vs1.empty () && vs3.empty () ? &vs2 :
+                      vs2.empty () && vs3.empty () ? &vs1 :
+                      nullptr);
 
         if (cmd_vars == nullptr)
         {
           // Note: the order is important (see merge_cmd_vars()).
           //
-          cmd_vars_.reserve ((disfigure_ ? 1 : 0) + vs1.size () + vs2.size ());
+          cmd_vars_.reserve ((disfigure_ ? 1 : 0) +
+                             vs1.size ()          +
+                             vs2.size ()          +
+                             vs3.size ());
 
           // If the package is being disfigured, then don't load config.build
           // at all.
@@ -2304,6 +2384,7 @@ namespace bpkg
 
           cmd_vars_.insert (cmd_vars_.end (), vs1.begin (), vs1.end ());
           cmd_vars_.insert (cmd_vars_.end (), vs2.begin (), vs2.end ());
+          cmd_vars_.insert (cmd_vars_.end (), vs3.begin (), vs3.end ());
 
           cmd_vars = &cmd_vars_;
         }
@@ -2372,7 +2453,7 @@ namespace bpkg
           {
           case variable_origin::override_:
             {
-              // Already in config_vars.
+              // Already in config_vars or global_config_vars.
               //
               // @@ TODO: theoretically, this could be an append/prepend
               //    override(s) and to make this work correctly we would need
@@ -2920,7 +3001,7 @@ namespace bpkg
       assert (mif.meta_operation_pre == nullptr);
       ctx.current_meta_operation (mif);
 
-      ctx.enter_project_overrides (rs, out_root, ctx.var_overrides);
+      ctx.enter_project_overrides (rs, out_root, ctx.var_overrides); // @@ ,&rs
 
       return rsi;
     }

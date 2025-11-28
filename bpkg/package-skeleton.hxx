@@ -53,12 +53,15 @@ namespace bpkg
     // reconfigured from scratch (--disfigure).
     //
     // The config_vars argument contains configuration variables specified by
-    // the user in this bpkg execution. Optional config_srcs is used to
+    // the user for this package in this bpkg execution. The global variable
+    // overrides, specified by the user by prefixing a configuration variable
+    // with the '!' character, are expected to already be saved into the
+    // global_config_vars static member. Optional config_srcs is used to
     // extract (from config.build or equivalent) configuration variables
     // specified by the user in previous bpkg executions. It should be NULL if
     // this is the first build of the package. The extracted variables are
-    // merged with config_vars and the combined result is returned by
-    // collect_config() below.
+    // merged with global_config_vars and config_vars and the combined result
+    // is returned by collect_config() below.
     //
     // @@ TODO: speaking of the "config.build or equivalent" part, the
     //    equivalent is likely to be extracted configuration (probably saved
@@ -96,6 +99,8 @@ namespace bpkg
 
     static const uint16_t load_config_user      = 0x1;
     static const uint16_t load_config_dependent = 0x2;
+
+    static strings global_config_vars;
 
     // The following functions should be called in the following sequence
     // (* -- zero or more, ? -- zero or one):
@@ -205,8 +210,8 @@ namespace bpkg
     // necessarily parallel (config_vars may contain config.*.develop, etc).
     //
     // Note that the dependent and reflect variables are merged with
-    // config_vars/config_srcs and should be used instead rather than in
-    // addition to config_vars.
+    // [global_]config_vars/config_srcs and should be used instead rather than
+    // in addition to config_vars.
     //
     // Note also that this should be the final call on this object.
     //

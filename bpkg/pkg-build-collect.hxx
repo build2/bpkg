@@ -300,6 +300,13 @@ namespace bpkg
     //
     strings config_vars;
 
+    bool
+    has_config_vars () const
+    {
+      return !config_vars.empty () ||
+             !package_skeleton::global_config_vars.empty ();
+    }
+
     // If present, then the package is requested to be upgraded (true) or
     // patched (false). Can only be present if the package is already
     // selected. Can only be false if the selected package version is
