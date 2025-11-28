@@ -130,7 +130,9 @@ namespace bpkg
              (selected->system () != system             ||
               selected->version != available_version () ||
               replace ()                                ||
-              (!system && (!config_vars.empty () || disfigure)))));
+              (!system && (!config_vars.empty ()                          ||
+                           !package_skeleton::global_config_vars.empty () ||
+                           disfigure)))));
   }
 
   bool build_package::

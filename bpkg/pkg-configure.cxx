@@ -1212,7 +1212,22 @@ namespace bpkg
       }
 
       if (!sep && a.find ('=') != string::npos)
-        vars.push_back (move (trim (a)));
+      {
+        // Since pkg-configure may only (explicitly) configure a single
+        // package, the global overrides are not of much use here. Thus, not
+        // to complicate things (like saving them separately into skeleton's
+        // global_config_vars, etc), let's just forbid them.
+        //
+        // @@ Keep it consistent with pkg-build in regards to other visibility
+        //    modifiers and scope-specific variables.
+        //
+        trim (a);
+
+        if (a[0] == '!')
+          fail << "global override '" << a << "' is not allowed";
+
+        vars.push_back (move (a));
+      }
       else if (n.empty ())
         n = move (a);
       else
