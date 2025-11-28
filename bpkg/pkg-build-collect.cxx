@@ -104,7 +104,10 @@ namespace bpkg
            (dependencies                                     ||
             selected->version != available_version ()        ||
             (flags & build_recollect) != 0                   ||
-            ((!config_vars.empty () || skeleton) &&
+            ((skeleton              ||
+              !config_vars.empty () ||
+              (!package_skeleton::global_config_vars.empty () &&
+               user_selection ())) &&
              has_buildfile_clause (available->dependencies)) ||
             rpt_depts.find (package_key (db, name ())) != rpt_depts.end ());
   }
@@ -130,7 +133,10 @@ namespace bpkg
              (selected->system () != system             ||
               selected->version != available_version () ||
               replace ()                                ||
-              (!system && (!config_vars.empty () || disfigure)))));
+              (!system &&
+               (!config_vars.empty ()                          ||
+                !package_skeleton::global_config_vars.empty () ||
+                disfigure)))));
   }
 
   bool build_package::

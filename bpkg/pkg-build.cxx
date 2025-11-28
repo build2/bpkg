@@ -958,7 +958,10 @@ namespace bpkg
       if (!dsys)
       {
         const build_package* p (pkgs.entered_build (ddb, nm));
-        return p != nullptr && !p->action && !p->config_vars.empty ();
+        return p != nullptr &&
+               !p->action   &&
+               (!p->config_vars.empty () ||
+                !package_skeleton::global_config_vars.empty ());
       }
       else
         return false;
@@ -3383,6 +3386,8 @@ namespace bpkg
       strings                     config_vars;
     };
 
+    strings& global_config_vars (package_skeleton::global_config_vars);
+
     vector<pkg_spec> specs;
     {
       // Read the common configuration variables until we reach the "--"
@@ -3421,10 +3426,22 @@ namespace bpkg
           fail << "unexpected options group for configuration variable '"
                << v << "'";
 
-        cvars.push_back (move (trim (v)));
+        trim (v);
+
+        // Save the global overrides to the skeleton's global_config_vars.
+        //
+        // @@ We also need to fail for other visibility modifiers (% and /;
+        //    see build2::context::parse_variable_override() for details). But
+        //    first let's decide if we allow scope-specific variables or ban
+        //    them as well (probably with some transitional period when we
+        //    just strip the .../ scope which we currently specify in
+        //    buildtabs and some package manifests).
+        //
+        strings& vars (v[0] == '!' ? global_config_vars : cvars);
+        vars.push_back (move (v));
       }
 
-      if (!cvars.empty () && !sep)
+      if ((!cvars.empty () || !global_config_vars.empty ()) && !sep)
         fail << "configuration variables must be separated from packages "
              << "with '--'";
 
@@ -8759,17 +8776,6 @@ namespace bpkg
     vector<configure_package> configure_packages;
     configure_packages.reserve (build_pkgs.size ());
 
-    // While at it also collect global configuration variable overrides from
-    // each configure_prerequisites_result::config_variables and merge them
-    // into configure_global_vars.
-    //
-    // @@ TODO: Note that the current global override semantics is quite
-    //    broken in that we don't force reconfiguration of all the packages.
-    //
-#ifndef BPKG_OUTPROC_CONFIGURE
-    strings configure_global_vars;
-#endif
-
     // Return the "would be" state of packages that would be configured
     // by this stage.
     //
@@ -9001,25 +9007,6 @@ namespace bpkg
 
         if (!simulate)
         {
-#ifndef BPKG_OUTPROC_CONFIGURE
-          auto& gvs (configure_global_vars);
-
-          // Note that we keep global overrides in cpr.config_variables for
-          // diagnostics and skip them in var_override_function below.
-          //
-          for (const string& v: cpr.config_variables)
-          {
-            // Each package should have exactly the same set of global
-            // overrides by construction since we don't allow package-
-            // specific global overrides.
-            //
-            if (v[0] == '!')
-            {
-              if (find (gvs.begin (), gvs.end (), v) == gvs.end ())
-                gvs.push_back (v);
-            }
-          }
-#endif
           // Add config.config.disfigure unless already disfigured (see the
           // high-level pkg_configure() version for background).
           //
@@ -9053,7 +9040,10 @@ namespace bpkg
           {
             for (const string& v: cp.res.config_variables)
             {
-              if (v[0] == '!') // Skip global overrides (see above).
+              // Skip global overrides, since they are passed separately to
+              // pkg_configure_context() (see below).
+              //
+              if (v[0] == '!')
                 continue;
 
               pair<char, variable_override> p (
@@ -9070,13 +9060,16 @@ namespace bpkg
           }
         });
 
+      // Note that we are done with the skeletons at this point. Thus, it is
+      // safe to move out from package_skeleton::global_config_vars.
+      //
       configure_ctx = pkg_configure_context (
         o,
-        move (configure_global_vars),
+        move (package_skeleton::global_config_vars),
         vof,
         progress /* no_progress */);
 
-      // Only global in configure_global_vars.
+      // Only global in package_skeleton::global_config_vars.
       //
       assert (configure_ctx->var_overrides.empty ());
     }

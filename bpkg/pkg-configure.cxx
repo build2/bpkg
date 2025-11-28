@@ -1212,7 +1212,22 @@ namespace bpkg
       }
 
       if (!sep && a.find ('=') != string::npos)
-        vars.push_back (move (trim (a)));
+      {
+        // Since pkg-configure in contrast to pkg-build may only configure a
+        // single package, the global overrides are not of much use here.
+        // Thus, not to complicate things (like saving them separately into
+        // skeleton's global_config_vars, etc), let's just forbid them. Also
+        // let's forbid all the visibility modifiers and scope qualifications.
+        //
+        trim (a);
+
+        size_t p (a.find_first_of ("!%/\\="));
+
+        if (a[p] != '=')
+          fail << "visibility modifier or scope qualification in '" << a << "'";
+
+        vars.push_back (move (a));
+      }
       else if (n.empty ())
         n = move (a);
       else

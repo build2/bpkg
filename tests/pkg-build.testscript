@@ -2920,6 +2920,376 @@ test.arguments += --sys-no-query
       $pkg_drop libbar
     }
   }}
+
+  : global-overrides
+  :
+  {{
+    +$clone_root_cfg
+    +$rep_add $rep/t11a && $rep_fetch
+
+    test.arguments += --configure-only --plan ""
+
+    : basics
+    :
+    {
+      $clone_cfg
+
+      $* !config.cc.coptions=-g -- libbiz 2>>~%EOE%
+          new libbar/1.0.0 (required by libbiz)
+            !config.cc.coptions=-g (user configuration)
+          new libbiz/1.0.0
+            !config.cc.coptions=-g (user configuration)
+        fetched libbar/1.0.0
+        unpacked libbar/1.0.0
+        fetched libbiz/1.0.0
+        unpacked libbiz/1.0.0
+        configured libbar/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = false
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = false
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      $*  libbiz +{ config.libbiz.extras=true } \
+         ?libbar +{ config.libbar.extras=true } 2>>~%EOE%
+          reconfigure libbar/1.0.0
+            config.cc.coptions=-g (user configuration)
+            config.libbar.extras=true (user configuration)
+          reconfigure libbiz/1.0.0
+            config.cc.coptions=-g (user configuration)
+            config.libbiz.extras=true (user configuration)
+        disfigured libbiz/1.0.0
+        disfigured libbar/1.0.0
+        configured libbar/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = true
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = true
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      $* !config.cc.coptions=-O3 -- ?libbar 2>>~%EOE%
+          reconfigure libbar/1.0.0
+            !config.cc.coptions=-O3 (user configuration)
+            config.libbar.extras=true (user configuration)
+          reconfigure libbiz (dependent of libbar)
+            !config.cc.coptions=-O3 (user configuration)
+            config.libbiz.extras=true (user configuration)
+        disfigured libbiz/1.0.0
+        disfigured libbar/1.0.0
+        configured libbar/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = true
+        %.*
+        config.cc.coptions = -O3
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = true
+        %.*
+        config.cc.coptions = -O3
+        %.*
+        EOO
+
+      $* config.cc.coptions=-O2 -- ?libbar 2>>~%EOE%
+          reconfigure libbar/1.0.0
+            config.libbar.extras=true (user configuration)
+            config.cc.coptions=-O2 (user configuration)
+          reconfigure libbiz (dependent of libbar)
+            config.cc.coptions=-O3 (user configuration)
+            config.libbiz.extras=true (user configuration)
+        disfigured libbiz/1.0.0
+        disfigured libbar/1.0.0
+        configured libbar/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = true
+        %.*
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = true
+        %.*
+        config.cc.coptions = -O3
+        %.*
+        EOO
+
+      $* !config.cc.coptions=-O1 -- libbiz 2>>~%EOE%
+          reconfigure libbiz/1.0.0
+            !config.cc.coptions=-O1 (user configuration)
+            config.libbiz.extras=true (user configuration)
+        disfigured libbiz/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = true
+        %.*
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = true
+        %.*
+        config.cc.coptions = -O1
+        %.*
+        EOO
+
+      $* !config.cc.coptions=-O2 -- ?libbar +{ config.cc.coptions=-g } 2>>~%EOE%
+          reconfigure libbar/1.0.0
+            !config.cc.coptions=-O2 (user configuration)
+            config.libbar.extras=true (user configuration)
+            config.cc.coptions=-g (user configuration)
+          reconfigure libbiz (dependent of libbar)
+            !config.cc.coptions=-O2 (user configuration)
+            config.libbiz.extras=true (user configuration)
+        disfigured libbiz/1.0.0
+        disfigured libbar/1.0.0
+        configured libbar/1.0.0
+        configured libbiz/1.0.0
+        EOE
+
+      cat cfg/libbar-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbar.extras = true
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      cat cfg/libbiz-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.libbiz.extras = true
+        %.*
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      $pkg_drop libbiz
+    }
+
+    : mixed-config
+    :
+    {
+      $clone_cfg
+
+      $* !config.cc.coptions=-g config.cc.poptions=-DBAR -- foo 2>>~%EOE%
+          new libfoo/1.0.0 (required by foo)
+            !config.cc.coptions=-g (user configuration)
+            config.libfoo.extras=true (set by foo)
+          new foo/1.0.0
+            !config.cc.coptions=-g (user configuration)
+            config.cc.poptions=-DBAR (user configuration)
+            config.foo.libfoo_extras=true (set by foo)
+        fetched libfoo/1.0.0
+        unpacked libfoo/1.0.0
+        fetched foo/1.0.0
+        unpacked foo/1.0.0
+        configured libfoo/1.0.0
+        configured foo/1.0.0
+        EOE
+
+      cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
+        %.*
+        config.libfoo.extras = true
+        config.libfoo.network = false
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      cat cfg/foo-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.foo.extras = false
+        config.foo.libfoo_extras = true
+        %.*
+        config.cc.poptions = -DBAR
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      $* ?libfoo +{ config.libfoo.network=true } 2>>~%EOE%
+          reconfigure libfoo/1.0.0
+            config.cc.coptions=-g (user configuration)
+            config.libfoo.network=true (user configuration)
+            config.libfoo.extras=true (set by foo)
+          reconfigure foo/1.0.0 (dependent of libfoo)
+            config.cc.coptions=-g (user configuration)
+            config.cc.poptions=-DBAR (user configuration)
+            config.foo.libfoo_extras=true (set by foo)
+        disfigured foo/1.0.0
+        disfigured libfoo/1.0.0
+        configured libfoo/1.0.0
+        configured foo/1.0.0
+        EOE
+
+      cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
+        %.*
+        config.libfoo.extras = true
+        config.libfoo.network = true
+        %.*
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      cat cfg/foo-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.foo.extras = false
+        config.foo.libfoo_extras = true
+        %.*
+        config.cc.poptions = -DBAR
+        config.cc.coptions = -g
+        %.*
+        EOO
+
+      $* !config.cc.coptions=-O3 -- ?libfoo 2>>~%EOE%
+          reconfigure libfoo/1.0.0
+            !config.cc.coptions=-O3 (user configuration)
+            config.libfoo.network=true (user configuration)
+            config.libfoo.extras=true (set by foo)
+          reconfigure foo/1.0.0 (dependent of libfoo)
+            !config.cc.coptions=-O3 (user configuration)
+            config.cc.poptions=-DBAR (user configuration)
+            config.foo.libfoo_extras=true (set by foo)
+        disfigured foo/1.0.0
+        disfigured libfoo/1.0.0
+        configured libfoo/1.0.0
+        configured foo/1.0.0
+        EOE
+
+      cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
+        %.*
+        config.libfoo.extras = true
+        config.libfoo.network = true
+        %.*
+        config.cc.coptions = -O3
+        %.*
+        EOO
+
+      cat cfg/foo-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.foo.extras = false
+        config.foo.libfoo_extras = true
+        %.*
+        config.cc.poptions = -DBAR
+        config.cc.coptions = -O3
+        %.*
+        EOO
+
+      # Note that the global override for an explicitly specified foo triggers
+      # reconfiguration of libfoo, since foo has a buildfile clause.
+      #
+      $* !config.cc.coptions=-O2 -- foo 2>>~%EOE%
+          reconfigure libfoo/1.0.0 (required by foo)
+            !config.cc.coptions=-O2 (user configuration)
+            config.libfoo.network=true (user configuration)
+            config.libfoo.extras=true (set by foo)
+          reconfigure foo/1.0.0
+            !config.cc.coptions=-O2 (user configuration)
+            config.cc.poptions=-DBAR (user configuration)
+            config.foo.libfoo_extras=true (set by foo)
+        disfigured foo/1.0.0
+        disfigured libfoo/1.0.0
+        configured libfoo/1.0.0
+        configured foo/1.0.0
+        EOE
+
+      cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
+        %.*
+        config.libfoo.extras = true
+        config.libfoo.network = true
+        %.*
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      cat cfg/foo-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.foo.extras = false
+        config.foo.libfoo_extras = true
+        %.*
+        config.cc.poptions = -DBAR
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      $* config.cc.coptions=-O1 -- foo 2>>~%EOE%
+          reconfigure libfoo/1.0.0 (required by foo)
+            config.cc.coptions=-O2 (user configuration)
+            config.libfoo.network=true (user configuration)
+            config.libfoo.extras=true (set by foo)
+          reconfigure foo/1.0.0
+            config.cc.poptions=-DBAR (user configuration)
+            config.cc.coptions=-O1 (user configuration)
+            config.foo.libfoo_extras=true (set by foo)
+        disfigured foo/1.0.0
+        disfigured libfoo/1.0.0
+        configured libfoo/1.0.0
+        configured foo/1.0.0
+        EOE
+
+      cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
+        %.*
+        config.libfoo.extras = true
+        config.libfoo.network = true
+        %.*
+        config.cc.coptions = -O2
+        %.*
+        EOO
+
+      cat cfg/foo-1.0.0/build/config.build >>~%EOO%
+        %.*
+        config.foo.extras = false
+        config.foo.libfoo_extras = true
+        %.*
+        config.cc.poptions = -DBAR
+        config.cc.coptions = -O1
+        %.*
+        EOO
+
+      $pkg_drop foo
+    }
+  }}
 }}
 
 : dependency
@@ -9669,7 +10039,10 @@ test.arguments += --sys-no-query
 
             cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
               %.*
+
               config.libfoo.extras = true
+
+              %.+
               EOO
 
             $pkg_drop fux
@@ -9703,8 +10076,11 @@ test.arguments += --sys-no-query
 
             cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
               %.*
+
               config.libfoo.extras = true
               config.libfoo.network = false
+
+              %.+
               EOO
 
             test.arguments = $regex.filter_out_match($test.arguments, '--plan=.*')
@@ -9725,7 +10101,10 @@ test.arguments += --sys-no-query
 
             cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
               %.*
+
               config.libfoo.extras = true
+
+              %.+
               EOO
 
             $pkg_drop fux
@@ -9876,7 +10255,10 @@ test.arguments += --sys-no-query
 
           cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
             %.*
+
             config.libfoo.extras = true
+
+            %.+
             EOO
 
           $* ?fex ?fux libfoo/0.1.0 2>&1 | $filter 2>>~%EOE%
@@ -9933,7 +10315,10 @@ test.arguments += --sys-no-query
 
           cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
             %.*
+
             config.libfoo.extras = true
+
+            %.+
             EOO
 
           $pkg_drop libfoo
@@ -25046,6 +25431,9 @@ test.arguments += --sys-no-query
             for p: $ps
               $* config.cc.coptions=-g -- $p 2>&1 | $warn_to_info 2>!
 
+            for p: $ps
+              $* !config.cc.coptions=-O3 -- $p 2>&1 | $warn_to_info 2>!
+
             $pkg_status -r >>EOO
               !foo configured 1.0.0
                 libfoo configured 1.0.0
@@ -25180,6 +25568,9 @@ test.arguments += --sys-no-query
 
             for p: $ps
               $* config.cc.coptions=-g -- $p 2>&1 | $warn_to_info 2>!
+
+            for p: $ps
+              $* !config.cc.coptions=-O3 -- $p 2>&1 | $warn_to_info 2>!
 
             $pkg_status -r >>EOO
               !bar configured 1.0.0
@@ -25352,6 +25743,24 @@ test.arguments += --sys-no-query
                 timeout 120
                 if $* $p 2>&1 | $warn_to_info 2>!
                   cps += $p
+              }
+
+              # Note that we may potentially end up with different final bpkg
+              # configurations at this point, because configuring packages in
+              # different order may affect the dependency alternatives
+              # selection, etc. Thus, let's test reconfigurations here as
+              # well.
+              #
+              for p: $cps
+              {
+                timeout 120
+                $* config.cc.coptions=-g -- $p 2>&1 | $warn_to_info 2>!
+              }
+
+              for p: $cps
+              {
+                timeout 120
+                $* !config.cc.coptions=-O3 -- $p 2>&1 | $warn_to_info 2>!
               }
 
               # Drop the configured packages by sequentially turning all of
