@@ -9097,15 +9097,10 @@ namespace bpkg
 
       // Configure the package (system already configured).
       //
-      // NOTE: remember to update the preparation of the plan to be presented
-      // to the user if changing anything here.
-      //
       database& pdb (p.db);
 
       if (!p.system)
       {
-        const shared_ptr<available_package>& ap (p.available);
-
         transaction t (pdb, !simulate /* start */);
 
         // Show how we got here if things go wrong.
@@ -9119,30 +9114,15 @@ namespace bpkg
 
         // Note that pkg_configure() commits the transaction.
         //
-        if (ap != nullptr)
-        {
-          pkg_configure (o,
-                         pdb,
-                         t,
-                         sp,
-                         move (cp.res),
-                         configure_ctx,
-                         cp.ovrs,
-                         progress /* no_progress */,
-                         simulate);
-        }
-        else // Dependent.
-        {
-          pkg_configure (o,
-                         pdb,
-                         t,
-                         sp,
-                         move (cp.res),
-                         configure_ctx,
-                         cp.ovrs,
-                         progress /* no_progress */,
-                         simulate);
-        }
+        pkg_configure (o,
+                       pdb,
+                       t,
+                       sp,
+                       move (cp.res),
+                       configure_ctx,
+                       cp.ovrs,
+                       progress /* no_progress */,
+                       simulate);
       }
 
       r = true;
