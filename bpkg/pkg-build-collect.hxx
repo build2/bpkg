@@ -295,10 +295,20 @@ namespace bpkg
     optional<dir_path> checkout_root;
     bool               checkout_purge;
 
-    // Command line configuration variables. Only meaningful for non-system
-    // packages.
+    // Command line configuration variables, not including global overrides
+    // which are expected to be saved to skeleton's global_config_vars. Only
+    // meaningful for non-system packages. @@ In fact, we may consider project
+    // configuration variables for system packages in the future (see
+    // skeleton's collect_config() for details).
     //
     strings config_vars;
+
+    bool
+    configuration_specified () const
+    {
+      return !config_vars.empty () ||
+             !package_skeleton::global_config_vars.empty ();
+    }
 
     // If present, then the package is requested to be upgraded (true) or
     // patched (false). Can only be present if the package is already
@@ -370,6 +380,13 @@ namespace bpkg
     // collected. Also configured dependents can be scheduled for recollection
     // explicitly (see postponed_packages and build_recollect flag for
     // details).
+    //
+    // Note that recursive recollection of a package which has some buildfile
+    // clauses is not triggered by the presence of the configuration global
+    // overrides unless the package is specified on the command line. In other
+    // words, the recollection will only be triggered by an explicit
+    // reconfiguration: the presence of global or non-global overrides plus
+    // the package is specified on the command line.
     //
     bool
     recollect_recursively (const repointed_dependents&) const;
