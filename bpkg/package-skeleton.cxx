@@ -356,9 +356,10 @@ namespace bpkg
     // there is no old configuration present/requested (config_srcs_ is NULL),
     // we still don't disable load_old_config_impl() if some configuration
     // variables are specified on the command line. This function, in
-    // particular, will verify that these variables are still used (build2
-    // will issue the 'dropping no longer used variable' warning, if that's
-    // not the case).
+    // particular, will verify that these variables are still used.
+    // Specifically, it will deduce develop_ value for config.*.develop and
+    // for other variables build2 will issue the 'dropping no longer used
+    // variable' warning, if that's not the case.
     //
     // Note that at first it may seem like we shouldn't do this for any system
     // packages but if we want to verify the user configuration, why not do so
@@ -2020,8 +2021,8 @@ namespace bpkg
                     dependent_vars_.size () +
                     reflect_.size ()))
     {
-      // For vars we will steal the first non-empty *_vars_. But for sources
-      // reserve the space.
+      // For vars we may steal the first non-empty *_vars_. But for sources
+      // always reserve the space.
       //
       srcs.reserve (n); // At most that many.
 
@@ -2041,8 +2042,8 @@ namespace bpkg
       //
       if (!config_vars_.empty ())
       {
-        // Assign the user source to all the user-specified configuration
-        // variables, with the following exceptions:
+        // Return all the user-specified configuration variables with the
+        // following exceptions:
         //
         // - Skip config.<project>.develop (can potentially be passed by
         //   bdep-init) if the package doesn't use it.
@@ -2054,8 +2055,11 @@ namespace bpkg
         //   currently don't save the expected configuration for system
         //   packages, we will probably need to implement that in the future.
         //
+        // Assign the user source for all the being returned variables.
+        //
         size_t pn (var_prefix_.size ());
-        for (const string& v: config_vars_)
+        bool reserve (true);
+        for (string& v: config_vars_)
         {
           size_t vn;
           if (project_override (v, var_prefix_, &vn))
@@ -2071,7 +2075,15 @@ namespace bpkg
             vn = v.find_first_of ("=+ \t");
           }
 
-          string n (v, 0, vn);
+          if (reserve)
+          {
+            vars.reserve (n);
+            reserve = false;
+          }
+
+          string n (v, 0, vn); // Save the name prior to moving out from v.
+
+          vars.push_back (move (v));
 
           // Check for a duplicate.
           //
@@ -2084,8 +2096,6 @@ namespace bpkg
           if (i == srcs.end ())
             srcs.push_back (config_variable {move (n), config_source::user});
         }
-
-        vars = move (config_vars_);
       }
 
       // Next dependent configuration.
