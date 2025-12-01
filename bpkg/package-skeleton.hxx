@@ -202,7 +202,8 @@ namespace bpkg
 
     // Return the accumulated configuration variables (first) and
     // configuration variable sources (second). Note that the arrays are not
-    // necessarily parallel (config_vars may contain config.*.develop, etc).
+    // necessarily parallel (config_vars may contain multiple entries for the
+    // same variable, etc).
     //
     // Note that the dependent and reflect variables are merged with
     // config_vars/config_srcs and should be used instead rather than in
