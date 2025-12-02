@@ -25043,6 +25043,9 @@ test.arguments += --sys-no-query
             for p: $ps
               $* $p 2>&1 | $warn_to_info 2>!
 
+            for p: $ps
+              $* config.cc.coptions=-g -- $p 2>&1 | $warn_to_info 2>!
+
             $pkg_status -r >>EOO
               !foo configured 1.0.0
                 libfoo configured 1.0.0
