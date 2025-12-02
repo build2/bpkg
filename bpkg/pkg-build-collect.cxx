@@ -6943,6 +6943,11 @@ namespace bpkg
             if (e.depth != pcd)
               throw;
 
+            // Note that pc could potentially be invalidated with the state
+            // restoration inside a nested collect_build_postponed() call.
+            //
+            pc = &postponed_cfgs[ci];
+
             package_configurations cfgs (
               move (pc->dependency_configurations));
 
@@ -6993,6 +6998,11 @@ namespace bpkg
             //
             if (e.depth != pcd)
               throw;
+
+            // Note that pc could potentially be invalidated with the state
+            // restoration inside a nested collect_build_postponed() call.
+            //
+            pc = &postponed_cfgs[ci];
 
             postponed_configuration shadow (move (*pc));
 
