@@ -6302,11 +6302,12 @@ namespace bpkg
                 i (b),
                 e (pcfg->dependents.end ()); i != e; )
       {
-        if (postponed_existing_dependents.find (i->first) !=
+        const package_key& pk (i->first);
+
+        if (postponed_existing_dependents.find (pk) !=
             postponed_existing_dependents.end ())
         {
-          l5 ([&]{trace << "skip dep-postponed existing dependent "
-                        << i->first;});
+          l5 ([&]{trace << "skip dep-postponed existing dependent " << pk;});
 
           ++i;
           continue;
@@ -6314,16 +6315,36 @@ namespace bpkg
 
         // Resolve package skeletons for the dependent and its dependencies.
         //
-        // For the dependent, the skeleton should be already there (since we
-        // should have started recursively collecting it). For a dependency,
-        // it should not already be there (since we haven't yet started
-        // recursively collecting it). But we could be re-resolving the same
-        // dependency multiple times.
+        // For the dependent, the skeleton is present if we have already
+        // started recursively collecting it. That, however, may not be the
+        // case if some negotiation problem related to the existing dependents
+        // were encountered, in which case an existing dependent may be
+        // scheduled for re-collection (see the recollect_existing_dependents
+        // exception throw and catch sites for details). In this case we just
+        // skip the dependent for now, expecting it to be re-collected some
+        // time later. For a dependency, it should not already be there (since
+        // we haven't yet started recursively collecting it). But we could be
+        // re-resolving the same dependency multiple times.
         //
         package_skeleton* dept;
         {
-          build_package* b (entered_build (i->first));
-          assert (b != nullptr && b->skeleton);
+          build_package* b (entered_build (pk));
+          assert (b != nullptr);
+
+          if (!b->skeleton)
+          {
+            assert (b->flags & build_package::build_recollect);
+
+            l5 ([&]{trace << "skip not re-evaluated existing dependent " << pk
+                          << " since scheduled for recollect due to some "
+                          << "existing dependents related problem";});
+
+            postponed_existing_dependents.insert (pk);
+
+            ++i;
+            continue;
+          }
+
           dept = &*b->skeleton;
         }
 
