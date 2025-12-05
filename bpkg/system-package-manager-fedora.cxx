@@ -693,15 +693,37 @@ namespace bpkg
                          ? i->installed_version
                          : i->candidate_version);
 
+            string& ver_arch (*installed
+                              ? i->installed_arch
+                              : i->candidate_arch);
+
+            // Note that for a specific architecture we expect not more than
+            // one package version, potentially available from multiple
+            // repositories. Since we don't care which repository the package
+            // will be installed from, we just save the candidate package
+            // version from the first encountered line and silently ignore all
+            // the subsequent lines for this package version. Also note that
+            // the situation when the same package version is simultaneously
+            // available for a specific architecture and as noarch seems to
+            // not be possible for Fedora (no such situations were observed so
+            // far) and thus we will report it as an error.
+            //
             if (!ver.empty ())
+            {
+              // Skip the same version/architecture for an available package
+              // and fail otherwise.
+              //
+              if (!*installed && v == ver && a == ver_arch)
+                continue;
+
               fail << "multiple " << (*installed ? "installed " : "available ")
-                   << "versions of package " << p << '.' << a <<
-                info << "version: " << ver <<
-                info << "version: " << v;
+                   << "versions of package " << p <<
+                info << "version: " << ver << ' ' << ver_arch <<
+                info << "version: " << v << ' ' << a;
+            }
 
-            ver = move (v);
-
-            (*installed ? i->installed_arch : i->candidate_arch) = move (a);
+            ver      = move (v);
+            ver_arch = move (a);
           }
         }
 
