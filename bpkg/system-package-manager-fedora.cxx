@@ -389,7 +389,7 @@ namespace bpkg
     pair<cstrings, const process_path&> args_pp (
       dnf_common ("list",
                   modify_system,
-                  nullopt /* fetch_timeout */,
+                  cacheonly ? nullopt : fetch_timeout_,
                   false /* progress */,
                   false /* interactive */,
                   args_storage));
@@ -450,7 +450,7 @@ namespace bpkg
     {
       process_env pe (pp, evars);
 
-      if (verb >= 3)
+      if (verb >= 2)
         print_process (pe, args);
 
       // Note that dnf-list prints the progress indication lines to stdout,
@@ -736,7 +736,7 @@ namespace bpkg
           diag_record dr (fail);
           dr << "unable to read dnf list output: " << e;
 
-          if (verb < 3)
+          if (verb < 2)
           {
             dr << info << "command line: ";
             print_process (dr, pe, args);
@@ -751,7 +751,7 @@ namespace bpkg
         diag_record dr (fail);
         dr << "dnf list exited with non-zero code";
 
-        if (verb < 3)
+        if (verb < 2)
         {
           dr << info << "command line: ";
           print_process (dr, pe, args);
