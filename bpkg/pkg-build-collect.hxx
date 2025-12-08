@@ -339,6 +339,9 @@ namespace bpkg
     // collect_repointed_dependents() implementation for details), the
     // dependency package versions are expected to all be unknown.
     //
+    // Note: should not be empty, unless this is a drop, unhold, or is
+    //       pre-entered.
+    //
     std::set<package_version_key> required_by;
 
     // If this flag is true, then required_by contains dependents.
@@ -1845,6 +1848,8 @@ namespace bpkg
     // build_package::build_recollect flag and add it to the postponed package
     // recollections list. Also add the build_package::adjust_reconfigure flag
     // for the deviated dependents (existing_dependent::dependency is absent).
+    // Add the originating dependency to the dependent's required-by list (for
+    // this reason the dependency is expected to be collected).
     //
     // Note that after this function call the existing dependent may not be
     // returned as a result by the query_existing_dependents() function
@@ -1856,8 +1861,7 @@ namespace bpkg
                                   replaced_versions&,
                                   postponed_packages& postponed_recs,
                                   postponed_configurations&,
-                                  unsatisfied_dependents&,
-                                  bool add_required_by);
+                                  unsatisfied_dependents&);
 
     // Skip the dependents collection for the specified dependency if that has
     // already been done.

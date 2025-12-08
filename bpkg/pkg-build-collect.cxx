@@ -2208,8 +2208,7 @@ namespace bpkg
                                           replaced_vers,
                                           postponed_recs,
                                           postponed_cfgs,
-                                          unsatisfied_depts,
-                                          true /* add_required_by */);
+                                          unsatisfied_depts);
           }
 
           // Postpone the recursive collection of a dependency if the existing
@@ -4483,6 +4482,7 @@ namespace bpkg
               //
               vector<existing_dependent> depts;
               string deps_trace;
+              string dpts_trace;
 
               for (const package_key& d: cfg.dependencies)
               {
@@ -4527,6 +4527,9 @@ namespace bpkg
                                         d.db == ed.db;
                                }) == depts.end ())
                   {
+                    if (verb >= 5)
+                      dpts_trace += ed.selected->string (ed.db) + ' ';
+
                     depts.push_back (move (ed));
                   }
                 }
@@ -4538,9 +4541,10 @@ namespace bpkg
                               << pkg.available_name_version_db ()
                               << " adds not (being) collected dependencies "
                               << deps_trace << "with not (being) collected "
-                              << "existing dependents to (being) negotiated "
-                              << "cluster and results in " << cfg
-                              << ", throwing recollect_existing_dependents";});
+                              << "existing dependents " << dpts_trace
+                              << "to (being) negotiated cluster and results "
+                              << "in " << cfg << ", throwing "
+                              << "recollect_existing_dependents";});
 
                 // Don't print the "while satisfying..." chain.
                 //
@@ -6021,8 +6025,9 @@ namespace bpkg
     if (pcfg != nullptr)
     {
       // This is what we refer to as the "initial negotiation" where we
-      // negotiate the configuration of dependents that could be postponed.
-      // Those that could not we "up-negotiate" in the collect() lambda of
+      // negotiate the configuration of dependents that could be postponed
+      // (were added to non-yet-negotiated cluster). Those that could not we
+      // "up-negotiate" in the collect() lambda of
       // collect_build_prerequisites().
       //
       using packages = postponed_configuration::packages;
@@ -6041,7 +6046,7 @@ namespace bpkg
       // however, re-evaluate all the discovered existing dependents. Also
       // note that these dependents will be added to their respective clusters
       // with the `existing` flag as a part of the dependents' re-evaluation
-      // (see the collect lambda in collect_build_prerequisites() for
+      // (see the collect() lambda in collect_build_prerequisites() for
       // details).
       //
       // After being re-evaluated the existing dependents are recursively
@@ -6198,8 +6203,7 @@ namespace bpkg
                                               replaced_vers,
                                               postponed_recs,
                                               postponed_cfgs,
-                                              unsatisfied_depts,
-                                              true /* add_required_by */);
+                                              unsatisfied_depts);
               }
             }
           }
@@ -7156,18 +7160,55 @@ namespace bpkg
                             << "existing dependent " << *ed.selected
                             << ed.db;});
 
-              // Note that we pass false as the add_required_by argument since
-              // the package builds collection state has been restored and the
-              // originating dependency for this existing dependent may not be
-              // collected anymore.
+              // Note that since the package builds collection state has been
+              // restored, the originating dependency for this existing
+              // dependent may not be collected anymore. Thus, if that's the
+              // case, let's pre-enter the originating dependency assuming it
+              // will be properly collected shortly, as we recollect the
+              // existing dependent or retry the clusters negotiation.
               //
+              const package_key& od (ed.originating_dependency);
+
+              if (!entered_build (od))
+              {
+                build_package bp {
+                  nullopt,                    // Action.
+                  od.db,
+                  nullptr,                    // Selected package.
+                  nullptr,                    // Available package/repo fragment.
+                  nullptr,
+                  nullopt,                    // Dependencies.
+                  nullopt,                    // Dependencies alternatives.
+                  nullopt,                    // Package skeleton.
+                  nullopt,                    // Postponed dependency alternatives.
+                  false,                      // Recursive collection.
+                  nullopt,                    // Hold package.
+                  nullopt,                    // Holed version.
+                  {},                         // Constraints.
+                  false,                      // System.
+                  false,                      // Keep output directory.
+                  false,                      // Disfigure (from-scratch reconf).
+                  false,                      // Configure-only.
+                  nullopt,                    // Checkout root.
+                  false,                      // Checkout purge.
+                  strings (),                 // Configuration variables.
+                  nullopt,                    // Upgrade.
+                  false,                      // Deorphan.
+                  {},                         // Required by.
+                  false,                      // Required by dependents.
+                  0};                         // State flags.
+
+                enter (od.name, move (bp));
+
+                l5 ([&]{trace << "pre-enter originating dependency " << od;});
+              }
+
               recollect_existing_dependent (o,
                                             ed,
                                             replaced_vers,
                                             postponed_recs,
                                             postponed_cfgs,
-                                            unsatisfied_depts,
-                                            false /* add_required_by */);
+                                            unsatisfied_depts);
             }
           }
         }
@@ -7343,8 +7384,7 @@ namespace bpkg
                                           replaced_vers,
                                           postponed_recs,
                                           postponed_cfgs,
-                                          unsatisfied_depts,
-                                          true /* add_required_by */);
+                                          unsatisfied_depts);
             prog = true;
             break;
           }
@@ -8134,6 +8174,7 @@ namespace bpkg
                find_available_fragment (o, ddb, dsp));
 
         optional<package_key> orig_dep (package_key {db, name});
+        package_version_key rb {db, name, version ()};
 
         try
         {
@@ -8160,7 +8201,7 @@ namespace bpkg
             strings (),                 // Configuration variables.
             nullopt,                    // Upgrade.
             false,                      // Deorphan.
-            {},                         // Required by (dependency).
+            {move (rb)},                // Required by (dependency).
             false,                      // Required by dependents.
             0};                         // State flags.
 
@@ -8375,8 +8416,7 @@ namespace bpkg
                                 replaced_versions& replaced_vers,
                                 postponed_packages& postponed_recs,
                                 postponed_configurations& postponed_cfgs,
-                                unsatisfied_dependents& unsatisfied_depts,
-                                bool add_required_by)
+                                unsatisfied_dependents& unsatisfied_depts)
   {
     pair<shared_ptr<available_package>,
          lazy_shared_ptr<repository_fragment>> rp (
@@ -8389,16 +8429,11 @@ namespace bpkg
     if (!ed.dependency)
       flags |= build_package::adjust_reconfigure;
 
-    set<package_version_key> rb;
 
-    if (add_required_by)
-    {
-      const package_key& pk (ed.originating_dependency);
+    const package_key& od (ed.originating_dependency);
+    assert (entered_build (od)); // Expected to be collected.
 
-      assert (entered_build (pk) != nullptr); // Expected to be collected.
-
-      rb.emplace (pk.db, pk.name, version ());
-    }
+    package_version_key rb {od.db, od.name, version ()};
 
     build_package p {
       build_package::build,
@@ -8423,7 +8458,7 @@ namespace bpkg
       strings (),                  // Configuration variables.
       nullopt,                     // Upgrade.
       false,                       // Deorphan.
-      move (rb),                   // Required by (dependency).
+      {move (rb)},                 // Required by (dependency).
       false,                       // Required by dependents.
       flags};
 
