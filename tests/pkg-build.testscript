@@ -24384,10 +24384,15 @@ test.arguments += --sys-no-query
       {
         $clone_cfg
 
-        $* libfoo libbar ?libbaz/0.1.0 ?libbox/0.1.0 libbiz \
-           foo fox fux fix fex bar baz bac bat bas bus \
-           box bax bux bix bex boo biz buz buc tax tex \
-           tix tiz toz tez tuz tux dex dix diz dox 2>!
+        ps = libfoo libbar ?libbaz/0.1.0 ?libbox/0.1.0 libbiz \
+             foo fox fux fix fex bar baz bac bat bas bus \
+             box bax bux bix bex boo biz buz buc tax tex \
+             tix tiz toz tez tuz tux dex dix diz dox
+
+        $* $ps 2>!
+
+        $*  config.cc.coptions=-g  -- $ps 2>&1 | $warn_to_info 2>!
+        $* !config.cc.coptions=-O3 -- $ps 2>&1 | $warn_to_info 2>!
 
         $pkg_status -r >>EOO
           !libfoo configured 1.0.0
@@ -24648,6 +24653,9 @@ test.arguments += --sys-no-query
 
             $* --upgrade --recursive 2>&1 | $warn_to_info 2>!
 
+            $* --upgrade --recursive !config.cc.coptions=-g -- 2>&1 | \
+              $warn_to_info 2>!
+
             $pkg_status -r >>EOO
               !libbar configured 1.0.0
               !libbiz configured 1.0.0
@@ -24889,6 +24897,9 @@ test.arguments += --sys-no-query
               EOO
 
             $* --upgrade --recursive 2>&1 | $warn_to_info 2>!
+
+            $* --upgrade --recursive !config.cc.coptions=-g -- 2>&1 | \
+              $warn_to_info 2>!
 
             $pkg_status -r >>EOO
               !bat configured 1.0.0
@@ -25141,6 +25152,9 @@ test.arguments += --sys-no-query
 
             $* --upgrade --immediate 2>&1 | $warn_to_info 2>!
 
+            $* --upgrade --immediate !config.cc.coptions=-g -- 2>&1 | \
+              $warn_to_info 2>!
+
             $pkg_status -r >>EOO
               !libbar configured 1.0.0
               !libbiz configured 1.0.0
@@ -25383,6 +25397,9 @@ test.arguments += --sys-no-query
 
             $* --upgrade --immediate 2>&1 | $warn_to_info 2>!
 
+            $* --upgrade --immediate !config.cc.coptions=-g -- 2>&1 | \
+              $warn_to_info 2>!
+
             $pkg_status -r >>EOO
               !bat configured 1.0.0
                 libbaz configured !1.0.0
@@ -25519,6 +25536,12 @@ test.arguments += --sys-no-query
 
           for p: $ps
             $* $p 2>&1 | $warn_to_info 2>!
+
+          for p: $ps
+            $* config.cc.coptions=-g -- $p 2>&1 | $warn_to_info 2>!
+
+          for p: $ps
+            $* !config.cc.coptions=-O3 -- $p 2>&1 | $warn_to_info 2>!
 
           $pkg_status -r >>EOO
             !libfoo configured 1.0.0
