@@ -3428,14 +3428,38 @@ namespace bpkg
 
         trim (v);
 
-        // Save the global overrides to the skeleton's global_config_vars.
+        // Fail if a visibility modifier other than '!' or scope qualification
+        // is specified for the configuration variable (see
+        // build2::context::parse_variable_override() for details).
         //
-        // @@ We also need to fail for other visibility modifiers (% and /;
-        //    see build2::context::parse_variable_override() for details). But
-        //    first let's decide if we allow scope-specific variables or ban
-        //    them as well (probably with some transitional period when we
-        //    just strip the .../ scope which we currently specify in
-        //    buildtabs and some package manifests).
+        // @@ TMP Note that historically we specify the '.../' scope
+        //    qualification in the number of places (buildtabs, package
+        //    manifests, etc) which now doesn't make any difference. Strip
+        //    this qualification instead of failing for now, until we clean
+        //    the mentioned places up and some time will pass after the
+        //    toolchain 0.18.0 is released. After we cleanup the mentioned
+        //    places, we should probably add a warning when we strip this
+        //    qualification and keep it this way for a while.
+        //
+        // NOTE: remember to update pkg_configure() if changing anything here.
+        //
+        bool strip (v.compare (0, 4, ".../") == 0);
+        if (strip)
+          v.erase (0, 4);
+
+        size_t p (v.find_first_of ("%/\\="));
+
+        if (v[p] != '=')
+          fail << "visibility modifier or scope qualification in '"
+               << (strip ? ".../" : "") << v << "'";
+
+#if 0
+        if (strip)
+          warn << "scope qualification in '.../" << v << "' is stripped" <<
+            info << "this warning will become error in the future";
+#endif
+
+        // Save the global overrides to the skeleton's global_config_vars.
         //
         strings& vars (v[0] == '!' ? global_config_vars : cvars);
         vars.push_back (move (v));
@@ -9051,9 +9075,10 @@ namespace bpkg
 
               variable_override& vo (p.second);
 
-              // @@ TODO: put absolute scope overrides into global_vars.
-              //
-              assert (!(p.first == '!' || (vo.dir && vo.dir->absolute ())));
+              assert (p.first != '!' &&
+                      p.first != '%' &&
+                      p.first != '/' &&
+                      !vo.dir);
 
               cp.ovrs.push_back (move (vo));
             }
