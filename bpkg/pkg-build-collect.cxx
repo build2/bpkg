@@ -1632,8 +1632,8 @@ namespace bpkg
 
             l5 ([&]{trace << "replacement: drop";});
 
-            // We shouldn't be replacing a package build with the drop if someone
-            // depends on this package.
+            // We shouldn't be replacing a package build with the drop if
+            // someone depends on this package.
             //
             assert (pkg.selected != nullptr);
 
@@ -3646,7 +3646,7 @@ namespace bpkg
                       &postponed_cfgs,
                       &unacceptable_alts,
                       &unsatisfied_depts,
-                      &di,
+                      di,
                       reeval,
                       &reeval_pos,
                       &reevaluated,
@@ -7931,27 +7931,22 @@ namespace bpkg
     {
       package_key pk (p.db, p.name ());
 
-      if (printed.find (pk) == printed.end ())
+      if (printed.insert (pk).second)
       {
-        printed.insert (pk);
-
         for (const constraint_type& c: cs)
         {
           if (!existing_dependent ||
               *existing_dependent == c.existing_dependent)
           {
+            dr << '\n' << indent << c.dependent << " requires (" << pk << ' '
+               << c.value << ')';
+
             if (const build_package* d = dependent_build (c))
             {
-              dr << '\n' << indent << c.dependent << " requires (" << pk
-                 << ' ' << c.value << ')';
-
               indent += "  ";
               print_constraints (dr, *d, indent, printed, existing_dependent);
               indent.resize (indent.size () - 2);
             }
-            else
-              dr << '\n' << indent << c.dependent << " requires (" << pk << ' '
-                 << c.value << ')';
           }
         }
       }

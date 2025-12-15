@@ -723,6 +723,23 @@ test.options += --no-progress
 #
 test.arguments += --sys-no-query
 
+# Use these options to run bpkg verbosely to, for example, precisely match the
+# packages collection process.
+#
+# Note that we use the single-argument form for options, so that the tests can
+# easily amend them or filter them out, if required.
+#
+verbose_args = --plan='build plan:' --verbose=5 --build-option=--quiet
+
+# Note that on some platforms matching bpkg's stderr using a regular
+# expression which contains too many '%.*' lines ends up with the regex_error
+# exception with the error_complexity code. To fix that we can pipe stderr of
+# bpkg, running in the verbose mode, through the sed-based pipeline filtering
+# the stream content and simplify the stderr-matching regular expressions.
+#
+filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
+                   sed -n -e "'"'s/(.+)/\1/p'"'" >&2
+
 : libfoo
 :
 : Test building different versions of libfoo.
@@ -2339,13 +2356,15 @@ test.arguments += --sys-no-query
         $clone_root_cfg
         $rep_add ../../1/t9-2 && $rep_fetch
 
+        test.arguments += $verbose_args
+
         # Picks up the latest libbaz (2.0.0) as a prerequisite for foo, which
         # leads to the conflict between libbaz/2.0.0 and libbox/1.0.0 about
         # prerequisite libbar because of the incompatible version constraints.
         # This get automatically resolved by the unsatisfied constraints
         # resolution machinery.
         #
-        $* foo --plan '' --verbose 5 2>>~%EOE%
+        $* foo 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
@@ -2390,6 +2409,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: end foo/1.0.0
           trace: execute_plan: simulate: yes
           %.*
+          build plan:
             new libbar/1.0.0 (required by libbaz, libbox)
             new libbaz/1.0.0 (required by foo)
             new libbox/1.0.0 (required by foo)
@@ -2458,7 +2478,7 @@ test.arguments += --sys-no-query
         # automatically resolved by the unsatisfied constraints resolution
         # machinery.
         #
-        $* ?libbaz --plan '' --verbose 5 2>>~%EOE%
+        $* $verbose_args ?libbaz 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: execute_plan: simulate: yes
@@ -2509,11 +2529,13 @@ test.arguments += --sys-no-query
         $clone_root_cfg
         $rep_add ../../1/t9-3 && $rep_fetch
 
+        test.arguments += $verbose_args
+
         # Similar to the repository state 2, picks up the latest libbaz
         # (2.0.0) as a prerequisite for foo, which leads to the conflict,
         # which is resolved automatically.
         #
-        $* foo --plan '' --verbose 5 2>>~%EOE%
+        $* foo 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
@@ -2601,6 +2623,7 @@ test.arguments += --sys-no-query
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: command line adjustment '?libbox == 1.0.0' is redundant, dropping it
+          build plan:
             new libbar/1.0.0 (required by libbaz, libbox)
             new libbaz/1.0.0 (required by foo)
             new libbox/1.1.0 (required by foo)
@@ -2664,14 +2687,14 @@ test.arguments += --sys-no-query
               libbar configured 1.0.0 available 2.0.0
           EOO
 
-        test.arguments += --plan '' --verbose 5
+        test.arguments += $verbose_args
 
         # Initially, unable to satisfy the dependent libbox with an upgraded
         # (due to libbaz 2.0.0) prerequisite libbar/2.0.0. But this get
         # automatically resolved by the unsatisfied constraints resolution
         # machinery.
         #
-        $* foo ?libbaz 2>>~%EOE%
+        $* foo ?libbaz 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
@@ -2701,6 +2724,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: skip configured foo/1.0.0
           trace: execute_plan: simulate: yes
           %.*
+          build plan:
             update foo/1.0.0
           trace: execute_plan: simulate: no
           %.*
@@ -2719,7 +2743,7 @@ test.arguments += --sys-no-query
         # line. This get automatically resolved by the unsatisfied constraints
         # resolution machinery.
         #
-        $* foo ?libbaz ?libbox 2>>~%EOE%
+        $* foo ?libbaz ?libbox 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
@@ -2798,6 +2822,7 @@ test.arguments += --sys-no-query
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: command line adjustment '?libbox' -> '?libbox == 1.0.0' is redundant, dropping it
+          build plan:
             upgrade libbox/1.1.0
             reconfigure/update foo/1.0.0
           trace: execute_plan: simulate: no
@@ -3778,7 +3803,9 @@ test.arguments += --sys-no-query
 
       $rep_fetch
 
-      $* libbaz --upgrade --recursive --yes --plan "" --verbose 5 2>>~%EOE%
+      test.arguments += $verbose_args
+
+      $* libbaz --upgrade --recursive --yes 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         trace: collect_build: add libbaz/1.0.0#1
@@ -4064,6 +4091,7 @@ test.arguments += --sys-no-query
         trace: evaluate_dependency: libfoo2/1.0.1: unchanged
         trace: evaluate_dependency: libfoo1/1.0.1: unchanged
         trace: evaluate_recursive: libbaz/1.0.0#1: no hit
+        build plan:
           upgrade libfoo3/1.0.1
           upgrade libfoo2/1.0.1
           upgrade libfoo1/1.0.1
@@ -4162,7 +4190,9 @@ test.arguments += --sys-no-query
         $clone_root_cfg
         $rep_fetch $rep/t0b $rep/t0c
 
-        $* libfix libbiz --plan '' --verbose 5 2>>~%EOE%
+        test.arguments += $verbose_args
+
+        $* libfix libbiz 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add libfix/0.0.3
@@ -4258,7 +4288,9 @@ test.arguments += --sys-no-query
         $clone_root_cfg
         $rep_fetch $rep/t0d
 
-        $* libbiz --plan "" --verbose 5 2>>~%EOE%
+        test.arguments += $verbose_args
+
+        $* libbiz 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add libbiz/0.0.1
@@ -5558,7 +5590,9 @@ test.arguments += --sys-no-query
               libbax configured !1.0.0 available 2.0.0
           EOO
 
-        $* libfoo libbax/2.0.0 --verbose 5 2>>~%EOE% != 0
+        test.arguments += $verbose_args
+
+        $* libfoo libbax/2.0.0 2>&1 != 0 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add libfoo/2.0.0
@@ -5599,7 +5633,9 @@ test.arguments += --sys-no-query
       {
         $clone_cfg
 
-        $* libbaz libfoo libfox --plan "" --verbose 5 2>>~%EOE%
+        test.arguments += $verbose_args
+
+        $* libbaz libfoo libfox 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add libbaz/2.1.0
@@ -5705,6 +5741,7 @@ test.arguments += --sys-no-query
           trace: collect_build_prerequisites: end libfox/2.1.0
           trace: execute_plan: simulate: yes
           %.*
+          build plan:
             new libbar/1.2.0 (required by libbaz, libfoo, libfox)
             new libbaz/1.2.0
             new libfoo/3.0.0
@@ -5742,7 +5779,9 @@ test.arguments += --sys-no-query
           !libbaz configured 2.1.0
           EOO
 
-        $* ?libbaz ?libfox/2.1.0 --verbose 5 2>>~%EOE%
+        test.arguments += $verbose_args
+
+        $* ?libbaz ?libfox/2.1.0 2>&1 | $filter 2>>~%EOE%
           %.*
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: execute_plan: simulate: yes
@@ -5811,7 +5850,7 @@ test.arguments += --sys-no-query
       +$clone_root_cfg
       +$rep_add $rep/t4f && $rep_fetch
 
-      test.arguments += --plan "" --verbose 5
+      test.arguments += $verbose_args
 
       : replace-dependent
       :
@@ -5828,7 +5867,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfoo libfix 2>>~%EOE%
+          $* libfoo libfix 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfoo/2.0.0
@@ -5902,7 +5941,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfix libfoo 2>>~%EOE%
+          $* libfix libfoo 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfix/1.0.0
@@ -6009,7 +6048,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfoo libfox 2>>~%EOE%
+          $* libfoo libfox 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfoo/2.0.0
@@ -6071,7 +6110,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfox libfoo 2>>~%EOE%
+          $* libfox libfoo 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfox/2.0.0
@@ -6180,7 +6219,7 @@ test.arguments += --sys-no-query
           #
           #  libbux: depends: libbix
           #
-          $* libbox ?libbix/1.0.0 libbux 2>!
+          $* libbox ?libbix/1.0.0 libbux --verbose 1 2>!
 
           $pkg_status -ar >>EOO
             libbax configured 1.0.0 available 2.0.0
@@ -6259,7 +6298,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbox ?libbix/1.0.0 libbux 2>!
+          $* libbox ?libbix/1.0.0 libbux --verbose 1 2>!
 
           $pkg_status -ar >>EOO
             libbax configured 1.0.0 available 2.0.0
@@ -6397,7 +6436,7 @@ test.arguments += --sys-no-query
           $clone_root_cfg
           $rep_add $rep/t4k && $rep_fetch
 
-          $* libbaz libbar 2>>~%EOE%
+          $* libbaz libbar 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/1.0.0
@@ -6652,7 +6691,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfox/1.1.0 libbaz 2>>~%EOE%
+          $* libfox/1.1.0 libbaz 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libfox/1.1.0
@@ -6717,7 +6756,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbaz libfox/1.1.0 2>>~%EOE%
+          $* libbaz libfox/1.1.0 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
@@ -6780,7 +6819,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbaz libfox/1.1.0 '?libbar' 2>>~%EOE%
+          $* libbaz libfox/1.1.0 '?libbar' 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
@@ -6862,7 +6901,7 @@ test.arguments += --sys-no-query
           #
           #  libbar: 0.1.0, 1.2.0, 2.1.0
           #
-          $* libbaz libfox/1.1.0 '?libbar < 3.0.0' 2>>~%EOE%
+          $* libbaz libfox/1.1.0 '?libbar < 3.0.0' 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
@@ -6928,7 +6967,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbaz libfox/1.1.0 libbar 2>>~%EOE%
+          $* libbaz libfox/1.1.0 libbar 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
@@ -7003,7 +7042,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbaz libfox/1.1.0 'libbar < 3.0.0' 2>>~%EOE%
+          $* libbaz libfox/1.1.0 'libbar < 3.0.0' 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbaz/2.0.0
@@ -7076,7 +7115,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbar 2>!
+          $* libbar --verbose 1 2>!
 
           $* libfox/1.1.0 libbaz 2>>~%EOE%
             %.*
@@ -7156,7 +7195,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libfoo 2>!
+          $* libfoo --verbose 1 2>!
 
           $pkg_status -ar >>EOO
             libbar configured 1.2.0 available 2.1.0
@@ -7164,7 +7203,7 @@ test.arguments += --sys-no-query
               libbar configured 1.2.0 available 2.1.0
             EOO
 
-          $* libbar 2>>~%EOE%
+          $* libbar 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbar/2.1.0
@@ -7204,7 +7243,7 @@ test.arguments += --sys-no-query
         {
           $clone_cfg
 
-          $* libbox/1.0.0 libfux ?libbax/1.0.0 2>!
+          $* libbox/1.0.0 libfux ?libbax/1.0.0 --verbose 1 2>!
 
           $pkg_status -ar >>EOO
             libbax configured !1.0.0 available 2.0.0
@@ -7214,7 +7253,7 @@ test.arguments += --sys-no-query
               libbax configured !1.0.0 available 2.0.0
             EOO
 
-          $* libbox/2.0.0 libbix ?libbax 2>>~%EOE%
+          $* libbox/2.0.0 libbix ?libbax 2>&1 | $filter 2>>~%EOE%
             %.*
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbox/2.0.0
@@ -9319,7 +9358,9 @@ test.arguments += --sys-no-query
     {
       $clone_cfg
 
-      $* foo bar --verbose 5 2>>~%EOE%
+      test.arguments += $verbose_args
+
+      $* foo bar 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
@@ -9393,8 +9434,10 @@ test.arguments += --sys-no-query
     {
       $clone_cfg && $rep_add $rep/t12a && $rep_fetch
 
+      test.arguments += $verbose_args
+
 #\
-      $* libbaz libbar --verbose 5 2>>~%EOE%
+      $* libbaz libbar 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
@@ -9416,7 +9459,7 @@ test.arguments += --sys-no-query
         EOE
 #\
 
-      $* libbaz libbar --verbose 5 2>>~%EOE%
+      $* libbaz libbar 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         %.*
@@ -9524,16 +9567,7 @@ test.arguments += --sys-no-query
   {{
     +$clone_root_cfg && $rep_add $rep/t11a && $rep_fetch
 
-    test.arguments += --yes --plan='build plan:' --verbose 5 --build-option --quiet
-
-    # Note that on some platforms matching bpkg's stderr using a regular
-    # expression which contains too may '%.*' lines ends up with the
-    # regex_error exception with the error_complexity code. To fix that we
-    # pipe bpkg's stderr through the sed-based pipeline filtering the stream
-    # content and simplify the stderr-matching regular expressions.
-    #
-    filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
-                       sed -n -e "'"'s/(.+)/\1/p'"'" >&2
+    test.arguments += --yes $verbose_args
 
     : initial-collection
     :
@@ -9812,7 +9846,7 @@ test.arguments += --sys-no-query
         #
         #  fux: depends: libfoo(c) ?
         #
-        $* fex/0.0.1 ?fux/0.2.0 +{ config.fux.network=true } 2>!
+        $* fex/0.0.1 ?fux/0.2.0 +{ config.fux.network=true } --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !fex configured !0.0.1 available 1.0.0 0.1.0
@@ -9902,6 +9936,8 @@ test.arguments += --sys-no-query
         :
         {{
           +$clone_cfg
+
+          test.arguments = $regex.filter_out_match($test.arguments, '--verbose=.*')
 
           : no-config
           :
@@ -10083,8 +10119,6 @@ test.arguments += --sys-no-query
               %.+
               EOO
 
-            test.arguments = $regex.filter_out_match($test.arguments, '--plan=.*')
-
             $* ?libfoo/0.1.0 2>!
 
             $pkg_status -r >>EOO
@@ -10115,6 +10149,8 @@ test.arguments += --sys-no-query
         :
         {
           $clone_cfg
+
+          test.arguments = $regex.filter_out_match($test.arguments, '--verbose=.*')
 
           #  Dependencies:
           #
@@ -10170,7 +10206,7 @@ test.arguments += --sys-no-query
           #
           #  fux: depends: libfoo(c) ?
           #
-          $* fex/0.1.0 fux/0.2.0 2>!
+          $* fex/0.1.0 fux/0.2.0 --verbose 1 2>!
 
           $pkg_status -r >>EOO
             !fux configured !0.2.0 available 1.0.0
@@ -10335,7 +10371,7 @@ test.arguments += --sys-no-query
           #
           #  fux: depends: libfoo(c) ?
           #
-          $* fex/0.1.0 fux/0.2.0 +{ config.fux.network=true } 2>!
+          $* fex/0.1.0 fux/0.2.0 +{ config.fux.network=true } --verbose 1 2>!
 
           $pkg_status -r >>EOO
             !fux configured !0.2.0 available 1.0.0
@@ -13736,7 +13772,7 @@ test.arguments += --sys-no-query
         #       depends: toz == 0.1.0 (c)
         #       depends: libbar(c)
         #
-        $* tvz 2>!
+        $* tvz --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !tvz configured 1.0.0
@@ -14482,7 +14518,7 @@ test.arguments += --sys-no-query
         #  bax: depends: libfoo(c)
         #       depends: {libbox libbar} (c)
         #
-        $* tez 2>!
+        $* tez --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !tez configured 1.0.0
@@ -18788,7 +18824,7 @@ test.arguments += --sys-no-query
       #
       #  box: depends: {libbar libfoo} (c) | libbox
       #
-      $* bac bas 2>!
+      $* bac bas --verbose 1 2>!
 
       $pkg_status -r >>EOO
         !bac configured 1.0.0
@@ -23769,7 +23805,7 @@ test.arguments += --sys-no-query
     {
       $clone_cfg
 
-      $* libbar/0.1.0 libbiz/0.1.0 bax 2>!
+      $* libbar/0.1.0 libbiz/0.1.0 bax --verbose 1 2>!
 
       $pkg_status -r >>EOO
         !libbar configured !0.1.0 available 1.0.0
@@ -24188,7 +24224,7 @@ test.arguments += --sys-no-query
       {
         $clone_cfg
 
-        $* tax ?libfoo/0.1.0 2>!
+        $* tax ?libfoo/0.1.0 --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !tax configured 1.0.0
@@ -24229,7 +24265,7 @@ test.arguments += --sys-no-query
       {
         $clone_cfg
 
-        $* tex/0.2.0 ?libbar/0.1.0 2>!
+        $* tex/0.2.0 ?libbar/0.1.0 --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !tex configured !0.2.0 available 1.0.0 0.3.0
@@ -24270,7 +24306,7 @@ test.arguments += --sys-no-query
       {
         $clone_cfg
 
-        $* tax ?libfoo/0.1.0 2>!
+        $* tax ?libfoo/0.1.0 --verbose 1 2>!
 
         $pkg_status -r >>EOO
           !tax configured 1.0.0
@@ -24370,7 +24406,7 @@ test.arguments += --sys-no-query
       # Note that we don't mach the configuration negotiation flows in the
       # tests of this scope.
       #
-      test.arguments += --verbose 1
+      test.arguments = $regex.filter_out_match($test.arguments, '--verbose=.*')
 
       # Convert specific warnings to infos since we expect them to
       # appear. This, in particular, prevents bbot workers to set task result
@@ -28276,7 +28312,7 @@ test.arguments += --sys-no-query
           libfoo [cfg3/] configured 1.0.0
         EOO
 
-      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
+      $pkg_build --yes -d cfg2 $verbose_args libbuz 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         trace: collect_build: add libbuz/1.0.0
@@ -28347,7 +28383,7 @@ test.arguments += --sys-no-query
 
       $rep_remove -d cfg1 $rep/t2
 
-      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz 2>>~%EOE%
+      $pkg_build --yes -d cfg2 $verbose_args libbuz 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         trace: collect_build: add libbuz/1.0.0
@@ -28409,7 +28445,7 @@ test.arguments += --sys-no-query
 
       sed -i -e 's/^(config.libbiz_tests.libbar) = false$/\1 = true/' cfg1/libbiz-tests-1.3.0/build/config.build
 
-      $pkg_build --yes -d cfg2 --plan "" --verbose 5 libbuz ?libbax 2>>~%EOE%
+      $pkg_build --yes -d cfg2 $verbose_args libbuz ?libbax 2>&1 | $filter 2>>~%EOE%
         %.*
         trace: pkg_build: refine package collection/plan execution from scratch
         trace: collect_build: add libbuz/1.0.0
@@ -30839,7 +30875,9 @@ else
 
       $rep_add -d t2 $rep/t7a && $rep_fetch -d t2
 
-      $* ?foo libbaz +{ --config-name t2 } --verbose 5 <<EOI 2>>~%EOE%
+      test.arguments += $verbose_args
+
+      $* ?foo libbaz +{ --config-name t2 } <<EOI 2>&1 | $filter 2>>~%EOE%
         y
         EOI
         %.*
