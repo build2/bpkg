@@ -25,7 +25,7 @@ namespace bpkg
   const string build2_config_type ("build2");
 
   const string&
-  buildtime_dependency_type (const package_name& nm)
+  buildtime_dependency_config_type (const package_name& nm)
   {
     return build2_module (nm) ? build2_config_type : host_config_type;
   }
@@ -33,7 +33,7 @@ namespace bpkg
   // Configuration names.
   //
   void
-  validate_configuration_name (const string& s, const char* what)
+  validate_config_name (const string& s, const char* what)
   {
     if (s.empty ())
       fail << "empty " << what;
@@ -57,15 +57,15 @@ namespace bpkg
   // NOTE: remember to qualify table/index names with \"main\". if using
   // native statements.
   //
-#if 0
   template <odb::schema_version v>
   using migration_entry = odb::data_migration_entry<v, DB_SCHEMA_VERSION_BASE>;
 
-  static const migration_entry<27>
-  migrate_v27 ([] (odb::database&)
+  static const migration_entry<30>
+  migrate_v30 ([] (odb::database& db)
   {
+    db.execute ("UPDATE \"main\".available_package_dependencies "
+                "SET type = 'dependencies' WHERE type IS NULL");
   });
-#endif
 
   static inline path
   cfg_path (const dir_path& d, bool create)
@@ -882,7 +882,7 @@ namespace bpkg
   {
     return dependency_configs (buildtime,
                                (buildtime
-                                ? buildtime_dependency_type (n)
+                                ? buildtime_dependency_config_type (n)
                                 : empty_string));
   }
 

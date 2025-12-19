@@ -269,9 +269,11 @@ namespace bpkg
     //
     assert (db == p.db);
 
-    // We don't merge into pre-entered objects, and from/into drops.
+    // We don't merge into pre-entered objects, unless they are both
+    // pre-entered. We also don't merge from/into drops.
     //
-    assert (action && *action != drop && (!p.action || *p.action != drop));
+    assert ((!action && !p.action) ||
+            (action && *action != drop && (!p.action || *p.action != drop)));
 
     // We never merge two repointed dependent reconfigurations.
     //
@@ -358,13 +360,10 @@ namespace bpkg
     //
     if (!constraints.empty ())
     {
-      for (constraint_type& c: p.constraints)
+      for (constraint& c: p.constraints)
       {
-        if (find_if (constraints.begin (), constraints.end (),
-                     [&c] (const constraint_type& v)
-                     {
-                       return v.dependent == c.dependent && v.value == c.value;
-                     }) == constraints.end ())
+        if (find (constraints.begin (), constraints.end (), c) ==
+            constraints.end ())
         {
           constraints.push_back (move (c));
         }
@@ -400,7 +399,7 @@ namespace bpkg
 
     // Don't reset the flags when merge a pre-entered entry into the build.
     //
-    if (*action == build && p.action)
+    if (action && *action == build && p.action)
     {
       flags &= ~build_repoint;
 
@@ -596,8 +595,12 @@ namespace bpkg
   }
 
   void replaced_versions::
-  cancel_redundant (tracer& trace, const build_packages& pkgs)
+  cancel_redundant (tracer& trace,
+                    const build_packages& pkgs,
+                    const xxh64& collection_initial_state)
   {
+    assert (!collection_initial_state.empty ());
+
     // Note that ideally we would like to drop as many redundant replacements
     // as possible, at once. However, it can be quite time-consuming to find
     // the largest untried replacements combination, since their number grows
@@ -607,11 +610,10 @@ namespace bpkg
     // goes.
     //
     // Also note that we need to track not only the replacement cancellations
-    // themselves, but also the package collection state these cancellations
-    // are applied to. This way the same replacement cancellation can be
-    // retried for multiple collection states.
+    // themselves, but also the package collection initial states these
+    // cancellations are applied to. This way the same replacement
+    // cancellation can be retried for multiple collection initial states.
     //
-    xxh64 collection_state; // Note: calculated on demand.
     for (auto i (begin ()); i != end (); ++i)
     {
       const replaced_version& v (i->second);
@@ -632,9 +634,9 @@ namespace bpkg
         {
           bool redundant (true);
 
-          for (const build_package::constraint_type& c: b->constraints)
+          for (const build_package::constraint& c: b->constraints)
           {
-            if (!satisfies (v.original_version, c.value))
+            if (!satisfies (v.original_version, c.version_constraint))
             {
               redundant = false;
               break;
@@ -643,10 +645,9 @@ namespace bpkg
 
           if (redundant)
           {
-            if (collection_state.empty ())
-              pkgs.state (collection_state);
-
-            xxh64 cs (collection_state); // Copy the checksum calculation state.
+            // Copy the checksum calculation state.
+            //
+            xxh64 cs (collection_initial_state);
 
             cs.append (p.name.string ());
             cs.append (v.original_version.string ());
@@ -682,12 +683,211 @@ namespace bpkg
     }
   }
 
+  // dependency_constraint_key
+  //
+  bool dependency_constraint_key::
+  operator< (const dependency_constraint_key& v) const
+  {
+    if (dependent_db != v.dependent_db)
+      return dependent_db < v.dependent_db;
+
+    if (int r = dependent_name.compare (v.dependent_name))
+      return r < 0;
+
+    if (int r = dependent_version.compare (v.dependent_version))
+      return r < 0;
+
+    if (int r = dependency_name.compare (v.dependency_name))
+      return r < 0;
+
+    return buildtime < v.buildtime;
+  }
+
+  string dependency_constraint_key::
+  string () const
+  {
+    using std::string;
+
+    string r (dependent_name.string ());
+    r += '/';
+    r += dependent_version.string ();
+
+    const string& d (dependent_db.get ().string);
+
+    if (!d.empty ())
+    {
+      r += ' ';
+      r += d;
+    }
+
+    r += " : ";
+
+    if (buildtime)
+      r += "* ";
+
+    r += dependency_name.string ();
+    return r;
+  }
+
+  void dependency_constraint_key::
+  to_checksum (xxh64& cs) const
+  {
+    cs.append (dependent_db.get ().config.string ());
+    cs.append (dependent_name.string ());
+    cs.append (dependent_version.string ());
+    cs.append (dependency_name.string ());
+    cs.append (buildtime);
+  }
+
+  // dependency_constraint_state
+  //
+  string
+  to_string (dependency_constraint_state s)
+  {
+    switch (s)
+    {
+    case dependency_constraint_state::active:                  return "active";
+    case dependency_constraint_state::inactive:                return "inactive";
+    case dependency_constraint_state::version_constraint_only: return "version_constraint_only";
+    }
+
+    assert (false); // Can't be here.
+    return string ();
+  }
+
+  // dependency_constraints
+  //
+  bool dependency_constraints::
+  correct_states (const xxh64& collection_initial_state)
+  {
+    tracer trace ("dependency_constraints::collect_dependents");
+
+    assert (!collection_initial_state.empty ());
+
+    vector<dependency_constraints::value_type*> corrected;
+    vector<const dependency_constraints::value_type*> cycled;
+
+    // Copy the checksum calculation state.
+    //
+    xxh64 cs (collection_initial_state);
+
+    for (auto& dc: *this)
+    {
+      const dependency_constraint_key& k (dc.first);
+
+      shared_ptr<selected_package> sp (
+        k.dependent_db.get ().find<selected_package> (k.dependent_name));
+
+      if (sp != nullptr                          &&
+          sp->state == package_state::configured &&
+          sp->substate != package_substate::system)
+      {
+        if (k.dependent_version == sp->version)
+        {
+          bool active (
+            indirect_prerequisite (
+              k.dependency_name,
+              k.buildtime,
+              sp->prerequisites,
+              nullptr /* find_package_prerequisites_function */));
+
+          dependency_constraint_state& s (dc.second);
+
+          bool assumed_active (s == dependency_constraint_state::active);
+
+          if (assumed_active != active)
+          {
+            if (s == dependency_constraint_state::version_constraint_only)
+            {
+              cycled.push_back (&dc);
+            }
+            else
+            {
+              l5 ([&]{trace << "dependency constraint (" << k << ") is "
+                            << "wrongfully assumed " << s << ", correcting";});
+
+              // Calculate the correct state.
+              //
+              dependency_constraint_state ns (
+                active
+                ? dependency_constraint_state::active
+                : dependency_constraint_state::inactive);
+
+              // Calculate the state change checksum.
+              //
+              k.to_checksum (cs);
+              cs.append (static_cast<uint8_t> (s));
+              cs.append (static_cast<uint8_t> (ns));
+
+              // Correct the state and add it to the corrections list.
+              //
+              s = ns;
+
+              corrected.push_back (&dc);
+            }
+          }
+        }
+      }
+    }
+
+    // If any constraint states were corrected, then go with them if the
+    // change set have never been tried before. Otherwise, assume cycling and
+    // turn all the states into version_constraint_only.
+    //
+    if (!corrected.empty ())
+    {
+      if (!former_corrections_.insert (cs.hash ()).second)
+      {
+        for (dependency_constraints::value_type* dc: corrected)
+        {
+          dc->second = dependency_constraint_state::version_constraint_only;
+
+          l5 ([&]{trace << "dependency constraint (" << dc->first << ") is "
+                        << "assumed " << dc->second << " to prevent "
+                        << "dependency constraining cycle";});
+        }
+      }
+
+      return true;
+    }
+
+    // Fail if no states can be corrected anymore.
+    //
+    if (!cycled.empty ())
+    {
+      diag_record dr (fail);
+      dr << "dependency constraining cycle detected" <<
+        info << "when applying constraint removes dependency from dependent's "
+             << "dependency tree" <<
+        info << "and ignoring constraint adds dependency to dependent's "
+             << "dependency tree";
+
+      for (const dependency_constraints::value_type* dc: cycled)
+        dr << info << "involved dependency constraint (" << dc->first << ')';
+    }
+
+    return false;
+  }
+
+  void dependency_constraints::
+  clear (dependency_constraint_state s)
+  {
+    for (iterator i (begin ()); i != end (); )
+    {
+      if (i->second == s)
+        i = erase (i);
+      else
+        ++i;
+    }
+  }
+
   // unsatisfied_dependents
   //
   void unsatisfied_dependents::
   add (const package_key& dpt,
        const package_key& dep,
        const version_constraint& c,
+       dependency_type t,
        vector<unsatisfied_constraint>&& ucs,
        vector<package_key>&& dc)
   {
@@ -705,13 +905,13 @@ namespace bpkg
                    [dep] (const auto& v) {return v.dependency == dep;}) ==
           ics.end ())
       {
-        ics.emplace_back (dep, c, move (ucs), move (dc));
+        ics.emplace_back (dep, c, t, move (ucs), move (dc));
       }
     }
     else
       push_back (
         unsatisfied_dependent {
-          dpt, {ignored_constraint (dep, c, move (ucs), move (dc))}});
+          dpt, {ignored_constraint (dep, c, t, move (ucs), move (dc))}});
   }
 
   void unsatisfied_dependents::
@@ -765,7 +965,7 @@ namespace bpkg
     const build_package* p (pkgs.entered_build (ic.dependency));
     assert (p != nullptr); // The dependency must be collected.
 
-    const version_constraint& c (ic.constraint);
+    const version_constraint& vc (ic.version_constraint);
     const vector<unsatisfied_constraint>& ucs (ic.unsatisfied_constraints);
 
     const package_name& n (p->name ());
@@ -812,8 +1012,8 @@ namespace bpkg
 
       assert (dsp != nullptr); // By definition.
 
-      dr << info << "because configured package " << *dsp << dk.db
-                 << " depends on (" << n << ' ' << c << ')';
+      dr << info << "because configured package "
+                 << constraint_string (*dsp, dk.db, n, ic.dependency_type, vc);
 
       // Print the dependency constraints tree for this unsatisfied dependent,
       // which only contains constraints which come from its existing
@@ -862,15 +1062,15 @@ namespace bpkg
 
           if (rbd)
           {
-            const vector<build_package::constraint_type>& cs (p->constraints);
+            const vector<build_package::constraint>& cs (p->constraints);
             auto i (find_if (cs.begin (), cs.end (),
-                             [&pvk] (const build_package::constraint_type& v)
+                             [&pvk] (const build_package::constraint& v)
                              {
                                return v.dependent == pvk;
                              }));
 
             if (i != cs.end ())
-              dr << " (" << p->name () << ' ' << i->value << ')';
+              dr << " (" << p->name () << ' ' << i->version_constraint << ')';
           }
 
           indent += "  ";
@@ -901,10 +1101,8 @@ namespace bpkg
 
       for (const unsatisfied_constraint& uc: ucs)
       {
-        const build_package::constraint_type& c (uc.constraint);
-
-        dr << info << c.dependent << " depends on (" << n << ' ' << c.value
-                   << ')';
+        const build_package::constraint& c (uc.constraint);
+        dr << info << c.string (n);
 
         if (const build_package* d = pkgs.dependent_build (c))
         {
@@ -1530,7 +1728,7 @@ namespace bpkg
   // build_packages
   //
   bool build_packages::package_ref::
-  operator== (const package_ref& v)
+  operator== (const package_ref& v) const
   {
     return name == v.name && db == v.db;
   }
@@ -1594,7 +1792,7 @@ namespace bpkg
   }
 
   const build_package* build_packages::
-  dependent_build (const build_package::constraint_type& c) const
+  dependent_build (const build_package::constraint& c) const
   {
     const build_package* r (nullptr);
 
@@ -1636,6 +1834,7 @@ namespace bpkg
                  const function<find_database_function>& fdb,
                  const function<add_priv_cfg_function>& apc,
                  const repointed_dependents* rpt_depts,
+                 dependency_constraints* dependency_constrs,
                  postponed_packages* postponed_repo,
                  postponed_packages* postponed_alts,
                  postponed_packages* postponed_recs,
@@ -1646,7 +1845,7 @@ namespace bpkg
   {
     using std::swap; // ...and not list::swap().
 
-    using constraint_type = build_package::constraint_type;
+    using constraint = build_package::constraint;
 
     tracer trace ("collect_build");
 
@@ -1657,14 +1856,15 @@ namespace bpkg
     //
     bool recursive (fdb != nullptr);
 
-    assert ((!recursive || dep_chain != nullptr)        &&
-            (rpt_depts         != nullptr) == recursive &&
-            (postponed_repo    != nullptr) == recursive &&
-            (postponed_alts    != nullptr) == recursive &&
-            (postponed_recs    != nullptr) == recursive &&
-            (postponed_edeps   != nullptr) == recursive &&
-            (postponed_deps    != nullptr) == recursive &&
-            (unacceptable_alts != nullptr) == recursive);
+    assert ((!recursive || dep_chain != nullptr)         &&
+            (rpt_depts          != nullptr) == recursive &&
+            (dependency_constrs != nullptr) == recursive &&
+            (postponed_repo     != nullptr) == recursive &&
+            (postponed_alts     != nullptr) == recursive &&
+            (postponed_recs     != nullptr) == recursive &&
+            (postponed_edeps    != nullptr) == recursive &&
+            (postponed_deps     != nullptr) == recursive &&
+            (unacceptable_alts  != nullptr) == recursive);
 
     // Only builds are allowed here.
     //
@@ -1703,15 +1903,14 @@ namespace bpkg
           const version& rv (*replacement_version);
 
           bool replace (true);
-          for (const constraint_type& c: pkg.constraints)
+          for (const constraint& c: pkg.constraints)
           {
-            if (!satisfies (rv, c.value))
+            if (!satisfies (rv, c.version_constraint))
             {
               replace = false;
 
               l5 ([&]{trace << "replacement to " << rv << " is denied since "
-                            << c.dependent << " depends on (" << pk.name << ' '
-                            << c.value << ')';});
+                            << c.string (pk.name);});
             }
           }
 
@@ -1879,15 +2078,15 @@ namespace bpkg
           // which are meant to be ignored (ics). Return the pointer to the
           // unsatisfied constraint or NULL if all are satisfied.
           //
-          vector<const constraint_type*> ics;
+          vector<const constraint*> ics;
 
           auto test = [&ics] (build_package* pv, build_package* pc)
-            -> const constraint_type*
+            -> const constraint*
           {
-            for (const constraint_type& c: pc->constraints)
+            for (const constraint& c: pc->constraints)
             {
               if (find (ics.begin (), ics.end (), &c) == ics.end () &&
-                  !satisfies (pv->available_version (), c.value))
+                  !satisfies (pv->available_version (), c.version_constraint))
                 return &c;
             }
 
@@ -1910,7 +2109,7 @@ namespace bpkg
                 // Add a constraint to the igrore-list and the dependent to
                 // the unsatisfied-list.
                 //
-                const constraint_type* c (p1 == &bp ? c2 : c1);
+                const constraint* c (p1 == &bp ? c2 : c1);
                 const build_package* p (dependent_build (*c));
 
                 // Note that if one of the constraints is imposed on the
@@ -1939,7 +2138,7 @@ namespace bpkg
                 l5 ([&]{trace << "postpone failure for dependent " << d
                               << " unsatisfied with dependency "
                               << bp.available_name_version_db () << " ("
-                              << c->value << ')';});
+                              << c->version_constraint << ')';});
 
                 // Note that in contrast to collect_dependents(), here we also
                 // save both unsatisfied constraints and the dependency chain,
@@ -1961,7 +2160,12 @@ namespace bpkg
                     dc.emplace_back (p.db, p.name ());
                 }
 
-                unsatisfied_depts.add (d, pk, c->value, move (ucs), move (dc));
+                unsatisfied_depts.add (d,
+                                       pk,
+                                       c->version_constraint,
+                                       c->dependency_type,
+                                       move (ucs),
+                                       move (dc));
                 continue;
               }
               else
@@ -2104,6 +2308,7 @@ namespace bpkg
                                    apc,
                                    *rpt_depts,
                                    replaced_vers,
+                                   *dependency_constrs,
                                    postponed_repo,
                                    postponed_alts,
                                    0 /* max_alt_index */,
@@ -2125,6 +2330,7 @@ namespace bpkg
                                const function<add_priv_cfg_function>& apc,
                                const repointed_dependents& rpt_depts,
                                replaced_versions& replaced_vers,
+                               dependency_constraints& dependency_constrs,
                                postponed_packages* postponed_repo,
                                postponed_packages* postponed_alts,
                                size_t max_alt_index,
@@ -2543,9 +2749,10 @@ namespace bpkg
       // Add an empty alternatives list into the selected dependency list if
       // this is a toolchain build-time dependency.
       //
-      dependency_alternatives_ex sdas (das.buildtime, das.comment);
+      dependency_alternatives_ex sdas (das.type, das.buildtime, das.comment);
 
-      if (toolchain_buildtime_dependency (options, das, &nm))
+      if (das.type == dependency_alternatives_type::dependencies &&
+          toolchain_buildtime_dependency (options, das, &nm))
       {
         if (pre_reeval)
         {
@@ -2578,6 +2785,16 @@ namespace bpkg
       //
       build_package::dependency_alternatives_refs edas;
 
+      // For an enabled dependency constraint make an assumption if it is
+      // active (dependency package is in the dependent's dependency tree) or
+      // not. If the constrained dependency is in the dependency constraints
+      // states cache, then use that. Otherwise, if the dependent is
+      // configured as source, then use its prerequisites map. Otherwise,
+      // assume the constraint is inactive. Save the assumed constraint state
+      // to the cache, unless it is already there.
+      //
+      bool version_constraint_only (false);
+
       if (pkg.postponed_dependency_alternatives)
       {
         edas = move (*pkg.postponed_dependency_alternatives);
@@ -2604,6 +2821,75 @@ namespace bpkg
           }
           else
             enabled = true;
+
+          if (enabled && das.type == dependency_alternatives_type::constraint)
+          {
+            assert (da.size () == 1); // By definition.
+
+            dependency_constraint_key k (
+              pdb, nm, ap->version, da[0].name, das.buildtime);
+
+            bool active;
+            auto i (dependency_constrs.find (k));
+
+            if (i != dependency_constrs.end ())
+            {
+              dependency_constraint_state s (i->second);
+
+              version_constraint_only =
+                (s == dependency_constraint_state::version_constraint_only);
+
+              active = (s == dependency_constraint_state::active);
+
+              l5 ([&]{trace << "dependency constraint (" << k << ") is "
+                            << "assumed " << s << " as per cache";});
+            }
+            else
+            {
+              if (sp != nullptr                          &&
+                  sp->state == package_state::configured &&
+                  sp->substate != package_substate::system)
+              {
+                const package_prerequisites& prs (sp->prerequisites);
+
+                // Note that for a dependency configured prior to the
+                // toolchain version 0.18.0 the buildtime/runtime information
+                // is not available for dependent's prerequisites (both flags
+                // are false). For such a dependent the initial assumption for
+                // it's constraints is always "inactive".
+                //
+                active = (
+                  find_if (
+                    prs.begin (), prs.end (),
+                    [&k] (const auto& pr)
+                    {
+                      return pr.first.object_id () == k.dependency_name &&
+                             (k.buildtime
+                              ? pr.second.buildtime
+                              : pr.second.runtime);
+                    }) != prs.end ());
+
+                l5 ([&]{trace << "dependency constraint (" << k << ") is "
+                              << "assumed " << (active ? "active" : "inactive")
+                              << " as per configured dependent "
+                              << sp->string (pdb);});
+              }
+              else
+              {
+                active = false;
+
+                l5 ([&]{trace << "dependency constraint (" << k
+                              << ") is assumed inactive initially";});
+              }
+
+              dependency_constrs[move (k)] =
+                (active
+                 ? dependency_constraint_state::active
+                 : dependency_constraint_state::inactive);
+            }
+
+            enabled = (active || version_constraint_only);
+          }
 
           if (enabled)
             edas.push_back (make_pair (ref (da), i));
@@ -2667,8 +2953,8 @@ namespace bpkg
       {
         package_name                               dependency;
         reference_wrapper<database>                db;
-        optional<build_package::constraint_type>   dependency_constraint;
-        optional<build_package::constraint_type>   effective_constraint;
+        optional<build_package::constraint>        dependency_constraint;
+        optional<build_package::constraint>        effective_constraint;
         shared_ptr<selected_package>               selected;
         shared_ptr<available_package>              available;
         lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
@@ -2751,16 +3037,23 @@ namespace bpkg
                          postponed_repo,
                          &dep_chain,
                          pre_reeval,
+                         &das,
                          &trace,
                          this]
         (const dependency_alternative& da,
-         bool buildtime,
          const package_prerequisites* prereqs,
          bool check_constraints,
          bool ignore_unsatisfactory_dep_spec,
          diag_record* dr = nullptr,
          bool dry_run = false) -> precollect_result
         {
+          dependency_type dep_type (
+            das.type == dependency_alternatives_type::constraint
+            ? dependency_type::constraint
+            : dependency_type::dependency);
+
+          bool buildtime (das.buildtime);
+
           prebuilds r;
           bool reused (true);
           optional<unsatisfied_dependent> udep;
@@ -2821,7 +3114,7 @@ namespace bpkg
             // Points to the desired dependency version constraint, if
             // specified, and is NULL otherwise. Can be used as boolean flag.
             //
-            const build_package::constraint_type* dep_constr (nullptr);
+            const build_package::constraint* dep_constr (nullptr);
 
             database* ddb (fdb (pdb, dn, buildtime));
 
@@ -2843,12 +3136,13 @@ namespace bpkg
               {
                 assert (bp.constraints.size () == 1);
 
-                const build_package::constraint_type& c (bp.constraints[0]);
+                const build_package::constraint& c (bp.constraints[0]);
 
                 // If the user-specified dependency constraint is the wildcard
                 // version, then it satisfies any dependency constraint.
                 //
-                if (!wildcard (c.value) && !satisfies (c.value, dp.constraint))
+                if (!wildcard (c.version_constraint) &&
+                    !satisfies (c.version_constraint, dp.constraint))
                 {
                   // We should end up throwing reevaluation_deviated exception
                   // before the diagnostics run in the pre-reevaluation mode.
@@ -2871,16 +3165,18 @@ namespace bpkg
 
                       *dr << error << "unable to satisfy constraints on package "
                           << dn <<
-                        info << nm << pdb << " depends on (" << dn << ' '
-                          << *dp.constraint << ')';
+                        info << constraint_string (nm,
+                                                   pdb,
+                                                   dn,
+                                                   dep_type,
+                                                   *dp.constraint);
 
                       {
                         set<package_key> printed;
                         print_constraints (*dr, pkg, indent, printed);
                       }
 
-                      *dr << info << c.dependent << " depends on (" << dn << ' '
-                          << c.value << ')';
+                      *dr << info << c.string (dn);
 
                       if (const build_package* d = dependent_build (c))
                       {
@@ -2902,20 +3198,19 @@ namespace bpkg
                     l5 ([&]{trace << "postpone failure for constraint (" << dp
                                   << ") of dependent " << pk << " unsatisfied "
                                   << "with user-specified constraint (" << dn
-                                  << ' ' << c.value << ')';});
+                                  << ' ' << c.version_constraint << ')';});
 
                     if (!udep)
                       udep = unsatisfied_dependent {pk, {}};
 
-                    using constraint_type = build_package::constraint_type;
-
                     vector<unsatisfied_constraint> ucs {
                       unsatisfied_constraint {
-                        constraint_type (*dp.constraint,
-                                         pdb,
-                                         nm,
-                                         pkg.available_version (),
-                                         false /* existing_dependent */),
+                        build_package::constraint (*dp.constraint,
+                                                   pdb,
+                                                   nm,
+                                                   pkg.available_version (),
+                                                   dep_type,
+                                                   false /* existing_dependent */),
                         nullopt /* available_version */,
                         false   /* available_system */},
                       unsatisfied_constraint {
@@ -2933,6 +3228,7 @@ namespace bpkg
                     udep->ignored_constraints.emplace_back (
                       package_key (bp.db, dn),
                       *dp.constraint,
+                      dep_type,
                       move (ucs),
                       move (dc));
                   }
@@ -2947,7 +3243,8 @@ namespace bpkg
 
             const dependency& d (!dep_constr
                                  ? dp
-                                 : dependency {dn, dep_constr->value});
+                                 : dependency {dn,
+                                               dep_constr->version_constraint});
 
             // First see if this package is already selected. If we already
             // have it in the configuration and it satisfies our dependency
@@ -3134,14 +3431,14 @@ namespace bpkg
             //
             if (buildtime      &&
                 dsp == nullptr &&
-                ddb->type != buildtime_dependency_type (dn))
+                ddb->type != buildtime_dependency_config_type (dn))
             {
               database*  db (nullptr);
               database& sdb (ddb->private_ ()
                              ? ddb->parent_config (true /* sys_rep */)
                              : *ddb);
 
-              const string& type (buildtime_dependency_type (dn));
+              const string& type (buildtime_dependency_config_type (dn));
 
               // Skip the self-link.
               //
@@ -3465,7 +3762,7 @@ namespace bpkg
                                   << pkg.available_name_version_db ()
                                   << " due to dependency " << dp
                                   << " and user-specified constraint "
-                                  << dep_constr->value;});
+                                  << dep_constr->version_constraint;});
 
                     postponed_repo->insert (&pkg);
                   }
@@ -3502,7 +3799,7 @@ namespace bpkg
                   // constraint.
                   //
                   if (d.constraint &&
-                      (!dep_constr || !wildcard (dep_constr->value)))
+                      (!dep_constr || !wildcard (dep_constr->version_constraint)))
                     dr << ' ' << *d.constraint;
 
                   dr << ')';
@@ -3604,18 +3901,18 @@ namespace bpkg
             if (!ru)
               reused = false;
 
-            using constraint_type = build_package::constraint_type;
+            using constraint = build_package::constraint;
 
-            optional<constraint_type> dc (
-              dp.constraint
-              ? constraint_type (*dp.constraint,
-                                 pdb,
-                                 nm,
-                                 pkg.available_version (),
-                                 false /* existing_dependent */)
-              : optional<constraint_type> ());
+            optional<constraint> dc (dp.constraint
+                                     ? constraint (*dp.constraint,
+                                                   pdb,
+                                                   nm,
+                                                   pkg.available_version (),
+                                                   dep_type,
+                                                   false /* existing_dependent */)
+                                     : optional<constraint> ());
 
-            optional<constraint_type> ec (dep_constr ? *dep_constr : dc);
+            optional<constraint> ec (dep_constr ? *dep_constr : dc);
 
             r.push_back (prebuild {d.name,
                                    *ddb,
@@ -3669,15 +3966,15 @@ namespace bpkg
 
                   if (v1 != v2)
                   {
-                    using constraint_type = build_package::constraint_type;
+                    using constraint = build_package::constraint;
 
-                    const constraint_type& c1 (*b.effective_constraint);
+                    const constraint& c1 (*b.effective_constraint);
 
-                    if (!satisfies (v2, c1.value))
+                    if (!satisfies (v2, c1.version_constraint))
                     {
-                      for (const constraint_type& c2: bp.constraints)
+                      for (const constraint& c2: bp.constraints)
                       {
-                        if (!satisfies (v1, c2.value))
+                        if (!satisfies (v1, c2.version_constraint))
                         {
                           // We should end up throwing reevaluation_deviated
                           // exception before the diagnostics run in the
@@ -3694,8 +3991,7 @@ namespace bpkg
 
                             *dr << error << "unable to satisfy constraints on "
                                 << "package " << n <<
-                              info << c2.dependent << " depends on (" << n
-                                   << ' ' << c2.value << ')';
+                              info << c2.string (n);
 
                             if (const build_package* d = dependent_build (c2))
                             {
@@ -3703,8 +3999,7 @@ namespace bpkg
                               print_constraints (*dr, *d, indent, printed);
                             }
 
-                            *dr << info << c1.dependent << " depends on ("
-                                        << n << ' ' << c1.value << ')';
+                            *dr << info << c1.string (n);
 
                             if (const build_package* d = dependent_build (c1))
                             {
@@ -3744,6 +4039,8 @@ namespace bpkg
                       &pk,
                       &fdb,
                       &rpt_depts,
+                      &dependency_constrs,
+                      version_constraint_only,
                       &apc,
                       &replaced_vers,
                       &dep_chain,
@@ -3761,7 +4058,6 @@ namespace bpkg
                       &reevaluated,
                       &fail_reeval,
                       &edas,
-                      &das,
                       &precollect,
                       &trace,
                       this]
@@ -3804,6 +4100,99 @@ namespace bpkg
 
           for (prebuild& b: bs)
           {
+            // Add all our constraints for completeness, if we have any.
+            //
+            vector<build_package::constraint> constraints;
+
+            if (b.effective_constraint)
+            {
+              constraints.push_back (*b.effective_constraint);
+
+              if (b.dependency_constraint &&
+                  b.dependency_constraint->dependent !=
+                  b.effective_constraint->dependent)
+                constraints.push_back (*b.dependency_constraint);
+            }
+
+            // If we are collecting a dependency constraint (the constrains
+            // manifest value) in the version_constraint_only mode, then we
+            // only need to "collect" its version constraint and the 'required
+            // by' information. If the dependency is ever collected as a build
+            // or adjustment, this information needs to be taken into account
+            // (constraint satisfied, etc). Otherwise, it needs to be ignored.
+            //
+            // Specifically, check if the constrained dependency is already in
+            // the map. If it is not, then pre-enter the constraints and the
+            // required-by information. Otherwise, if it is pre-entered, then
+            // merge the constraints and the required-by information into the
+            // pre-entered object. Otherwise, if this is a drop, then just
+            // skip the prebuild. Otherwise (this is a build or adjustment),
+            // fallback to collecting a build and bail out afterwards (do not
+            // collect the dependency recursively, etc).
+            //
+            if (version_constraint_only)
+            {
+              // Skip the prebuild in the version_constraint_only mode if it
+              // doesn't have any constraints.
+              //
+              if (constraints.empty ())
+                break;
+
+              package_key pk (b.db, b.dependency);
+              build_package* p (entered_build (pk));
+
+              if (p == nullptr || !p->action)
+              {
+                build_package bp {
+                  nullopt,                    // Action.
+                  pk.db,
+                  nullptr,                    // Selected package.
+                  nullptr,                    // Available package/repo fragment.
+                  nullptr,
+                  nullopt,                    // Dependencies.
+                  nullopt,                    // Dependencies alternatives.
+                  nullopt,                    // Package skeleton.
+                  nullopt,                    // Postponed dependency alternatives.
+                  false,                      // Recursive collection.
+                  nullopt,                    // Hold package.
+                  nullopt,                    // Hold version.
+                  {move (constraints)},       // Constraints.
+                  false,                      // System.
+                  false,                      // Keep output directory.
+                  false,                      // Disfigure (from-scratch reconf).
+                  false,                      // Configure-only.
+                  nullopt,                    // Checkout root.
+                  false,                      // Checkout purge.
+                  strings (),                 // Configuration variables.
+                  nullopt,                    // Upgrade.
+                  false,                      // Deorphan.
+                  {move (pvk)},               // Required by (dependent).
+                  true,                       // Required by dependents.
+                  0};                         // State flags.
+
+                if (p == nullptr)
+                {
+                  enter (pk.name, move (bp));
+
+                  l5 ([&]{trace << "pre-enter version constraint only " << pk;});
+                }
+                else
+                {
+                  p->merge (move (bp));
+
+                  l5 ([&]{trace << "merge version constraint only " << pk
+                                << " into pre-entered";});
+                }
+
+                break;
+              }
+              else if (*p->action == build_package::drop)
+              {
+                l5 ([&]{trace << "skip being dropped constraint only " << pk;});
+                break;
+              }
+            }
+
             build_package bpk {
               build_package::build,
               b.db,
@@ -3817,7 +4206,7 @@ namespace bpkg
               false,                      // Recursive collection.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
-              {},                         // Constraints.
+              {move (constraints)},       // Constraints.
               b.system,
               false,                      // Keep output directory.
               false,                      // Disfigure (from-scratch reconf).
@@ -3830,18 +4219,6 @@ namespace bpkg
               {pvk},                      // Required by (dependent).
               true,                       // Required by dependents.
               0};                         // State flags.
-
-            // Add all our constraints for completeness, if we have any.
-            //
-            if (b.effective_constraint)
-            {
-              bpk.constraints.push_back (*b.effective_constraint);
-
-              if (b.dependency_constraint &&
-                  b.dependency_constraint->dependent !=
-                  b.effective_constraint->dependent)
-                bpk.constraints.push_back (*b.dependency_constraint);
-            }
 
             // Now collect this prerequisite. If it was actually collected
             // (i.e., it wasn't already there) and we are forcing a downgrade
@@ -3906,7 +4283,7 @@ namespace bpkg
 
                     bool u (av > prq.selected->version);
 
-                    const optional<build_package::constraint_type>& c (
+                    const optional<build_package::constraint>& c (
                       prq.dependency_constraint);
 
                     diag_record dr;
@@ -3918,7 +4295,7 @@ namespace bpkg
                       << " dependency on " << (c ? "(" : "")
                       << dependency (prq.dependency,
                                      c
-                                     ? c->value
+                                     ? c->version_constraint
                                      : optional<version_constraint> ())
                       << (c ? ")" : "") << " is forcing "
                       << (u ? "up" : "down") << "grade of " << *prq.selected
@@ -3961,6 +4338,7 @@ namespace bpkg
                              nullptr /* fdb */,
                              nullptr /* apc */,
                              nullptr /* rpt_depts */,
+                             nullptr /* dependency_constr */,
                              nullptr /* postponed_repo */,
                              nullptr /* postponed_alts */,
                              nullptr /* postponed_recs */,
@@ -3968,6 +4346,9 @@ namespace bpkg
                              nullptr /* postponed_deps */,
                              nullptr /* unacceptable_alts */,
                              verify));
+
+            if (version_constraint_only)
+              break;
 
             package_key dpk (b.db, b.available->id.name);
 
@@ -4170,6 +4551,7 @@ namespace bpkg
                                            apc,
                                            rpt_depts,
                                            replaced_vers,
+                                           dependency_constrs,
                                            postponed_repo,
                                            postponed_alts,
                                            0 /* max_alt_index */,
@@ -4244,14 +4626,12 @@ namespace bpkg
 
                 const dependency_alternative& a (edas[i].first);
 
-                precollect_result r (
-                  precollect (a,
-                              das.buildtime,
-                              prereqs,
-                              check_constraints,
-                              ignore_unsatisfactory_dep_spec,
-                              nullptr /* diag_record */,
-                              true /* dry_run */));
+                precollect_result r (precollect (a,
+                                                 prereqs,
+                                                 check_constraints,
+                                                 ignore_unsatisfactory_dep_spec,
+                                                 nullptr /* diag_record */,
+                                                 true /* dry_run */));
 
                 if (r.builds && r.reused)
                 {
@@ -4282,7 +4662,6 @@ namespace bpkg
                   {
                     precollect_result r (
                       precollect (a,
-                                  das.buildtime,
                                   nullptr /* prereqs */,
                                   check_constraints,
                                   ignore_unsatisfactory_dep_spec,
@@ -4320,7 +4699,6 @@ namespace bpkg
                   {
                     precollect_result r (
                       precollect (a,
-                                  das.buildtime,
                                   nullptr /* prereqs */,
                                   false /* check_constraints */,
                                   ignore_unsatisfactory_dep_spec,
@@ -4349,7 +4727,6 @@ namespace bpkg
                   {
                     precollect_result r (
                       precollect (a,
-                                  das.buildtime,
                                   nullptr /* prereqs */,
                                   cc,
                                   true /* ignore_unsatisfactory_dep_spec */,
@@ -4842,6 +5219,7 @@ namespace bpkg
                                                apc,
                                                rpt_depts,
                                                replaced_vers,
+                                               dependency_constrs,
                                                postponed_repo,
                                                postponed_alts,
                                                0 /* max_alt_index */,
@@ -5090,12 +5468,10 @@ namespace bpkg
 
           const dependency_alternative& da (edas[i].first);
 
-          precollect_result pcr (
-            precollect (da,
-                        das.buildtime,
-                        prereqs,
-                        check_constraints,
-                        ignore_unsatisfactory_dep_spec));
+          precollect_result pcr (precollect (da,
+                                             prereqs,
+                                             check_constraints,
+                                             ignore_unsatisfactory_dep_spec));
 
           // If we didn't come up with satisfactory dependency builds, then
           // skip this alternative and try the next one, unless the collecting
@@ -5319,6 +5695,16 @@ namespace bpkg
               break;
             }
 
+            // Add an empty alternatives list into the selected dependency
+            // list in the version_constraint_only mode.
+            //
+            if (version_constraint_only)
+            {
+              sdeps.push_back (move (sdas));
+              salts.push_back (0);           // Keep parallel to sdeps.
+              break;
+            }
+
             select (da, dai, move (*pcr.builds));
           }
         }
@@ -5389,7 +5775,6 @@ namespace bpkg
           for (const auto& da: edas)
           {
             precollect (da.first,
-                        das.buildtime,
                         nullptr /* prereqs */,
                         true /* check_constraints */,
                         false /* ignore_unsatisfactory_dep_spec */,
@@ -5440,7 +5825,6 @@ namespace bpkg
           //
           precollect_result r (
             precollect (da.first,
-                        das.buildtime,
                         nullptr /* prereqs */,
                         false /* check_constraints */,
                         true /* ignore_unsatisfactory_dep_spec */));
@@ -5474,7 +5858,6 @@ namespace bpkg
           {
             precollect_result r (
               precollect (da.first,
-                          das.buildtime,
                           nullptr /* prereqs */,
                           true /* check_constraints */,
                           false /* ignore_unsatisfactory_dep_spec */));
@@ -5491,7 +5874,6 @@ namespace bpkg
               // Print the reason.
               //
               precollect (da.first,
-                          das.buildtime,
                           nullptr /* prereqs */,
                           true /* check_constraints */,
                           false /* ignore_unsatisfactory_dep_spec */,
@@ -5579,6 +5961,7 @@ namespace bpkg
                                const function<add_priv_cfg_function>& apc,
                                const repointed_dependents& rpt_depts,
                                replaced_versions& replaced_vers,
+                               dependency_constraints& dependency_constrs,
                                postponed_packages& postponed_repo,
                                postponed_packages& postponed_alts,
                                size_t max_alt_index,
@@ -5601,6 +5984,7 @@ namespace bpkg
                                  apc,
                                  rpt_depts,
                                  replaced_vers,
+                                 dependency_constrs,
                                  &postponed_repo,
                                  &postponed_alts,
                                  max_alt_index,
@@ -5617,6 +6001,7 @@ namespace bpkg
     const pkg_build_options& o,
     const repointed_dependents& rpt_depts,
     replaced_versions& replaced_vers,
+    dependency_constraints& dependency_constrs,
     postponed_packages& postponed_repo,
     postponed_packages& postponed_alts,
     postponed_packages& postponed_recs,
@@ -5760,6 +6145,7 @@ namespace bpkg
                        fdb,
                        apc,
                        &rpt_depts,
+                       &dependency_constrs,
                        &postponed_repo,
                        &postponed_alts,
                        &postponed_recs,
@@ -5844,9 +6230,15 @@ namespace bpkg
       build_package& bp (i->second.package);
 
       // Don't overwrite the build object if its required-by package names
-      // have the "required by dependents" semantics.
+      // have the "required by dependents" semantics, unless it is
+      // pre-entered.
       //
-      if (!bp.required_by_dependents)
+      // Note that currently only the dependency constraints pre-entered in
+      // the version_constraint_only mode can have the "required by
+      // dependents" semantics and may safely be dropped (see the collect()
+      // lambda in the collect_build_prerequisites() function for details).
+      //
+      if (!bp.required_by_dependents || !bp.action)
       {
         if (bp.available != nullptr)
         {
@@ -6013,6 +6405,7 @@ namespace bpkg
   void build_packages::
   collect_build_postponed (const pkg_build_options& o,
                            replaced_versions& replaced_vers,
+                           dependency_constraints& dependency_constrs,
                            postponed_packages& postponed_repo,
                            postponed_packages& postponed_alts,
                            postponed_packages& postponed_recs,
@@ -6043,12 +6436,14 @@ namespace bpkg
                 const postponed_packages& postponed_alts,
                 const postponed_packages& postponed_recs,
                 const replaced_versions& replaced_vers,
+                const dependency_constraints& dependency_constrs,
                 const postponed_existing_dependencies& postponed_edeps,
                 const postponed_dependencies& postponed_deps,
                 const postponed_configurations& postponed_cfgs,
                 const unsatisfied_dependents& unsatisfied_depts)
           : pkgs_ (pkgs),
             replaced_vers_ (replaced_vers),
+            dependency_constrs_ (dependency_constrs),
             postponed_edeps_ (postponed_edeps),
             postponed_deps_ (postponed_deps),
             postponed_cfgs_ (postponed_cfgs),
@@ -6073,16 +6468,18 @@ namespace bpkg
                postponed_packages& postponed_alts,
                postponed_packages& postponed_recs,
                replaced_versions& replaced_vers,
+               dependency_constraints& dependency_constrs,
                postponed_existing_dependencies& postponed_edeps,
                postponed_dependencies& postponed_deps,
                postponed_configurations& postponed_cfgs,
                unsatisfied_dependents& unsatisfied_depts)
       {
-        pkgs            = move (pkgs_);
-        replaced_vers   = move (replaced_vers_);
-        postponed_cfgs  = move (postponed_cfgs_);
-        postponed_deps  = move (postponed_deps_);
-        postponed_edeps = move (postponed_edeps_);
+        pkgs               = move (pkgs_);
+        replaced_vers      = move (replaced_vers_);
+        dependency_constrs = move (dependency_constrs_);
+        postponed_cfgs     = move (postponed_cfgs_);
+        postponed_deps     = move (postponed_deps_);
+        postponed_edeps    = move (postponed_edeps_);
 
         auto restore = [&pkgs] (postponed_packages& d,
                                 const vector<package_key>& s)
@@ -6114,6 +6511,7 @@ namespace bpkg
       vector<package_key>             postponed_alts_;
       vector<package_key>             postponed_recs_;
       replaced_versions               replaced_vers_;
+      dependency_constraints          dependency_constrs_;
       postponed_existing_dependencies postponed_edeps_;
       postponed_dependencies          postponed_deps_;
       postponed_configurations        postponed_cfgs_;
@@ -6369,6 +6767,7 @@ namespace bpkg
                                              apc,
                                              rpt_depts,
                                              replaced_vers,
+                                             dependency_constrs,
                                              &postponed_repo,
                                              &postponed_alts,
                                              numeric_limits<size_t>::max (),
@@ -6649,6 +7048,7 @@ namespace bpkg
                                        apc,
                                        rpt_depts,
                                        replaced_vers,
+                                       dependency_constrs,
                                        &postponed_repo,
                                        &postponed_alts,
                                        0 /* max_alt_index */,
@@ -6749,7 +7149,9 @@ namespace bpkg
           // depends value.
           //
           const dependency_alternatives_ex& das (deps[di]);
-          dependency_alternatives_ex sdas (das.buildtime, das.comment);
+          dependency_alternatives_ex sdas (das.type,
+                                           das.buildtime,
+                                           das.comment);
 
           sdas.emplace_back (nullopt /* enable */,
                              nullopt /* reflect */,
@@ -6778,6 +7180,7 @@ namespace bpkg
                                      apc,
                                      rpt_depts,
                                      replaced_vers,
+                                     dependency_constrs,
                                      &postponed_repo,
                                      &postponed_alts,
                                      0 /* max_alt_index */,
@@ -6876,6 +7279,7 @@ namespace bpkg
                                        apc,
                                        rpt_depts,
                                        replaced_vers,
+                                       dependency_constrs,
                                        &postponed_repo,
                                        &postponed_alts,
                                        0 /* max_alt_index */,
@@ -6911,11 +7315,27 @@ namespace bpkg
         continue;
       }
 
+      // Now, as there is no more progress made in recollecting of the not yet
+      // collected packages, try to collect the constraining dependents.
+      //
+      size_t npr (postponed_recs.size ());
+      collect_constraining_dependents (o,
+                                       rpt_depts,
+                                       replaced_vers,
+                                       postponed_recs,
+                                       postponed_cfgs,
+                                       unsatisfied_depts);
+
+      prog = (npr != postponed_recs.size ());
+
+      if (prog)
+        continue;
+
       postponed_packages prs;
       postponed_packages pas;
 
-      // Now, as there is no more progress made in recollecting of the not yet
-      // collected packages, try to collect the repository-related
+      // Now, as there is no more progress made in collecting of the
+      // constraining dependents, try to collect the repository-related
       // postponements.
       //
       for (build_package* p: postponed_repo)
@@ -6932,6 +7352,7 @@ namespace bpkg
                                      apc,
                                      rpt_depts,
                                      replaced_vers,
+                                     dependency_constrs,
                                      &prs,
                                      &pas,
                                      0 /* max_alt_index */,
@@ -6992,6 +7413,7 @@ namespace bpkg
                       postponed_alts,
                       postponed_recs,
                       replaced_vers,
+                      dependency_constrs,
                       postponed_edeps,
                       postponed_deps,
                       postponed_cfgs,
@@ -7001,6 +7423,7 @@ namespace bpkg
           {
             collect_build_postponed (o,
                                      replaced_vers,
+                                     dependency_constrs,
                                      postponed_repo,
                                      postponed_alts,
                                      postponed_recs,
@@ -7103,6 +7526,7 @@ namespace bpkg
                        postponed_alts,
                        postponed_recs,
                        replaced_vers,
+                       dependency_constrs,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs,
@@ -7158,6 +7582,7 @@ namespace bpkg
                        postponed_alts,
                        postponed_recs,
                        replaced_vers,
+                       dependency_constrs,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs,
@@ -7241,6 +7666,7 @@ namespace bpkg
                        postponed_alts,
                        postponed_recs,
                        replaced_vers,
+                       dependency_constrs,
                        postponed_edeps,
                        postponed_deps,
                        postponed_cfgs,
@@ -7295,7 +7721,7 @@ namespace bpkg
                   nullopt,                    // Postponed dependency alternatives.
                   false,                      // Recursive collection.
                   nullopt,                    // Hold package.
-                  nullopt,                    // Holed version.
+                  nullopt,                    // Hold version.
                   {},                         // Constraints.
                   false,                      // System.
                   false,                      // Keep output directory.
@@ -7406,6 +7832,7 @@ namespace bpkg
                                          apc,
                                          rpt_depts,
                                          replaced_vers,
+                                         dependency_constrs,
                                          &prs,
                                          &pas,
                                          i,
@@ -7663,6 +8090,7 @@ namespace bpkg
                                    apc,
                                    rpt_depts,
                                    replaced_vers,
+                                   dependency_constrs,
                                    nullptr,
                                    nullptr,
                                    0,
@@ -7687,6 +8115,7 @@ namespace bpkg
                                    apc,
                                    rpt_depts,
                                    replaced_vers,
+                                   dependency_constrs,
                                    nullptr,
                                    nullptr,
                                    0,
@@ -7725,6 +8154,204 @@ namespace bpkg
   {
     package_refs chain;
     return order (db, name, chain, fdb, reorder);
+  }
+
+  void build_packages::
+  collect_constraining_dependents (const pkg_build_options& o,
+                                   const repointed_dependents& rpt_depts,
+                                   replaced_versions& replaced_vers,
+                                   postponed_packages& postponed_recs,
+                                   postponed_configurations& postponed_cfgs,
+                                   unsatisfied_dependents& unsatisfied_depts)
+  {
+    // Collect the being reconfigured packages.
+    //
+    vector<package_key> deps;
+
+    for (auto& p: map_)
+    {
+      const build_package& d (p.second.package);
+
+      if (d.action && *d.action != build_package::drop && d.reconfigure ())
+        deps.emplace_back (d.db, d.name ());
+    }
+
+    set<package_key> visited_deps;
+
+    for (const package_key& p: deps)
+      collect_constraining_dependents (o,
+                                       p,
+                                       rpt_depts,
+                                       replaced_vers,
+                                       postponed_recs,
+                                       postponed_cfgs,
+                                       unsatisfied_depts,
+                                       visited_deps);
+  }
+
+  void build_packages::
+  collect_constraining_dependents (const pkg_build_options& o,
+                                   const package_key& p,
+                                   const repointed_dependents& rpt_depts,
+                                   replaced_versions& replaced_vers,
+                                   postponed_packages& postponed_recs,
+                                   postponed_configurations& postponed_cfgs,
+                                   unsatisfied_dependents& unsatisfied_depts,
+                                   set<package_key>& visited_deps)
+  {
+    tracer trace ("collect_constraining_dependents");
+
+    // Bail out if the dependency has already been visited and add it to the
+    // visited set otherwise.
+    //
+    if (!visited_deps.insert (p).second)
+      return;
+
+    database& pdb (p.db);
+    const package_name& name (p.name);
+
+    for (database& ddb: pdb.dependent_configs (true /* sys_rep */))
+    {
+      for (auto& pd: query_dependents_cache (ddb, name, pdb))
+      {
+        // Check if this dependent has the constrains values in its manifest
+        // and, if so, schedule it for re-collection. Afterwards, scheduled or
+        // not, collect its own constraining dependents, recursively.
+        //
+        package_key dpt (ddb, move (pd.name));
+
+        bool check (true);
+        auto i (map_.find (dpt));
+
+        if (i != map_.end ())
+        {
+          build_package& dp (i->second.package);
+
+          // Skip the being dropped dependent since it may not have any
+          // existing dependents.
+          //
+          if (dp.action && *dp.action == build_package::drop)
+            continue;
+
+          // Don't check dependents being configured as system and those which
+          // already need to be recollected recursively.
+          //
+          if (dp.system ||
+              (dp.action                          &&
+               *dp.action == build_package::build &&
+               dp.recollect_recursively (rpt_depts)))
+          {
+            check = false;
+          }
+        }
+
+        // One way to know if the dependent has the constrains values in its
+        // manifest is to load the selected package and check its
+        // has_constraint flag. However, given that the constraining
+        // dependents are quite rare, most of such loads will be a
+        // waste. Thus, we will only load the selected package if its
+        // has_constraint flag is true.
+        //
+        if (check)
+        {
+          // Prepare and cache this query since it's executed a lot. Note that
+          // we have to cache one per database.
+          //
+          using query = query<selected_package>;
+          using prep_query = prepared_query<selected_package>;
+
+          struct params
+          {
+            package_name name;
+            string query_name;
+          };
+
+          // Use the database address as the database identity (see
+          // query_dependents() for the reasoning).
+          //
+          string qn (to_string (reinterpret_cast<uintptr_t> (&ddb)));
+          qn += "-constraining-dependent-query";
+
+          params*    qp;
+          prep_query pq (ddb.lookup_query<selected_package> (qn.c_str (), qp));
+
+          if (!pq)
+          {
+            unique_ptr<params> p (qp = new params ());
+            p->query_name = move (qn);
+
+            query q (query::name == query::_ref (p->name) &&
+                     query::has_constraint);
+
+            pq = ddb.prepare_query<selected_package> (p->query_name.c_str (), q);
+            ddb.cache_query (pq, move (p));
+          }
+
+          qp->name = dpt.name;
+
+          // If the dependent is constraining, then schedule it for the
+          // re-collection.
+          //
+          if (shared_ptr<selected_package> sp = pq.execute_one ())
+          {
+            pair<shared_ptr<available_package>,
+                 lazy_shared_ptr<repository_fragment>> rp (
+                   find_available_fragment (o, ddb, sp));
+
+            package_version_key rb {pdb, name, version ()};
+
+            l5 ([&]{trace << "schedule re-collection of constraining "
+                          << "dependent " << sp->string (ddb)
+                          << " of dependency " << rb;});
+
+            build_package p {
+              build_package::build,
+              ddb,
+              move (sp),
+              move (rp.first),
+              move (rp.second),
+              nullopt,                     // Dependencies.
+              nullopt,                     // Dependencies alternatives.
+              nullopt,                     // Package skeleton.
+              nullopt,                     // Postponed dependency alternatives.
+              false,                       // Recursive collection.
+              nullopt,                     // Hold package.
+              nullopt,                     // Hold version.
+              {},                          // Constraints.
+              false,                       // System.
+              false,                       // Keep output directory.
+              false,                       // Disfigure (from-scratch reconf).
+              false,                       // Configure-only.
+              nullopt,                     // Checkout root.
+              false,                       // Checkout purge.
+              strings (),                  // Configuration variables.
+              nullopt,                     // Upgrade.
+              false,                       // Deorphan.
+              {move (rb)},                 // Required by (dependency).
+              false,                       // Required by dependents.
+              build_package::build_recollect};
+
+            // Note: not recursive.
+            //
+            collect_build (
+              o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
+
+            postponed_recs.insert (entered_build (ddb, dpt.name));
+          }
+        }
+
+        // Collect recursively.
+        //
+        collect_constraining_dependents (o,
+                                         dpt,
+                                         rpt_depts,
+                                         replaced_vers,
+                                         postponed_recs,
+                                         postponed_cfgs,
+                                         unsatisfied_depts,
+                                         visited_deps);
+      }
+    }
   }
 
   set<package_key> build_packages::
@@ -7800,7 +8427,7 @@ namespace bpkg
       for (auto& pd: query_dependents_cache (ddb, n, pdb))
       {
         package_name& dn (pd.name);
-        optional<version_constraint>& dc (pd.constraint);
+        optional<version_constraint>& dc (pd.version_constraint);
 
         auto i (map_.find (ddb, dn));
 
@@ -7880,7 +8507,10 @@ namespace bpkg
                           << p.available_name_version_db () << " ("
                           << c << ')';});
 
-            unsatisfied_depts.add (d, package_key (p.db, p.name ()), c);
+            unsatisfied_depts.add (d,
+                                   package_key (p.db, p.name ()),
+                                   c,
+                                   pd.type);
           }
         }
 
@@ -7938,41 +8568,63 @@ namespace bpkg
               *dp.action != build_package::build) // Adjustment.
           {
             build_package bp (adjustment ());
+
+            // Adding this and below tracings affects too many tests, so let's
+            // disable them for now.
+            //
+#if 0
+            l5 ([&]{trace << "merge adjustment " << bp.name_version_db ()
+                          << " into "
+                          << (!dp.action ? "pre-entered" : "adjustment");});
+#endif
+
             bp.merge (move (dp));
             dp = move (bp);
+
           }
           else                                    // Build.
           {
             if (!dp.reconfigure ())
+            {
+#if 0
+            l5 ([&]{trace << "reconfigure " << dp.name_version_db ();});
+#endif
+
               dp.flags |= build_package::adjust_reconfigure;
+            }
             else
+            {
+#if 0
+            l5 ([&]{trace << "noop for " << dp.name_version_db ();});
+#endif
+
               add = false;
+            }
           }
         }
         else
         {
+          build_package bp (adjustment ());
+
+#if 0
+          l5 ([&]{trace << "collect adjustment " << bp.name_version_db ();});
+#endif
+
           // Don't move dn since it is used by adjustment().
           //
           i = map_.emplace (package_key {ddb, dn},
-                            data_type {end (), adjustment ()}).first;
+                            data_type {end (), move (bp)}).first;
         }
 
         build_package& dp (i->second.package);
 
-        if (add)
-        {
-          r.insert (i->first);
+        // Note that the dependent always ends up being reconfigured (see
+        // above).
+        //
+        assert (dp.reconfigure ());
 
-          // Adding this tracing affects too many tests, so let's not add it
-          // for now.
-          //
-#if 0
-          l5 ([&]{trace << "collected dependent "
-                        << (dp.available != nullptr
-                            ? dp.available_name_version_db ()
-                            : dp.selected->string (ddb));});
-#endif
-        }
+        if (add)
+          r.insert (i->first);
 
         // Unless the dependent is collected recursively (and thus its
         // constraints are already in the list), add the existing dependent's
@@ -7982,27 +8634,24 @@ namespace bpkg
         //
         if (dc && !dp.dependencies)
         {
-          using constraint_type = build_package::constraint_type;
+          using constraint = build_package::constraint;
 
           // Pre-entered entries are always converted to adjustments (see
           // above). Also, the dependent must be configured by definition.
           //
           assert (dp.action && dp.selected != nullptr);
 
-          constraint_type c (move (*dc),
-                             ddb,
-                             move (dn),
-                             dp.selected->version,
-                             true /* existing_dependent */);
+          constraint c (move (*dc),
+                        ddb,
+                        move (dn),
+                        dp.selected->version,
+                        pd.type,
+                        true /* existing_dependent */);
 
           // Suppress the constraint duplicates.
           //
-          if (find_if (p.constraints.begin (), p.constraints.end (),
-                       [&c] (const constraint_type& v)
-                       {
-                         return v.dependent == c.dependent &&
-                                v.value     == c.value;
-                       }) == p.constraints.end ())
+          if (find (p.constraints.begin (), p.constraints.end (), c) ==
+              p.constraints.end ())
           {
             p.constraints.emplace_back (move (c));
           }
@@ -8042,9 +8691,9 @@ namespace bpkg
                      set<package_key>& printed,
                      optional<bool> existing_dependent) const
   {
-    using constraint_type = build_package::constraint_type;
+    using constraint = build_package::constraint;
 
-    const vector<constraint_type>& cs (p.constraints);
+    const vector<constraint>& cs (p.constraints);
 
     if (!cs.empty ())
     {
@@ -8052,13 +8701,13 @@ namespace bpkg
 
       if (printed.insert (pk).second)
       {
-        for (const constraint_type& c: cs)
+        for (const constraint& c: cs)
         {
           if (!existing_dependent ||
               *existing_dependent == c.existing_dependent)
           {
             dr << '\n' << indent << c.dependent << " requires (" << pk << ' '
-               << c.value << ')';
+               << c.version_constraint << ')';
 
             if (const build_package* d = dependent_build (c))
             {
@@ -8071,7 +8720,7 @@ namespace bpkg
       }
       else
       {
-        for (const constraint_type& c: cs)
+        for (const constraint& c: cs)
         {
           if (!existing_dependent ||
               *existing_dependent == c.existing_dependent)
@@ -8240,7 +8889,7 @@ namespace bpkg
         // naturally due to the execution plan refinement (see
         // unsatisfied_dependents for details).
         //
-        if (pd.constraint)
+        if (pd.version_constraint)
         {
           // Search for the dependency build and detect if it is being
           // up/downgraded, if not done yet. In particular, the available
@@ -8265,13 +8914,13 @@ namespace bpkg
           }
 
           if (ud != 0 &&
-              !satisfies (dep->available_version (), *pd.constraint))
+              !satisfies (dep->available_version (), *pd.version_constraint))
           {
             l5 ([&]{trace << "skip unsatisfied existing dependent " << pk
                           << " of dependency "
                           << dep->available_name_version_db () << " due to "
-                          << "constraint (" << name << ' ' << *pd.constraint
-                          << ')';});
+                          << "constraint (" << name << ' '
+                          << *pd.version_constraint << ')';});
 
             continue;
           }
@@ -8329,6 +8978,7 @@ namespace bpkg
           unacceptable_alternatives unacceptable_alts;
           unsatisfied_dependents unsatisfied_depts;
           replaced_versions replaced_vers;
+          dependency_constraints dependency_constrs;
 
           optional<pre_reevaluate_result> pr (
             collect_build_prerequisites (o,
@@ -8338,6 +8988,7 @@ namespace bpkg
                                          nullptr /* add_priv_cfg_function */,
                                          rpt_depts,
                                          replaced_vers,
+                                         dependency_constrs,
                                          &postponed_repo,
                                          &postponed_alts,
                                          numeric_limits<size_t>::max (),
@@ -8456,11 +9107,12 @@ namespace bpkg
       auto i (dsp->prerequisites.find (lsp));
       assert (i != dsp->prerequisites.end ());
 
-      if (i->second.constraint)
-        p.constraints.emplace_back (*i->second.constraint,
+      if (i->second.version_constraint)
+        p.constraints.emplace_back (*i->second.version_constraint,
                                     dpt.db,
                                     dpt.name,
                                     *dpt.version,
+                                    i->second.type,
                                     true /* existing_package */);
     }
 
@@ -8542,7 +9194,6 @@ namespace bpkg
     //
     if (!ed.dependency)
       flags |= build_package::adjust_reconfigure;
-
 
     const package_key& od (ed.originating_dependency);
     assert (entered_build (od)); // Expected to be collected.

@@ -824,7 +824,8 @@ namespace bpkg
     dependent_vars_ = dependent_cmd_vars (cfg, &dependent_orgs_);
   }
 
-  // Print the location of a depends value in the specified manifest file.
+  // Print the location of a depends or constrains value in the specified
+  // manifest file.
   //
   // Note that currently we only use this function for the being reconfigured
   // and external packages (i.e. when the existing source directory is
@@ -852,12 +853,13 @@ namespace bpkg
         size_t i (0);
         for (nv = p.next (); !nv.empty (); nv = p.next ())
         {
-          if (nv.name == "depends" && i++ == depends_index)
+          if ((nv.name == "depends" || nv.name == "constrains") &&
+              i++ == depends_index)
           {
             dr << build2::info (build2::location (mf,
                                                   nv.value_line,
                                                   nv.value_column))
-               << "in depends manifest value defined here";
+               << "in " << nv.name << " manifest value defined here";
             break;
           }
         }
@@ -2903,8 +2905,19 @@ namespace bpkg
           {
             // Skip the the special (inverse) test dependencies.
             //
-            if (!das.type)
-              m.dependencies.push_back (das);
+            if (!to_test_dependency_type (das.type))
+            {
+              // Note that build2 doesn't use the constrains manifest
+              // values. Let's, however, serialize them for consistency and
+              // for the case if we ever decide to refer to the serialized
+              // manifest files in the diagnostics (see depends_location() for
+              // details).
+              //
+              if (das.type == dependency_alternatives_type::constraint)
+                m.constraints.push_back (das.to_constraint ());
+              else
+                m.dependencies.push_back (das);
+            }
           }
 
           path mf (skl_src_root / manifest_file);
@@ -2996,7 +3009,6 @@ namespace bpkg
       bootstrap_src (rs, altn,
                      skl.db_->config.relative (out_root) /* amalgamation */,
                      false                               /* subprojects */);
-
 
       // Omit discovering amalgamation's subprojects (i.e., all the packages
       // in the configuration). Besides being a performance optimization, this
