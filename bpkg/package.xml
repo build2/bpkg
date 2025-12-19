@@ -1,4 +1,13 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="30">
+    <alter-table name="main.selected_package">
+      <add-column name="has_dependency_constraint" type="INTEGER" null="true" default="0"/>
+    </alter-table>
+    <alter-table name="main.selected_package_prerequisites">
+      <add-column name="type" type="TEXT" null="true" default="'dependency'"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="29">
     <alter-table name="main.selected_package_prerequisites">
       <add-column name="buildtime" type="INTEGER" null="true" default="0"/>

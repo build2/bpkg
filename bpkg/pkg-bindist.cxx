@@ -205,6 +205,13 @@ namespace bpkg
   {
     for (const auto& pr: p.prerequisites)
     {
+      // We only consider prerequisites of the dependency type here, skipping
+      // the constraints. Note that the skipped prerequisites will be handled
+      // via their immediate dependents.
+      //
+      if (pr.second.type == dependency_type::constraint)
+        continue;
+
       const lazy_shared_ptr<selected_package>& ld (pr.first);
 
       // We only consider dependencies from target configurations, similar

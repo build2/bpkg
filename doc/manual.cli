@@ -473,6 +473,11 @@ The desired dependency configuration is specified as part of the
 as either a single \c{require} clause or as a pair of \c{prefer}/\c{accept}
 clauses.
 
+For indirect dependencies, the desired configuration is specified as part of
+the \l{#manifest-package-constrains \c{constrains}} manifest value and,
+similar to the \l{#manifest-package-depends \c{depends}} manifest value, can
+be expressed as a \c{require} or \c{prefer}/\c{accept} clauses.
+
 The \c{require} clause is essentially a shortcut for specifying the
 \c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
 all the variable values assigned in the \c{prefer} clause. It is, however,
@@ -598,13 +603,13 @@ to have an acceptance criteria but no preferences.|
 
 Configuration variables that are set by the dependent in the \c{prefer} clause
 are visible in the subsequent clauses as well as in the subsequent \c{depends}
-values of this dependent. Configuration variables that are not set, however,
-are only visible until the immediately following \c{reflect} clause. For
-example, in the above listing, \c{config.libfoo.cache} would still be visible
-in the \c{reflect} clause if it were to follow \c{accept} but no further. As a
-result, if we need to make decisions based on configuration variables that we
-have no preference about, they need to be saved in the \c{reflect} clause. For
-example:
+and \c{constrains} values of this dependent. Configuration variables that are
+not set, however, are only visible until the immediately following \c{reflect}
+clause. For example, in the above listing, \c{config.libfoo.cache} would still
+be visible in the \c{reflect} clause if it were to follow \c{accept} but no
+further. As a result, if we need to make decisions based on configuration
+variables that we have no preference about, they need to be saved in the
+\c{reflect} clause. For example:
 
 \
 depends:
@@ -1074,11 +1079,12 @@ license: <licenses> [; <comment>]
 [build-error-email]: <email> [; <comment>]
 
 [depends]: [*] <alternatives> [; <comment>]
+[constrains]: [*] <dependency-constraint> [; <comment>]
 [requires]: [*] <alternatives> [; <comment>]
 
-[tests]: [*] <name> [<version-constraint>]
-[examples]: [*] <name> [<version-constraint>]
-[benchmarks]: [*] <name> [<version-constraint>]
+[tests]: [*] <test-package>
+[examples]: [*] <test-package>
+[benchmarks]: [*] <test-package>
 
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
@@ -2052,6 +2058,94 @@ The above example also highlights the difference between the
 dependent's configuration variables.
 
 
+\h2#manifest-package-constrains|\c{constrains}|
+
+\
+[constrains]: [*] <dependency-constraint> [; <comment>]
+\
+
+Single-line form:
+
+\
+<dependency-constraint> = \
+    <dependency> ['?' <enable-cond>] [<reflect-var>]
+<dependency>            = <name> [<version-constraint>]
+<enable-cond>           = '(' <buildfile-eval-expr> ')'
+<reflect-var>           = <config-var> '=' <value>
+\
+
+Multi-line form:
+
+\
+<dependency-constraint> =
+  <dependency>
+  '{'
+   [
+     'enable' <enable-cond>
+   ]
+
+   [
+     'require'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+   ] | [
+
+     'prefer'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+     'accept' <accept-cond>
+   ]
+
+   [
+     'reflect'
+     '{'
+        <buildfile-fragment>
+     '}'
+   ]
+  '}'
+
+<accept-cond>           = '(' <buildfile-eval-expr> ')'
+\
+
+The constraint of a potentially indirect dependency. In contrast to the
+\l{#manifest-package-depends \c{depends}} value, the \c{constrains} value does
+not declare the specified package as a dependency. Instead, the constraint
+imposes the version constraint and/or configuration on the specified package
+but only if it appears in the dependency tree of the package declaring the
+constraint. For example:
+
+\
+name: libfoo
+depends: libmariadb >= 10.0.0 | libmysqlclient
+
+name: libbar
+depends: libfoo
+constrains: libmariadb >= 11.0.0 config.libbar.mariadb=true
+
+name: libbaz
+depends: libmariadb
+\
+
+In the above example \c{libbar} \"tightens\" the version constraint for
+\c{libmariadb} (and reflects the fact that it is being used), if
+\c{libmariadb} is selected from the dependency alternatives for its dependency
+\c{libfoo}. If \c{libmysqlclient} alternative is selected instead, then the
+\c{libmariadb} constraint in \c{libbar} doesn't apply, even if \c{libmariadb}
+is built in the same configuration as, for example, a dependency of unrelated
+\c{libbaz}.
+
+See the \l{#manifest-package-depends \c{depends}} manifest value for the
+semantics of the \c{*} mark, version constraint and \c{enable}, \c{require},
+\c{prefer}, \c{accept}, and \c{reflect} clauses.
+
+If specified, the \c{constrains} values must follow the \c{depends} values
+in the \c{manifest} file.
+
+
 \h2#manifest-package-requires|\c{requires}|
 
 \
@@ -2148,13 +2242,14 @@ configuration. See the \l{bbot \c{bbot} documentation} for details.
 \h2#manifest-package-tests-examples-benchmarks|\c{tests}, \c{examples}, \c{benchmarks}|
 
 \
-[tests]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
-[examples]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
-[benchmarks]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
+[tests]: [*] <test-package>
+[examples]: [*] <test-package>
+[benchmarks]: [*] <test-package>
 
-<package>     = <name> [<version-constraint>]
-<enable-cond> = '(' <buildfile-eval-expr> ')'
-<reflect-var> = <config-var> '=' <value>
+<test-package> = <package> ['?' <enable-cond>] [<reflect-var>]
+<package>      = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
 \
 
 Separate tests, examples, and benchmarks packages. If the value starts with
@@ -2923,10 +3018,11 @@ sha256sum: <sum>
 
 After the list manifest comes a (potentially empty) sequence of package
 manifests. These manifests shall not contain any \c{*-file} or incomplete
-\l{#manifest-package-depends \c{depends}} values (such values should be
-converted to their inline versions or completed, respectively) but must
-contain the \c{*-build} values (unless the corresponding files are absent) and
-the following additional (to package manifest) values:
+\l{#manifest-package-depends \c{depends}} or \l{#manifest-package-constrains
+\c{constrains}} values (such values should be converted to their inline
+versions or completed, respectively) but must contain the \c{*-build} values
+(unless the corresponding files are absent) and the following additional (to
+package manifest) values:
 
 \
 location: <path>

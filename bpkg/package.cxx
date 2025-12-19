@@ -80,6 +80,13 @@ namespace bpkg
     return r != 0 ? (r < 0) : (db < v.db);
   }
 
+  void package_key::
+  to_checksum (xxh64& cs) const
+  {
+    cs.append (db.get ().config.string ());
+    cs.append (name.string ());
+  }
+
   // package_version_key
   //
   string package_version_key::
@@ -114,6 +121,38 @@ namespace bpkg
       return r < 0;
 
     return version != v.version ? (version < v.version) : (db < v.db);
+  }
+
+  void package_version_key::
+  to_checksum (xxh64& cs) const
+  {
+    cs.append (db.get ().config.string ());
+    cs.append (name.string ());
+
+    cs.append (!version          ? "<null>"     :
+               version->empty () ? empty_string :
+               version->string ());
+  }
+
+  // constraint_string
+  //
+  string
+  constraint_string (string dpt, bool is_package,
+                     const package_name& dep,
+                     dependency_type t,
+                     const version_constraint& vc)
+  {
+    string r (move (dpt));
+
+    r += t == dependency_type::constraint ? " constrains (" :
+         is_package                       ? " depends on (" :
+                                            " requires (";
+
+    r += dep.string ();
+    r += ' ';
+    r += vc.string ();
+    r += ')';
+    return r;
   }
 
   // available_package
@@ -176,6 +215,7 @@ namespace bpkg
   // type language
   // project
   // depends
+  // constrains
   // tests examples benchmarks
   // bootstrap-build root-build *-build
   // *-name *-version *-to-downstream-version
@@ -214,9 +254,10 @@ namespace bpkg
       {
         const dependency_alternatives_ex& das (dependencies[i]);
 
-        if (das.type)
+        if (optional<test_dependency_type> t =
+              to_test_dependency_type (das.type))
         {
-          s.next ("test-dependency-type", to_string (*das.type));
+          s.next ("test-dependency-type", to_string (*t));
           s.next ("test-dependency-index", to_string (i));
           break;
         }
@@ -246,8 +287,26 @@ namespace bpkg
       if (project)
         s.next ("project", project->string ());
 
-      for (const dependency_alternatives& das: dependencies)
-        s.next ("depends", das.string ());
+      // While at it, verify that the dependency constraints go last.
+      //
+      bool constraint (false);
+      for (const dependency_alternatives_ex& das: dependencies)
+      {
+        if (das.type == dependency_alternatives_type::constraint)
+        {
+          constraint = true;
+
+          s.next ("constrains", das.to_constraint ().string ());
+        }
+        else
+        {
+          assert (!constraint);
+
+          // Note: also handles the tests, examples, and benchmarks type.
+          //
+          s.next ("depends", das.string ());
+        }
+      }
 
       for (const test_dependency& t: tests)
         s.next (to_string (t.type), t.string ());
@@ -409,7 +468,7 @@ namespace bpkg
       *this = available_package (move (m));
 
       if (tdt)
-        dependencies[*tdi].type = *tdt;
+        dependencies[*tdi].type = to_dependency_alternatives_type (*tdt);
     }
     catch (const manifest_parsing& e)
     {
@@ -575,6 +634,121 @@ namespace bpkg
     return '\'' + name.string () + ' ' + constraint->string () + '\'';
   }
 
+  // dependency_alternatives_type
+  //
+  string
+  to_string (dependency_alternatives_type t)
+  {
+    switch (t)
+    {
+    case dependency_alternatives_type::dependencies: return "dependencies";
+    case dependency_alternatives_type::constraint:   return "constraint";
+    case dependency_alternatives_type::tests:        return "tests";
+    case dependency_alternatives_type::examples:     return "examples";
+    case dependency_alternatives_type::benchmarks:   return "benchmarks";
+    }
+
+    assert (false); // Can't be here.
+    return string ();
+  }
+
+  dependency_alternatives_type
+  to_dependency_alternatives_type (const string& t)
+  {
+         if (t == "dependencies") return dependency_alternatives_type::dependencies;
+    else if (t == "constraint")   return dependency_alternatives_type::constraint;
+    else if (t == "tests")        return dependency_alternatives_type::tests;
+    else if (t == "examples")     return dependency_alternatives_type::examples;
+    else if (t == "benchmarks")   return dependency_alternatives_type::benchmarks;
+    else throw invalid_argument ("invalid dependency alternatives type '" + t + '\'');
+  }
+
+  dependency_alternatives_type
+  to_dependency_alternatives_type (test_dependency_type t)
+  {
+    switch (t)
+    {
+    case test_dependency_type::tests:      return dependency_alternatives_type::tests;
+    case test_dependency_type::examples:   return dependency_alternatives_type::examples;
+    case test_dependency_type::benchmarks: return dependency_alternatives_type::benchmarks;
+    }
+
+    assert (false); // Can't be here.
+    return dependency_alternatives_type::tests;
+  }
+
+  optional<test_dependency_type>
+  to_test_dependency_type (dependency_alternatives_type t)
+  {
+    switch (t)
+    {
+    case dependency_alternatives_type::tests:      return test_dependency_type::tests;
+    case dependency_alternatives_type::examples:   return test_dependency_type::examples;
+    case dependency_alternatives_type::benchmarks: return test_dependency_type::benchmarks;
+    default:                                       return nullopt;
+    }
+  }
+
+  // dependency_alternatives_ex
+  //
+  dependency_alternatives_ex::
+  dependency_alternatives_ex (dependency_constraint dc)
+      : dependency_alternatives (dc.buildtime, move (dc.comment)),
+        type (dependency_alternatives_type::constraint)
+  {
+    push_back (dependency_alternative (move (dc.enable),
+                                       move (dc.reflect),
+                                       move (dc.prefer),
+                                       move (dc.accept),
+                                       move (dc.require),
+                                       {move (dc)}));
+  }
+
+  dependency_constraint dependency_alternatives_ex::
+  to_constraint () const
+  {
+    assert (type == dependency_alternatives_type::constraint);
+
+    assert (size () == 1);  // Wouldn't be here otherwise.
+
+    const dependency_alternative& da ((*this)[0]);
+    assert (da.size () == 1); // Wouldn't be here otherwise.
+
+    const dependency& d (da[0]);
+    return dependency_constraint (d.name,
+                                  buildtime,
+                                  d.constraint,
+                                  da.enable,
+                                  da.reflect,
+                                  da.prefer,
+                                  da.accept,
+                                  da.require,
+                                  comment);
+  }
+
+  // dependency_type
+  //
+  string
+  to_string (dependency_type t)
+  {
+    switch (t)
+    {
+    case dependency_type::dependency: return "dependency";
+    case dependency_type::constraint: return "constraint";
+    }
+
+    assert (false); // Can't be here.
+    return string ();
+  }
+
+  dependency_type
+  to_dependency_type (const string& t)
+  {
+         if (t == "dependency") return dependency_type::dependency;
+    else if (t == "constraint") return dependency_type::constraint;
+    else throw invalid_argument ("invalid dependency type '" + t + '\'');
+  }
+
   // selected_package
   //
   string selected_package::
@@ -729,6 +903,120 @@ namespace bpkg
     }
 
     return r;
+  }
+
+  // Cache of flags (value), indicating if the specified package is a
+  // potentially indirect prerequisite of a specific kind (build-time,
+  // runtime, or any; second part of key) for a specific dependent (first part
+  // of key).
+  //
+  using direct_or_indirect_prerequisite_cache =
+    map<pair<shared_ptr<selected_package>, optional<bool>>, bool>;
+
+  static bool
+  direct_or_indirect_prerequisite (
+    const package_name& name,
+    optional<bool> buildtime,
+    const package_prerequisites& prereqs,
+    const function<find_package_prerequisites_function>& f,
+    direct_or_indirect_prerequisite_cache& cache)
+  {
+    assert (session::has_current ());
+
+    // Search for the package among the immediate prerequisites.
+    //
+    for (const auto& pr: prereqs)
+    {
+      const prerequisite_info& pi (pr.second);
+
+      if (pr.first.object_id () == name          &&
+          pi.type == dependency_type::dependency &&
+          (!buildtime || (*buildtime ? pi.buildtime : pi.runtime)))
+        return true;
+    }
+
+    // Search for the package inside the dependency trees of the immediate
+    // prerequisites.
+    //
+    for (const auto& pr: prereqs)
+    {
+      const prerequisite_info& pi (pr.second);
+
+      if (pi.type == dependency_type::dependency)
+      {
+        const shared_ptr<selected_package> p (pr.first.load ());
+
+        // Return true if the specified package (name) is present in the
+        // dependency tree of the current prerequisite (p) as a dependency of
+        // the specified kind (buildtime). Use the cache.
+        //
+        auto prereq = [&p, &name, &f, &cache] (optional<bool> buildtime)
+        {
+          pair<shared_ptr<selected_package>, optional<bool>> k (p, buildtime);
+
+          auto i (cache.find (k));
+
+          if (i != cache.end ())
+            return i->second;
+
+          const package_prerequisites* pp (f ? f (p) : nullptr);
+
+          if (pp == nullptr)
+          {
+            assert (p->state == package_state::configured);
+
+            pp = &p->prerequisites;
+          }
+
+          bool r (direct_or_indirect_prerequisite (name,
+                                                   buildtime,
+                                                   *pp,
+                                                   f,
+                                                   cache));
+
+          cache[k] = r;
+          return r;
+        };
+
+        if (!buildtime)       // Any.
+        {
+          if (prereq (nullopt /* buildtime */))
+            return true;
+        }
+        else if (!*buildtime) // Runtime.
+        {
+          // Search for the runtime dependency only inside the runtime
+          // prerequisites' trees.
+          //
+          if (pi.runtime && prereq (false /* buildtime */))
+            return true;
+        }
+        else                  // Build-time.
+        {
+          // If this is a runtime prerequisite, then search for the build-time
+          // prerequisite in its tree tree and bail out if the search
+          // succeeds. Otherwise, if this is a build-time prerequisite, then
+          // search for the prerequisite of any kind in its tree.
+          //
+          if ((pi.runtime && prereq (true /* buildtime */)) ||
+              (pi.buildtime && prereq (nullopt /* buildtime */)))
+            return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  bool
+  direct_or_indirect_prerequisite (
+    const package_name& name,
+    optional<bool> buildtime,
+    const package_prerequisites& prereqs,
+    const function<find_package_prerequisites_function>& f)
+  {
+    direct_or_indirect_prerequisite_cache cache;
+    return direct_or_indirect_prerequisite (name, buildtime, prereqs, f, cache);
   }
 
   optional<version>

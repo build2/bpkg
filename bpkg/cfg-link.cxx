@@ -283,7 +283,7 @@ namespace bpkg
     l4 ([&]{trace << "configuration: " << c;});
 
     if (o.name_specified ())
-      validate_configuration_name (o.name (), "--name option value");
+      validate_config_name (o.name (), "--name option value");
 
     if (!args.more ())
       fail << "configuration directory argument expected" <<

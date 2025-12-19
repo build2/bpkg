@@ -368,7 +368,7 @@ if ($posix && "$uid" != '0')
 
     $pkg_disfigure libfoo 2>>EOE != 0
       error: package libfoo still has dependents:
-        info: package libbar on libfoo >= 1.2.0
+        info: package libbar depends on libfoo >= 1.2.0
       EOE
 
     $pkg_disfigure libbar 2>'disfigured libbar/1.2.0'

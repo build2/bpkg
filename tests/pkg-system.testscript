@@ -86,6 +86,18 @@ rep_remove += -d cfg 2>!
 {{
   +$clone_cfg && $rep_add $rep/t1 && $rep_fetch
 
+  : configure-failure
+  :
+  : This test is a reproducer for GH issue #506.
+  :
+  if false
+  {
+    $clone_cfg
+
+    $pkg_build libbar '?sys:libbaz/2' 2>!
+    $pkg_build --verbose 5 'sys:libbaz/3'
+  }
+
   : dup
   :
   : Test that passing package duplicates on the command line expectedly fails.
@@ -741,7 +753,7 @@ rep_remove += -d cfg 2>!
     #
     $pkg_build foo 'sys:libbar/1' 2>>EOE != 0
       error: unable to satisfy constraints on package libbar
-        info: command line depends on (libbar == 1)
+        info: command line requires (libbar == 1)
         info: foo/2 depends on (libbar >= 2)
         info: available sys:libbar/1
         info: available sys:libbar/2
@@ -891,7 +903,7 @@ rep_remove += -d cfg 2>!
     $pkg_build foo '?sys:libbar/1' 2>>EOE != 0
       error: unable to satisfy constraints on package libbar
         info: foo/2 depends on (libbar >= 2)
-        info: command line depends on (libbar == 1)
+        info: command line constrains (libbar == 1)
         info: while satisfying foo/2
         info: explicitly specify libbar version to manually satisfy both constraints
       EOE

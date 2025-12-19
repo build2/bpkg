@@ -5,9 +5,10 @@
 
 #include <map>
 #include <set>
-#include <cstring>  // strlen()
+#include <cstring>     // strlen()
 #include <sstream>
-#include <iostream> // cout
+#include <iostream>    // cout
+#include <type_traits> // enable_if, is_enum
 
 #include <libbutl/standard-version.hxx>
 
@@ -316,6 +317,53 @@ namespace bpkg
     const system_package_status* system_status; // See struct pkg_arg.
   };
   using dependency_packages = vector<dependency_package>;
+
+  // Dependency which needs to be added to or replaced in the build plan in
+  // accordance with the user expectations (see evaluate_dependency()
+  // overloads for details).
+  //
+  struct replaced_dependency
+  {
+    reference_wrapper<database> db;
+    package_name                name; // Empty if up/down-grade.
+
+    // Both are NULL if drop.
+    //
+    shared_ptr<available_package>              available;
+    lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
+
+    bool           system;
+    bool           existing; // Build as an existing archive or directory.
+    optional<bool> upgrade;
+    bool           deorphan;
+
+    void
+    to_checksum (xxh64& cs) const
+    {
+      cs.append (db.get ().config.string ());
+      cs.append (name.string ());
+
+      if (available != nullptr)
+      {
+        const version* sv (system
+                           ? available->system_version (db)
+                           : nullptr);
+
+        cs.append ((sv != nullptr ? *sv : available->version).string ());
+
+        cs.append (repository_fragment != nullptr
+                   ? repository_fragment.object_id ()
+                   : "<null>");
+      }
+      else
+        cs.append ("<null>");
+
+      cs.append (system);
+      cs.append (existing);
+      cs.append (!upgrade ? 0 : *upgrade ? 1 : 2);
+      cs.append (deorphan);
+    }
+  };
 
   // Evaluate a dependency package and return a new desired version. If the
   // result is absent (nullopt), then there are no user expectations regarding
@@ -649,8 +697,8 @@ namespace bpkg
       shared_ptr<selected_package> p (ddb.load<selected_package> (dep.name));
       add_dependent_repo_fragments (ddb, p, repo_frags);
 
-      if (dep.constraint)
-        dpt_constrs.emplace_back (ddb, move (p), move (*dep.constraint));
+      if (dep.version_constraint)
+        dpt_constrs.emplace_back (ddb, move (p), move (*dep.version_constraint));
     }
 
     return evaluate_dependency (o,
@@ -1265,6 +1313,11 @@ namespace bpkg
 
     // Issue the diagnostics and fail.
     //
+    // Can we plug this into the unsatisfied constraints resolution logic
+    // instead of failing? Maybe later. When time comes, use the
+    // pkg-build/dependency/constraints/constrains/from-scratch/refl-req/src
+    // test as a test case (switch `$* libbaz/2.0.0` to `$* ?libbaz/2.0.0`).
+    //
     diag_record dr (fail);
     dr << "package " << nm << ddb << " doesn't satisfy its dependents";
 
@@ -1481,8 +1534,8 @@ namespace bpkg
       {
         shared_ptr<selected_package> p (ddb.load<selected_package> (pd.name));
 
-        if (pd.constraint)
-          dpt_constrs.emplace_back (ddb, p, move (*pd.constraint));
+        if (pd.version_constraint)
+          dpt_constrs.emplace_back (ddb, p, move (*pd.version_constraint));
 
         upgrade_deorphan u (upgrade_dependencies (ddb, pd.name, recs, cache));
 
@@ -1675,13 +1728,14 @@ namespace bpkg
 
           if (!bp.constraints.empty ())
           {
-            swap (bp.constraints[0].value, *a.constraint);
+            swap (bp.constraints[0].version_constraint, *a.constraint);
           }
           else
           {
             bp.constraints.emplace_back (move (*a.constraint),
                                          cmd_line.db,
-                                         cmd_line.name.string ());
+                                         cmd_line.name.string (),
+                                         dependency_type::dependency);
             a.constraint = nullopt;
           }
 
@@ -1739,7 +1793,8 @@ namespace bpkg
 
           bp.constraints.emplace_back (move (*a.constraint),
                                        cmd_line.db,
-                                       cmd_line.name.string ());
+                                       cmd_line.name.string (),
+                                       dependency_type::dependency);
 
           a.constraint = nullopt;
 
@@ -1830,7 +1885,7 @@ namespace bpkg
           //
           assert (!bp.constraints.empty ());
 
-          version_constraint& c (bp.constraints[0].value);
+          version_constraint& c (bp.constraints[0].version_constraint);
 
           if (a.constraint) // Original spec contains a version constraint?
           {
@@ -1864,7 +1919,7 @@ namespace bpkg
           //
           assert (!bp.constraints.empty ());
 
-          a.constraint = move (bp.constraints[0].value);
+          a.constraint = move (bp.constraints[0].version_constraint);
 
           hold_pkgs_.erase (i);
           break;
@@ -1915,7 +1970,7 @@ namespace bpkg
 
           const build_package& bp (*i);
           if (!bp.constraints.empty ())
-            r += ' ' + bp.constraints[0].value.string ();
+            r += ' ' + bp.constraints[0].version_constraint.string ();
 
           if (!s.empty ())
             r += ' ' + s;
@@ -2275,7 +2330,7 @@ namespace bpkg
           //
           assert (hp.constraints.size () == 1);
 
-          const version_constraint& c (hp.constraints[0].value);
+          const version_constraint& c (hp.constraints[0].version_constraint);
 
           if (c.min_version == c.max_version)
           {
@@ -2522,7 +2577,7 @@ namespace bpkg
 
       for (const auto& c: p.constraints)
       {
-        if (!satisfies (v, c.value))
+        if (!satisfies (v, c.version_constraint))
         {
           r = false;
 
@@ -2809,10 +2864,10 @@ namespace bpkg
         {
           for (const auto& c: p.constraints)
           {
-            if (c.dependent.version && !satisfies (sv, c.value))
+            if (c.dependent.version && !satisfies (sv, c.version_constraint))
             {
               warn << "package " << c.dependent << " dependency on ("
-                   << nm << ' ' << c.value << ") is forcing "
+                   << nm << ' ' << c.version_constraint << ") is forcing "
                    << (ud < 0 ? "up" : "down") << "grade of " << *sp << db
                    << " to " << av;
 
@@ -2915,7 +2970,7 @@ namespace bpkg
     if (!visited_deps.insert (&p).second)
       return nullopt;
 
-    using constraint_type = build_package::constraint_type;
+    using constraint = build_package::constraint;
 
     assert (p.action && *p.action != build_package::drop);    // Expectation.
     assert (p.available != nullptr || p.selected != nullptr); // By definition.
@@ -2998,11 +3053,11 @@ namespace bpkg
                                        ? p.available->version
                                        : p.selected->version);
 
-    for (const constraint_type& c: p.constraints)
+    for (const constraint& c: p.constraints)
     {
       const package_version_key& dvk (c.dependent);
 
-      if (dvk.version && !satisfies (dependency_version, c.value))
+      if (dvk.version && !satisfies (dependency_version, c.version_constraint))
       {
         if (optional<cmdline_adjustment> a = try_replace (
               package_key (dvk.db, dvk.name), "unsatisfied dependent"))
@@ -3033,18 +3088,18 @@ namespace bpkg
 
     // Try to replace unsatisfiable dependents.
     //
-    for (const constraint_type& c1: p.constraints)
+    for (const constraint& c1: p.constraints)
     {
       const package_version_key& dvk (c1.dependent);
 
       if (dvk.version)
       {
-        const version_constraint& v1 (c1.value);
+        const version_constraint& v1 (c1.version_constraint);
 
         bool unsatisfiable (false);
-        for (const constraint_type& c2: p.constraints)
+        for (const constraint& c2: p.constraints)
         {
-          const version_constraint& v2 (c2.value);
+          const version_constraint& v2 (c2.version_constraint);
 
           if (!satisfies (v1, v2) && !satisfies (v2, v1))
           {
@@ -3262,6 +3317,126 @@ namespace bpkg
            x.deorphan_recursive () == y.deorphan_recursive () &&
            x.checkout_root ()      == y.checkout_root ()      &&
            x.checkout_purge ()     == y.checkout_purge ();
+  }
+
+  // Checksum functions for various types. Used to calculate the checksum of
+  // the collection initial state.
+  //
+  template <typename C>
+  static inline auto
+  to_checksum (xxh64& cs, const C& vs)
+    -> decltype (to_checksum (cs, *vs.begin ()))
+  {
+    cs.append (vs.size ()); // To distinguish empty container from no call.
+
+    for (const auto& v: vs)
+      to_checksum (cs, v);
+  }
+
+  template <typename T>
+  static inline typename enable_if<is_enum<T>::value, void>::type
+  to_checksum (xxh64& cs, const T& v)
+  {
+    cs.append (static_cast<uint64_t> (v));
+  }
+
+  template <typename T>
+  static inline auto
+  to_checksum (xxh64& cs, const T& v) -> decltype (cs.append (v))
+  {
+    cs.append (v);
+  }
+
+  // VC14 reports ambiguity.
+  //
+#if !defined(_MSC_VER) || _MSC_VER > 1900
+  template <typename T>
+  static inline auto
+  to_checksum (xxh64& cs, const T& v) -> decltype (v.to_checksum (cs))
+  {
+    v.to_checksum (cs);
+  }
+#else
+  static inline void
+  to_checksum (xxh64& cs, const package_key& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const package_version_key& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const postponed_dependency& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const unacceptable_alternative& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const replaced_dependency& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const dependency_constraints::dependency& v)
+  {
+    v.to_checksum (cs);
+  }
+#endif
+
+  template <typename T1, typename T2>
+  static inline auto
+  to_checksum (xxh64& cs, const pair<T1, T2>& p)
+  {
+    to_checksum (cs, p.first);
+    to_checksum (cs, p.second);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const version& v)
+  {
+    return cs.append (!v.empty () ? v.string () : empty_string);
+  }
+
+  // Note that calculation of the checksum of the value requires information
+  // from the key (k.db).
+  //
+  static inline void
+  to_checksum (xxh64& cs, const replaced_versions::value_type& p)
+  {
+    const package_key& k (p.first);
+    const replaced_version& v (p.second);
+
+    k.to_checksum (cs);
+
+    if (v.available != nullptr)
+    {
+      const version* sv (v.system
+                         ? v.available->system_version (k.db)
+                         : nullptr);
+
+      cs.append ((sv != nullptr ? *sv : v.available->version).string ());
+
+      cs.append (v.repository_fragment != nullptr
+                 ? v.repository_fragment.object_id ()
+                 : "<null>");
+
+      cs.append (v.system);
+      cs.append (v.original_version.string ());
+      cs.append (v.original_system);
+    }
+    else
+      cs.append ("<null>");
   }
 
   int
@@ -5400,7 +5575,10 @@ namespace bpkg
         //
         if (pa.constraint)
           p.constraints.emplace_back (
-            move (*pa.constraint), cmd_line.db, cmd_line.name.string ());
+            move (*pa.constraint),
+            cmd_line.db,
+            cmd_line.name.string (),
+            dependency_type::dependency);
 
         pkg_confs.emplace_back (p.db, p.name ());
 
@@ -5663,26 +5841,12 @@ namespace bpkg
     //
     build_packages pkgs;
     {
-      struct dep
-      {
-        reference_wrapper<database> db;
-        package_name                name; // Empty if up/down-grade.
-
-        // Both are NULL if drop.
-        //
-        shared_ptr<available_package>              available;
-        lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
-
-        bool           system;
-        bool           existing; // Build as an existing archive or directory.
-        optional<bool> upgrade;
-        bool           deorphan;
-      };
-      vector<dep> deps;
-      existing_dependencies   existing_deps;
-      deorphaned_dependencies deorphaned_deps;
+      vector<replaced_dependency> replaced_deps;
+      existing_dependencies       existing_deps;
+      deorphaned_dependencies     deorphaned_deps;
 
       replaced_versions         replaced_vers;
+      dependency_constraints    dependency_constrs;
       postponed_dependencies    postponed_deps;
       unacceptable_alternatives unacceptable_alts;
 
@@ -5750,9 +5914,9 @@ namespace bpkg
       // potentially be sub-optimal, since we do not perform the full
       // backtracking by trying all the possible adjustments and picking the
       // most optimal combination. Instead, we keep collecting adjustments
-      // until either the package builds collection succeeds or there are no
-      // more adjustment combinations to try (and we don't try all of them).
-      // As a result we, for example, may end up with some redundant
+      // until either the package builds re-collection succeeds or there are
+      // no more adjustment combinations to try (and we don't try all of
+      // them). As a result we, for example, may end up with some redundant
       // constraints on the command line just because the respective
       // dependents have been evaluated first. Generally, dropping all the
       // redundant adjustments can potentially be quite time-consuming, since
@@ -5799,20 +5963,27 @@ namespace bpkg
       bool cmdline_deny_downgrade (cmdline_upgrade);
       bool cmdline_downgrades_denied (false);
 
-      set<package_key> existing_depts;
+      // The command line adjustments iteration counter.
+      //
+      // Incremented prior to each re-collection after the command line
+      // modifications and the mode changes (see the above cmdline_refine_*,
+      // cmdline_deny*, etc for details). Never reset. Used for calculating
+      // checksum of the collection initial state (see below).
+      //
+      uint64_t cmdline_adjs_iteration (0);
 
       // Iteratively refine the plan with dependency up/down-grades/drops.
       //
-      // Note that we should not clean the deps list on scratch_col (scratch
-      // during the package collection) because we want to enter them before
-      // collect_build_postponed() and they could be the dependents that have
-      // the config clauses. In a sense, change to replaced_vers,
-      // postponed_deps, or unacceptable_alts maps should not affect the deps
-      // list. But not the other way around: a dependency erased from the deps
-      // list could have caused an entry in the replaced_vers, postponed_deps,
-      // and/or unacceptable_alts maps. And so we clean replaced_vers,
-      // postponed_deps, and unacceptable_alts on scratch_exe (scratch during
-      // the plan execution).
+      // Note that we should not clean the replaced_deps list on scratch_col
+      // (scratch during the package collection) because we want to enter them
+      // before collect_build_postponed() and they could be the dependents
+      // that have the config clauses. In a sense, change to replaced_vers,
+      // postponed_deps, or unacceptable_alts maps should not affect the
+      // replaced_deps list. But not the other way around: a dependency erased
+      // from the replaced_deps list could have caused an entry in the
+      // replaced_vers, postponed_deps, and/or unacceptable_alts maps. And so
+      // we clean replaced_vers, postponed_deps, and unacceptable_alts on
+      // scratch_exe (scratch during the plan execution).
       //
       for (bool refine (true), scratch_exe (true), scratch_col (false);
            refine; )
@@ -5821,6 +5992,76 @@ namespace bpkg
 
         l4 ([&]{trace << "refine package collection/plan execution"
                       << (scratch ? " from scratch" : "");});
+
+        // Prepare for the re-collection.
+        //
+        if (scratch)
+        {
+          pkgs.clear ();
+
+          if (scratch_exe)
+          {
+            replaced_vers.clear ();
+            postponed_deps.clear ();
+            unacceptable_alts.clear ();
+
+            scratch_exe = false;
+          }
+          else
+          {
+            assert (scratch_col); // See the scratch definition above.
+
+            // Reset to detect bogus entries.
+            //
+            for (auto& rv: replaced_vers)
+              rv.second.replaced = false;
+
+            for (auto& pd: postponed_deps)
+            {
+              pd.second.wout_config = false;
+              pd.second.with_config = false;
+            }
+
+            scratch_col = false;
+          }
+        }
+
+        // Checksum of the collection initial state.
+        //
+        // Note that some algorithms, which employ re-collection after
+        // modifying the initial state of the current collection iteration,
+        // are not really deterministic and may end up yo-yoing (redundant
+        // version replacements cancellation, dependency constraints states
+        // correction, etc). To prevent that, they normally avoid
+        // re-collection if the same modification has already been applied to
+        // the same initial state in the past. Thus, at the beginning of each
+        // re-collection we calculate the checksum of the current collection
+        // state, so that the mentioned algorithms can use it in their cycling
+        // prevention strategies.
+        //
+        xxh64 collection_initial_state;
+        to_checksum (collection_initial_state, replaced_deps);
+        to_checksum (collection_initial_state, existing_deps);
+        to_checksum (collection_initial_state, deorphaned_deps);
+        to_checksum (collection_initial_state, replaced_vers);
+        to_checksum (collection_initial_state, dependency_constrs.dependents);
+        to_checksum (collection_initial_state, postponed_deps);
+        to_checksum (collection_initial_state, unacceptable_alts);
+
+        // Note: pkgs is not necessarily cleaned up at the beginning of the
+        //       iteration.
+        //
+        pkgs.state (collection_initial_state);
+
+        // Note that the unsatisfied constraints resolution machinery, being
+        // fully deterministic, performs re-collections after adjusting the
+        // command line, rolling back changes, etc. Instead of incorporating
+        // the internal state of this machinery into the collection initial
+        // state, for simplicity, we just calculate the checksum of the
+        // counter incremented by this machinery on its state changes (see
+        // above for details).
+        //
+        to_checksum (collection_initial_state, cmdline_adjs_iteration);
 
         transaction t (mdb);
 
@@ -5967,7 +6208,8 @@ namespace bpkg
           if (p.constraint)
             bp.constraints.emplace_back (*p.constraint,
                                          cmd_line.db,
-                                         cmd_line.name.string ());
+                                         cmd_line.name.string (),
+                                         dependency_type::constraint);
 
           pkgs.enter (p.name, move (bp));
         };
@@ -6039,39 +6281,12 @@ namespace bpkg
         postponed_configurations        postponed_cfgs;
         strings                         postponed_cfgs_history;
         unsatisfied_dependents          unsatisfied_depts;
+        set<package_key>                existing_depts;
 
         try
         {
           if (scratch)
           {
-            pkgs.clear ();
-
-            if (scratch_exe)
-            {
-              replaced_vers.clear ();
-              postponed_deps.clear ();
-              unacceptable_alts.clear ();
-
-              scratch_exe = false;
-            }
-            else
-            {
-              assert (scratch_col); // See the scratch definition above.
-
-              // Reset to detect bogus entries.
-              //
-              for (auto& rv: replaced_vers)
-                rv.second.replaced = false;
-
-              for (auto& pd: postponed_deps)
-              {
-                pd.second.wout_config = false;
-                pd.second.with_config = false;
-              }
-
-              scratch_col = false;
-            }
-
             // Pre-enter dependencies with specified configurations.
             //
             for (const dependency_package& p: dep_pkgs)
@@ -6146,6 +6361,7 @@ namespace bpkg
                     add_priv_cfg,
                     rpt_depts,
                     replaced_vers,
+                    dependency_constrs,
                     postponed_repo,
                     postponed_alts,
                     0 /* max_alt_index */,
@@ -6193,6 +6409,7 @@ namespace bpkg
             pkgs.collect_repointed_dependents (o,
                                                rpt_depts,
                                                replaced_vers,
+                                               dependency_constrs,
                                                postponed_repo,
                                                postponed_alts,
                                                postponed_recs,
@@ -6213,7 +6430,7 @@ namespace bpkg
           // Note: this loop takes care of both the from-scratch and
           // refinement cases.
           //
-          for (const dep& d: deps)
+          for (const replaced_dependency& d: replaced_deps)
           {
             database& ddb (d.db);
 
@@ -6322,6 +6539,7 @@ namespace bpkg
                                       find_prereq_database,
                                       add_priv_cfg,
                                       &rpt_depts,
+                                      &dependency_constrs,
                                       &postponed_repo,
                                       &postponed_alts,
                                       &postponed_recs,
@@ -6332,6 +6550,13 @@ namespace bpkg
               }
             }
           }
+
+          pkgs.collect_constraining_dependents (o,
+                                                rpt_depts,
+                                                replaced_vers,
+                                                postponed_recs,
+                                                postponed_cfgs,
+                                                unsatisfied_depts);
 
           // Handle the (combined) postponed collection.
           //
@@ -6350,6 +6575,7 @@ namespace bpkg
               !postponed_cfgs.empty ())
             pkgs.collect_build_postponed (o,
                                           replaced_vers,
+                                          dependency_constrs,
                                           postponed_repo,
                                           postponed_alts,
                                           postponed_recs,
@@ -6367,7 +6593,7 @@ namespace bpkg
           // which we initially decided to drop but have changed our mind
           // later (see cancel_drop_prerequisites() for details).
           //
-          for (const dep& d: deps)
+          for (const replaced_dependency& d: replaced_deps)
           {
             if (d.available == nullptr)
             {
@@ -6404,7 +6630,10 @@ namespace bpkg
           // scratch, if any (see replaced_versions for details).
           //
           replaced_vers.cancel_bogus (trace, true /* scratch */);
-          replaced_vers.cancel_redundant (trace, pkgs);
+
+          replaced_vers.cancel_redundant (trace,
+                                          pkgs,
+                                          collection_initial_state);
         }
         catch (const scratch_collection& e)
         {
@@ -6451,7 +6680,7 @@ namespace bpkg
         // packages are likely get purged before the package fetches, so that
         // the disk space they occupy can be reused.
         //
-        for (const dep& d: deps)
+        for (const replaced_dependency& d: replaced_deps)
         {
           if (d.available != nullptr)
             pkgs.order (d.db,
@@ -6533,7 +6762,7 @@ namespace bpkg
         // Skip the canceled and overwritten entries. Note that the latter
         // must have been ordered via their dependents.
         //
-        for (const dep& d: deps)
+        for (const replaced_dependency& d: replaced_deps)
         {
           if (d.available == nullptr)
           {
@@ -6579,7 +6808,7 @@ namespace bpkg
         }
 
 #ifndef NDEBUG
-        pkgs.verify_ordering ();
+        pkgs.verify_consistency (dependency_constrs);
 #endif
         // Now, as we are done with package builds collecting/ordering, erase
         // the replacements from the repointed dependents prerequisite sets
@@ -6646,252 +6875,276 @@ namespace bpkg
           }
         }
 
-        // Return nullopt if no changes to the dependency are necessary. This
-        // value covers both the "no change is required" and the "no
-        // recommendation available" cases.
+        // Go through the dependency constraints states used during collection
+        // and check if they still match the reality. If any of them doesn't,
+        // then update non-matching states in the cache and re-collect from
+        // scratch.
         //
-        auto eval_dep = [&dep_pkgs,
-                         &rec_pkgs,
-                         &o,
-                         &existing_deps,
-                         &deorphaned_deps,
-                         &pkgs,
-                         cache = upgrade_dependencies_cache {}] (
-                         database& db,
-                         const shared_ptr<selected_package>& sp,
-                         bool ignore_unsatisfiable = true) mutable
-          -> optional<evaluate_result>
+        assert (refine && !scratch_col);
+
+        if (!dependency_constrs.dependents.empty ())
         {
-          optional<evaluate_result> r;
+          scratch_col =
+            dependency_constrs.correct_states (collection_initial_state);
 
-          // See if there is an optional dependency upgrade recommendation.
-          //
-          if (!sp->hold_package)
-            r = evaluate_dependency (o,
-                                     db,
-                                     sp,
-                                     dep_pkgs,
-                                     o.no_move (),
-                                     existing_deps,
-                                     deorphaned_deps,
-                                     pkgs,
-                                     ignore_unsatisfiable);
-
-          // If none, then see for the recursive dependency upgrade
-          // recommendation.
-          //
-          // Let's skip upgrading system packages as they are, probably,
-          // configured as such for a reason.
-          //
-          if (!r && !sp->system () && !rec_pkgs.empty ())
-            r = evaluate_recursive (o,
-                                    db,
-                                    sp,
-                                    rec_pkgs,
-                                    existing_deps,
-                                    deorphaned_deps,
-                                    pkgs,
-                                    ignore_unsatisfiable,
-                                    cache);
-
-          // Translate the "no change" result to nullopt.
-          //
-          return r && r->available == nullptr && !r->unused ? nullopt : r;
-        };
-
-        // The empty version means that the package must be dropped.
-        //
-        const version ev;
-        auto target_version = [&ev]
-                              (database& db,
-                               const shared_ptr<available_package>& ap,
-                               bool sys) -> const version&
-        {
-          if (ap == nullptr)
-            return ev;
-
-          if (sys)
-          {
-            assert (ap->system_version (db) != nullptr);
-            return *ap->system_version (db);
-          }
-
-          return ap->version;
-        };
-
-        // Verify that none of the previously-made upgrade/downgrade/drop
-        // decisions have changed.
-        //
-        size_t changed_desisions_count (0);
-        for (auto i (deps.begin ()); i != deps.end (); )
-        {
-          bool cd (false);
-
-          database& db (i->db);
-          const package_name& nm (i->name);
-
-          // Here we check if evaluate changed its mind or if the resulting
-          // version doesn't match what we expect it to be.
-          //
-          if (auto sp = db.find<selected_package> (nm))
-          {
-            const version& dv (target_version (db, i->available, i->system));
-
-            if (optional<evaluate_result> r = eval_dep (db, sp))
-              cd = dv != target_version (db, r->available, r->system) ||
-                   i->system != r->system;
-            else
-              cd = dv != sp->version || i->system != sp->system ();
-          }
-          else
-            cd = i->available != nullptr;
-
-          if (cd)
-          {
-            ++changed_desisions_count;
-
-            package_key pk (db, nm);
-
-            auto j (find (existing_deps.begin (), existing_deps.end (), pk));
-            if (j != existing_deps.end ())
-              existing_deps.erase (j);
-
-            deorphaned_deps.erase (pk);
-
-            i = deps.erase (i);
-          }
-          else
-            ++i;
+          if (scratch_col)
+            l5 ([&]{trace << "dependency constraints states corrected, "
+                          << "re-collecting from scratch";});
         }
 
-        // Rebuild the plan from scratch, if any previously-made decisions
-        // have changed.
+        // If no re-collection is required so far, then see if we still need
+        // to re-collect due to some user expectations for dependencies.
         //
-        if (changed_desisions_count != 0)
+        if (!scratch_col)
         {
-          l5 ([&]{trace << changed_desisions_count << " dependency "
-                        << "evaluation decision(s) has changed, "
-                        << "re-collecting from scratch";});
-
-          scratch_exe = true;
-        }
-
-        // If the execute_plan() call was noop, there are no user expectations
-        // regarding any dependency, and no upgrade is requested, then the
-        // only possible refinement outcome can be recommendations to drop
-        // unused dependencies (that the user has refused to drop on the
-        // previous build or drop command run). Thus, if the --keep-unused|-K
-        // or --no-refinement option is also specified, then we omit the
-        // need_refinement() call altogether and assume that no refinement is
-        // required.
-        //
-        if (!changed && dep_pkgs.empty () && rec_pkgs.empty ())
-        {
-          assert (!scratch_exe); // No reason to change any previous decision.
-
-          if (o.keep_unused () || o.no_refinement ())
-            refine = false;
-        }
-
-        if (!scratch_exe && refine)
-        {
-          // First, we check if the refinement is required, ignoring the
-          // unsatisfiable dependency version constraints. If we end up
-          // refining the execution plan, such dependencies might be dropped,
-          // and then there will be nothing to complain about. When no more
-          // refinements are necessary we will run the diagnostics check, to
-          // make sure that the unsatisfiable dependency, if left, is
-          // reported.
+          // Return nullopt if no changes to the dependency are necessary.
+          // This value covers both the "no change is required" and the "no
+          // recommendation available" cases.
           //
-          auto need_refinement = [&eval_dep,
-                                  &deps,
-                                  &rec_pkgs,
-                                  &dep_dbs,
-                                  &existing_deps,
-                                  &deorphaned_deps,
-                                  &o] (bool diag = false) -> bool
+          auto eval_dep = [&dep_pkgs,
+                           &rec_pkgs,
+                           &o,
+                           &existing_deps,
+                           &deorphaned_deps,
+                           &pkgs,
+                           cache = upgrade_dependencies_cache {}]
+                          (database& db,
+                           const shared_ptr<selected_package>& sp,
+                           bool ignore_unsatisfiable = true) mutable
+            -> optional<evaluate_result>
           {
-            // Examine the new dependency set for any up/down-grade/drops.
+            optional<evaluate_result> r;
+
+            // See if there is an optional dependency upgrade recommendation.
             //
-            bool r (false); // Presumably no more refinements are necessary.
+            if (!sp->hold_package)
+              r = evaluate_dependency (o,
+                                       db,
+                                       sp,
+                                       dep_pkgs,
+                                       o.no_move (),
+                                       existing_deps,
+                                       deorphaned_deps,
+                                       pkgs,
+                                       ignore_unsatisfiable);
 
-            using query = query<selected_package>;
-
-            query q (query::state == "configured");
-
-            if (rec_pkgs.empty ())
-              q = q && !query::hold_package;
-
-            // It seems right to only evaluate dependencies in the explicitly
-            // linked configurations, recursively. Indeed, we shouldn't be
-            // up/down-grading or dropping packages in configurations that
-            // only contain dependents, some of which we may only reconfigure.
+            // If none, then see for the recursive dependency upgrade
+            // recommendation.
             //
-            for (database& db: dep_dbs)
-            {
-              for (shared_ptr<selected_package> sp:
-                     pointer_result (db.query<selected_package> (q)))
-              {
-                if (optional<evaluate_result> er = eval_dep (db, sp, !diag))
-                {
-                  // Skip unused if we were instructed to keep them.
-                  //
-                  if (o.keep_unused () && er->available == nullptr)
-                    continue;
+            // Let's skip upgrading system packages as they are, probably,
+            // configured as such for a reason.
+            //
+            if (!r && !sp->system () && !rec_pkgs.empty ())
+              r = evaluate_recursive (o,
+                                      db,
+                                      sp,
+                                      rec_pkgs,
+                                      existing_deps,
+                                      deorphaned_deps,
+                                      pkgs,
+                                      ignore_unsatisfiable,
+                                      cache);
 
-                  if (!diag)
-                  {
-                    deps.push_back (dep {er->db,
-                                         sp->name,
-                                         move (er->available),
-                                         move (er->repository_fragment),
-                                         er->system,
-                                         er->existing,
-                                         er->upgrade,
-                                         er->orphan.has_value ()});
-
-                    if (er->existing)
-                      existing_deps.emplace_back (er->db, sp->name);
-
-                    if (er->orphan)
-                    {
-                      deorphaned_deps[package_key (er->db, sp->name)] =
-                        move (*er->orphan);
-                    }
-                  }
-
-                  r = true;
-                }
-              }
-            }
-
-            return r;
+            // Translate the "no change" result to nullopt.
+            //
+            return r && r->available == nullptr && !r->unused ? nullopt : r;
           };
 
-          refine = need_refinement ();
+          // The empty version means that the package must be dropped.
+          //
+          const version ev;
+          auto target_version = [&ev](database& db,
+                                      const shared_ptr<available_package>& ap,
+                                      bool sys) -> const version&
+          {
+            if (ap == nullptr)
+              return ev;
 
-          // If no further refinement is necessary, then perform the
-          // diagnostics run. Otherwise, rebuild the plan, performing that
-          // from scratch (see above for details) for any of the following
-          // reasons:
+            if (sys)
+            {
+              assert (ap->system_version (db) != nullptr);
+              return *ap->system_version (db);
+            }
+
+            return ap->version;
+          };
+
+          // Verify that none of the previously-made upgrade/downgrade/drop
+          // decisions have changed.
           //
-          // - If any dependency configuration negotiation has been performed
-          //   during the current plan refinement iteration.
+          size_t changed_decisions_count (0);
+          for (auto i (replaced_deps.begin ()); i != replaced_deps.end (); )
+          {
+            bool cd (false);
+
+            database& db (i->db);
+            const package_name& nm (i->name);
+
+            // Here we check if evaluate changed its mind or if the resulting
+            // version doesn't match what we expect it to be.
+            //
+            if (auto sp = db.find<selected_package> (nm))
+            {
+              const version& dv (target_version (db, i->available, i->system));
+
+              if (optional<evaluate_result> r = eval_dep (db, sp))
+                cd = dv != target_version (db, r->available, r->system) ||
+                     i->system != r->system;
+              else
+                cd = dv != sp->version || i->system != sp->system ();
+            }
+            else
+              cd = i->available != nullptr;
+
+            if (cd)
+            {
+              ++changed_decisions_count;
+
+              package_key pk (db, nm);
+
+              auto j (find (existing_deps.begin (), existing_deps.end (), pk));
+              if (j != existing_deps.end ())
+                existing_deps.erase (j);
+
+              deorphaned_deps.erase (pk);
+
+              i = replaced_deps.erase (i);
+            }
+            else
+              ++i;
+          }
+
+          // Rebuild the plan from scratch, if any previously-made decisions
+          // have changed.
           //
-          // - If any unsatisfied dependents have been ignored, since their
-          //   unsatisfied constraints are now added to the dependencies'
-          //   build_package::constraints lists.
-          //
-          // - If any packages are re-collected (deviated dependents, etc),
-          //   since otherwise they may not be ordered on the next plan
-          //   refinement iteration.
-          //
-          if (!refine)
-            need_refinement (true /* diag */);
-          else if (!postponed_cfgs.empty ()    ||
-                   !unsatisfied_depts.empty () ||
-                   !postponed_recs.empty ())
+          if (changed_decisions_count != 0)
+          {
+            l5 ([&]{trace << changed_decisions_count << " dependency "
+                          << "evaluation decision(s) has changed, "
+                          << "re-collecting from scratch";});
+
             scratch_exe = true;
+          }
+
+          // If the execute_plan() call was noop, there are no user
+          // expectations regarding any dependency, and no upgrade is
+          // requested, then the only possible refinement outcome can be
+          // recommendations to drop unused dependencies (that the user has
+          // refused to drop on the previous build or drop command run). Thus,
+          // if the --keep-unused|-K or --no-refinement option is also
+          // specified, then we omit the need_refinement() call altogether and
+          // assume that no refinement is required.
+          //
+          if (!changed && dep_pkgs.empty () && rec_pkgs.empty ())
+          {
+            assert (!scratch_exe); // No reason to change any previous decision.
+
+            if (o.keep_unused () || o.no_refinement ())
+              refine = false;
+          }
+
+          if (!scratch_exe && refine)
+          {
+            // First, we check if the refinement is required, ignoring the
+            // unsatisfiable dependency version constraints. If we end up
+            // refining the execution plan, such dependencies might be
+            // dropped, and then there will be nothing to complain about. When
+            // no more refinements are necessary we will run the diagnostics
+            // check, to make sure that the unsatisfiable dependency, if left,
+            // is reported.
+            //
+            auto need_refinement = [&eval_dep,
+                                    &replaced_deps,
+                                    &rec_pkgs,
+                                    &dep_dbs,
+                                    &existing_deps,
+                                    &deorphaned_deps,
+                                    &o] (bool diag = false) -> bool
+            {
+              // Examine the new dependency set for any up/down-grade/drops.
+              //
+              bool r (false); // Presumably no more refinements are necessary.
+
+              using query = query<selected_package>;
+
+              query q (query::state == "configured");
+
+              if (rec_pkgs.empty ())
+                q = q && !query::hold_package;
+
+              // It seems right to only evaluate dependencies in the
+              // explicitly linked configurations, recursively. Indeed, we
+              // shouldn't be up/down-grading or dropping packages in
+              // configurations that only contain dependents, some of which we
+              // may only reconfigure.
+              //
+              for (database& db: dep_dbs)
+              {
+                for (shared_ptr<selected_package> sp:
+                       pointer_result (db.query<selected_package> (q)))
+                {
+                  if (optional<evaluate_result> er = eval_dep (db, sp, !diag))
+                  {
+                    // Skip unused if we were instructed to keep them.
+                    //
+                    if (o.keep_unused () && er->available == nullptr)
+                      continue;
+
+                    if (!diag)
+                    {
+                      replaced_deps.push_back (
+                        replaced_dependency {er->db,
+                                             sp->name,
+                                             move (er->available),
+                                             move (er->repository_fragment),
+                                             er->system,
+                                             er->existing,
+                                             er->upgrade,
+                                             er->orphan.has_value ()});
+
+                      if (er->existing)
+                        existing_deps.emplace_back (er->db, sp->name);
+
+                      if (er->orphan)
+                      {
+                        deorphaned_deps[package_key (er->db, sp->name)] =
+                          move (*er->orphan);
+                      }
+                    }
+
+                    r = true;
+                  }
+                }
+              }
+
+              return r;
+            };
+
+            refine = need_refinement ();
+
+            // If no further refinement is necessary, then perform the
+            // diagnostics run. Otherwise, rebuild the plan, performing that
+            // from scratch (see above for details) for any of the following
+            // reasons:
+            //
+            // - If any dependency configuration negotiation has been
+            // - performed during the current plan refinement iteration.
+            //
+            // - If any unsatisfied dependents have been ignored, since their
+            //   unsatisfied constraints are now added to the dependencies'
+            //   build_package::constraints lists.
+            //
+            // - If any packages are re-collected (deviated dependents, etc),
+            //   since otherwise they may not be ordered on the next plan
+            //   refinement iteration.
+            //
+            if (!refine)
+              need_refinement (true /* diag */);
+            else if (!postponed_cfgs.empty ()    ||
+                     !unsatisfied_depts.empty () ||
+                     !postponed_recs.empty ())
+              scratch_exe = true;
+          }
         }
 
         // Note that we prevent building multiple instances of the same
@@ -7383,36 +7636,39 @@ namespace bpkg
           // Cleanup the package build collecting state, preparing for the
           // re-collection from the very beginning.
           //
-          auto prepare_recollect = [&refine,
-                                    &scratch_exe,
-                                    &deps,
-                                    &existing_deps,
-                                    &deorphaned_deps] ()
+          auto cmdline_adjs_prepare_recollect = [&refine,
+                                                 &scratch_exe,
+                                                 &replaced_deps,
+                                                 &existing_deps,
+                                                 &deorphaned_deps,
+                                                 &cmdline_adjs_iteration] ()
           {
             refine = true;
             scratch_exe = true;
 
-            deps.clear ();
+            replaced_deps.clear ();
             existing_deps.clear ();
             deorphaned_deps.clear ();
+
+            ++cmdline_adjs_iteration;
           };
 
           // Cleanup the command line adjustment states which have already
           // been tried and the package build collecting state, preparing for
           // a new adjustments cycle with some algorithm parameters amended.
           //
-          auto prepare_adjustments_cycle =
+          auto cmdline_adjs_prepare_cycle =
             [&cmdline_downgrades_denied,
              &cmdline_multiple_project_versions_denied,
              &cmdline_adjs,
-             &prepare_recollect] ()
+             &cmdline_adjs_prepare_recollect] ()
           {
             cmdline_downgrades_denied = false;
             cmdline_multiple_project_versions_denied = false;
 
             cmdline_adjs.clear_former_states ();
 
-            prepare_recollect ();
+            cmdline_adjs_prepare_recollect ();
           };
 
           // Issue diagnostics and fail if any dependents are not satisfied
@@ -7495,7 +7751,7 @@ namespace bpkg
                                 << cmdline_adjs.to_string (a) << ')';});
                 }
 
-                prepare_recollect ();
+                cmdline_adjs_prepare_recollect ();
               }
               else
               {
@@ -7511,7 +7767,7 @@ namespace bpkg
 
                   cmdline_deny_downgrade = false;
 
-                  prepare_adjustments_cycle ();
+                  cmdline_adjs_prepare_cycle ();
                 }
                 // If we fail to resolve the unsatisfied dependency
                 // constraints with the multiple project versions denied, then
@@ -7529,7 +7785,7 @@ namespace bpkg
                   cmdline_deny_multiple_project_versions = false;
                   cmdline_deny_downgrade = cmdline_upgrade;
 
-                  prepare_adjustments_cycle ();
+                  cmdline_adjs_prepare_cycle ();
                 }
                 else
                 {
@@ -7580,7 +7836,7 @@ namespace bpkg
                               << "adjustments, performing final collection";});
               }
 
-              prepare_recollect ();
+              cmdline_adjs_prepare_recollect ();
             }
           }
           //
@@ -7629,7 +7885,7 @@ namespace bpkg
                                  *cmdline_refine_adjustment)
                             << ')';});
 
-              prepare_recollect ();
+              cmdline_adjs_prepare_recollect ();
             }
           }
         }
@@ -8201,7 +8457,8 @@ namespace bpkg
     // that this is not required for the recursively collected packages since
     // the dependency alternatives are already selected for them.
     //
-    map<const build_package*, vector<package_name>> previous_prerequisites;
+    map<const build_package*, vector<configure_previous_prerequisite>>
+      previous_prerequisites;
 
     for (build_package& p: build_pkgs)
     {
@@ -8245,14 +8502,50 @@ namespace bpkg
       //
       if (*p.action != build_package::drop && !p.dependencies && !p.system)
       {
-        vector<package_name>& ps (previous_prerequisites[&p]);
+        vector<configure_previous_prerequisite>& ps (
+          previous_prerequisites[&p]);
 
         if (!sp->prerequisites.empty ())
         {
           ps.reserve (sp->prerequisites.size ());
 
+          // Note that all the prerequisite_info entries for the same package
+          // name (cannot be more than two actually: the build-time in one
+          // configuration and the runtime in another) always end up with a
+          // single entry in the ps list. That's actually ok, since the
+          // "recreate dependency decisions" configuration mode only cares
+          // about the prerequisites names and kinds (build-time vs runtime)
+          // but not configurations they were configured in.
+          //
           for (const auto& pp: sp->prerequisites)
-            ps.push_back (pp.first.object_id ());
+          {
+            const prerequisite_info& pi (pp.second);
+            const package_name& n (pp.first.object_id ());
+
+            if (pi.type == dependency_type::dependency)
+            {
+              auto i (find_if (ps.begin (), ps.end (),
+                               [&n] (const configure_previous_prerequisite& p)
+                               {
+                                 return p.name == n;
+                               }));
+
+              if (i != ps.end ())
+              {
+                if (pi.buildtime)
+                  i->buildtime = true;
+
+                if (pi.runtime)
+                  i->runtime = true;
+              }
+              else
+              {
+                ps.push_back (configure_previous_prerequisite {n,
+                                                               pi.buildtime,
+                                                               pi.runtime});
+              }
+            }
+          }
         }
       }
 
@@ -8877,6 +9170,24 @@ namespace bpkg
         return nullopt;
       });
 
+    // Return the "would be" prerequisites of packages that would be
+    // configured by this stage.
+    //
+    function<find_package_prerequisites_function> configured_prerequisites (
+      [&configure_packages] (const shared_ptr<selected_package>& sp)
+      -> const package_prerequisites*
+      {
+        for (const configure_package& cp: configure_packages)
+        {
+          const build_package& p (cp.pkg);
+
+          if (p.selected == sp)
+            return &cp.res.prerequisites;
+        }
+
+        return nullptr;
+      });
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8965,7 +9276,8 @@ namespace bpkg
               {
                 l5 ([&]{trace << "while configuring dependent " << p.name ()
                               << p.db << " in simulation mode unconstrain ("
-                              << c.dependency << ' ' << c.constraint << ')';});
+                              << c.dependency << ' ' << c.version_constraint
+                              << ')';});
 
                 deps.emplace_back (c.dependency);
               }
@@ -8983,16 +9295,17 @@ namespace bpkg
           // resulting package skeleton and the pre-selected dependency
           // alternatives.
           //
-          // Note that we may not collect the package prerequisites builds if
-          // the package is already configured but we still need to
-          // reconfigure it due, for example, to an upgrade of its dependency.
-          // In this case we pass to pkg_configure() the newly created package
-          // skeleton which contains the package configuration variables
-          // specified on the command line but (naturally) no reflection
-          // configuration variables. Note, however, that in this case
-          // pkg_configure() call will evaluate the reflect clauses itself and
-          // so the proper reflection variables will still end up in the
-          // package configuration.
+          // Note that we may not collect the package prerequisites builds if,
+          // for example, the specified on the command line package is already
+          // configured but we still need to reconfigure it due to an upgrade
+          // of its dependency. In this case we pass to pkg_configure() the
+          // newly created package skeleton which contains the package
+          // configuration variables specified on the command line on some
+          // previous bpkg run, but (naturally) no reflection configuration
+          // variables. Note, however, that in this case pkg_configure() call
+          // will evaluate the reflect clauses itself and so the proper
+          // reflection variables will still end up in the package
+          // configuration.
           //
           // @@ Note that if we ever allow the user to override the
           //    alternative selection, this will break (and also if the user
@@ -9014,6 +9327,7 @@ namespace bpkg
                                                simulate,
                                                fdb,
                                                configured_state,
+                                               configured_prerequisites,
                                                unconstrain_deps ());
           }
           else
@@ -9030,6 +9344,7 @@ namespace bpkg
                                                simulate,
                                                fdb,
                                                configured_state,
+                                               configured_prerequisites,
                                                unconstrain_deps ());
           }
         }
@@ -9053,14 +9368,6 @@ namespace bpkg
 
           const dependencies& deps (p.skeleton->available->dependencies);
 
-          // @@ Note that on reconfiguration the dependent loses the
-          //    potential configuration variables specified by the user on
-          //    some previous build, which can be quite surprising. Should we
-          //    store this information in the database?
-          //
-          //    Note: this now works for external packages via package
-          //    skeleton (which extracts user configuration).
-          //
           cpr = pkg_configure_prerequisites (o,
                                              pdb,
                                              t,
@@ -9071,6 +9378,7 @@ namespace bpkg
                                              simulate,
                                              fdb,
                                              configured_state,
+                                             configured_prerequisites,
                                              unconstrain_deps ());
         }
 

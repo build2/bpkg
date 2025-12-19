@@ -197,7 +197,7 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
     $* -d cfg1 cfg2 2>>/EOE != 0
       error: configuration cfg1/ still depends on configuration cfg2/
         info: package foo [cfg2/] has dependents:
-        info: package libbar on foo ^1.0.0
+        info: package libbar depends on foo ^1.0.0
       EOE
 
     $pkg_drop -d cfg1 --keep-unused libbar
@@ -244,7 +244,7 @@ clone_root_cfgs = cp -r $~/cfg1 $~/cfg2 ./
     $* -d cfg2 --name build2 2>>/EOE != 0
       error: configuration cfg2/ still depends on private configuration cfg2/.bpkg/build2/
         info: package libbuild2-bar [cfg2/.bpkg/build2/] has dependents:
-        info: package foo on libbuild2-bar ^1.0.0
+        info: package foo depends on libbuild2-bar ^1.0.0
       EOE
 
     $pkg_drop -d cfg2 --keep-unused foo

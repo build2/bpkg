@@ -27,10 +27,11 @@ namespace bpkg
      packages (which are the packages that were explicitly built; see
      \l{bpkg-pkg-build(1)}). The latter mode can be modified to print the
      status of all the packages by specifying the \c{\b{--all}|\b{-a}} option.
-     Additionally, the status of immediate or all dependencies of the above
-     packages can be printed by specifying the \c{\b{--immediate}|\b{-i}} or
-     \c{\b{--recursive}|\b{-r}} options, respectively. Note that the status is
-     written to \cb{stdout}, not \cb{stderr}.
+     Additionally, the status of immediate or all dependencies (and dependency
+     constraints) of the above packages can be printed by specifying the
+     \c{\b{--immediate}|\b{-i}} or \c{\b{--recursive}|\b{-r}} options,
+     respectively. Note that the status is written to \cb{stdout}, not
+     \cb{stderr}.
 
      The default output format (see the \cb{--stdout-format} common option) is
      regular with components separated with spaces. Each line starts with the
@@ -38,7 +39,8 @@ namespace bpkg
      them can be optionally followed by '\cb{,}' (no spaces) and a sub-status
      word. Lines corresponding to dependencies from linked configurations will
      additionally mention the configuration directory in square brackets after
-     the package name.
+     the package name. Lines corresponding to dependency constraints will have
+     the package name prefixed with '\cb{?}'.
 
      \dl|
 
@@ -153,7 +155,8 @@ namespace bpkg
      !libfoo configured,system !* available 1.1.0 1.1.1
      \
 
-     Another example of the status output this time including dependencies:
+     Another example of the status output this time including dependencies
+     and constraints:
 
      \
      bpkg status -r libbaz
@@ -161,6 +164,7 @@ namespace bpkg
        libfoo configured 1.0.0
          bison [.bpkg/host/] configured 1.0.0
        libbar configured 2.0.0
+       ?bison [.bpkg/host/] configured 1.0.0
      \
 
      If the output format is \cb{json}, then the output is a JSON array of
@@ -179,7 +183,7 @@ namespace bpkg
      {
        string                    name;
        optional<string>          configuration;
-       optional<string>          constraint;
+       optional<string>          version_constraint;
        string                    status;
        optional<string>          sub_status;
        optional<string>          version;
@@ -187,6 +191,7 @@ namespace bpkg
        bool                      hold_version;
        vector<available_version> available_versions;
        vector<package_status>    dependencies;
+       vector<package_status>    constraints;
      };
      \
 
@@ -224,13 +229,14 @@ namespace bpkg
 
      In \cb{package_status}, the \cb{configuration} member contains the
      absolute directory of a linked configuration if this package resides in a
-     linked configuration. The \cb{constraint} member is present only if the
-     \cb{--constraint} option is specified. The \cb{version} member is absent
-     if the \cb{status} member is \cb{unknown} or \cb{available} and no
-     package version is specified on the command line. If the \cb{sub_status}
-     member is \cb{system}, then the \cb{version} member can be special
-     \cb{*}. The \cb{dependencies} member is present only if the
-     \cb{--immediate|-i} or \cb{--recursive|-r} options are specified.
+     linked configuration. The \cb{version_constraint} member is present only
+     if the \cb{--version-constraint} option is specified. The \cb{version}
+     member is absent if the \cb{status} member is \cb{unknown} or
+     \cb{available} and no package version is specified on the command
+     line. If the \cb{sub_status} member is \cb{system}, then the \cb{version}
+     member can be special \cb{*}. The \cb{dependencies} and \cb{constraints}
+     members are present only if the \cb{--immediate|-i} or
+     \cb{--recursive|-r} options are specified.
 
      In \cb{available_version}, if the \cb{system} member is \cb{true}, then
      this version is available from the system, in which case the \cb{version}
@@ -256,12 +262,12 @@ namespace bpkg
 
     bool --immediate|-i
     {
-      "Also print the status of immediate dependencies."
+      "Also print the status of immediate dependencies and constraints."
     }
 
     bool --recursive|-r
     {
-      "Also print the status of all dependencies, recursively."
+      "Also print the status of all dependencies and constraints, recursively."
     }
 
     bool --old-available|-o
@@ -269,9 +275,9 @@ namespace bpkg
       "Print old available versions."
     }
 
-    bool --constraint
+    bool --version-constraint
     {
-      "Print version constraints for dependencies."
+      "Print version constraints for dependencies and constraints."
     }
 
     bool --system

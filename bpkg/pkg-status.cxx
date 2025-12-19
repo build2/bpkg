@@ -21,12 +21,12 @@ namespace bpkg
 {
   struct package
   {
-    database&                    pdb;        // Package database.
-    database&                    rdb;        // Repository info database.
-    package_name                 name;
-    bpkg::version                version;    // Empty if unspecified.
-    shared_ptr<selected_package> selected;   // NULL if none selected.
-    optional<version_constraint> constraint; // Version constraint, if any.
+    database&                          pdb;      // Package database.
+    database&                          rdb;      // Repository info database.
+    package_name                       name;
+    bpkg::version                      version;  // Empty if unspecified.
+    shared_ptr<selected_package>       selected; // NULL if none selected.
+    optional<bpkg::version_constraint> version_constraint;
   };
   using packages = vector<package>;
 
@@ -138,15 +138,20 @@ namespace bpkg
   }
 
   static packages
-  pkg_prerequisites (const shared_ptr<selected_package>& s, database& rdb)
+  pkg_prerequisites (const shared_ptr<selected_package>& s,
+                     database& rdb,
+                     dependency_type type)
   {
     packages r;
     for (const auto& pair: s->prerequisites)
     {
-      shared_ptr<selected_package> d (pair.first.load ());
-      database& db (pair.first.database ());
-      const optional<version_constraint>& c (pair.second.constraint);
-      r.push_back (package {db, rdb, d->name, version (), move (d), c});
+      if (pair.second.type == type)
+      {
+        shared_ptr<selected_package> d (pair.first.load ());
+        database& db (pair.first.database ());
+        const optional<version_constraint>& c (pair.second.version_constraint);
+        r.push_back (package {db, rdb, d->name, version (), move (d), c});
+      }
     }
     return r;
   }
@@ -156,7 +161,8 @@ namespace bpkg
                     const packages& pkgs,
                     string& indent,
                     bool recursive,
-                    bool immediate)
+                    bool immediate,
+                    bool constraints = false)
   {
     tracer trace ("pkg_status_lines");
 
@@ -180,12 +186,15 @@ namespace bpkg
           cout << '!';
       }
 
+      if (constraints)
+        cout << '?';
+
       // If the package name is selected, then print its exact spelling.
       //
       cout << (s != nullptr ? s->name : p.name) << p.pdb;
 
-      if (o.constraint () && p.constraint)
-        cout << ' ' << *p.constraint;
+      if (o.version_constraint () && p.version_constraint)
+        cout << ' ' << *p.version_constraint;
 
       cout << ' ';
 
@@ -254,12 +263,38 @@ namespace bpkg
         //
         if (s != nullptr)
         {
-          packages dpkgs (pkg_prerequisites (s, p.rdb));
+          packages dpkgs (pkg_prerequisites (s,
+                                             p.rdb,
+                                             dependency_type::dependency));
 
-          if (!dpkgs.empty ())
+          packages cpkgs (pkg_prerequisites (s,
+                                             p.rdb,
+                                             dependency_type::constraint));
+
+          if (!dpkgs.empty () || !cpkgs.empty ())
           {
             indent += "  ";
-            pkg_status_lines (o, dpkgs, indent, recursive, false /* immediate */);
+
+            if (!dpkgs.empty ())
+            {
+              pkg_status_lines (o,
+                                dpkgs,
+                                indent,
+                                recursive,
+                                false /* immediate */,
+                                false /* constraints */);
+            }
+
+            if (!cpkgs.empty ())
+            {
+              pkg_status_lines (o,
+                                cpkgs,
+                                indent,
+                                false /* recursive */,
+                                false /* immediate */,
+                                true /* constraints */);
+            }
+
             indent.resize (indent.size () - 2);
           }
         }
@@ -301,8 +336,10 @@ namespace bpkg
       if (!p.pdb.string.empty ())
         ss.member ("configuration", p.pdb.string);
 
-      if (o.constraint () && p.constraint)
-        ss.member ("constraint", p.constraint->string (), false /* check */);
+      if (o.version_constraint () && p.version_constraint)
+        ss.member ("version_constraint",
+                   p.version_constraint->string (),
+                   false /* check */);
 
       // Selected.
       //
@@ -397,12 +434,38 @@ namespace bpkg
         //
         if (s != nullptr)
         {
-          packages dpkgs (pkg_prerequisites (s, p.rdb));
-
-          if (!dpkgs.empty ())
           {
-            ss.member_name ("dependencies", false /* check */);
-            pkg_status_json (o, dpkgs, ss, recursive, false /* immediate */);
+            packages dpkgs (pkg_prerequisites (s,
+                                               p.rdb,
+                                               dependency_type::dependency));
+
+            if (!dpkgs.empty ())
+            {
+              ss.member_name ("dependencies", false /* check */);
+
+              pkg_status_json (o,
+                               dpkgs,
+                               ss,
+                               recursive,
+                               false /* immediate */);
+            }
+          }
+
+          {
+            packages cpkgs (pkg_prerequisites (s,
+                                               p.rdb,
+                                               dependency_type::constraint));
+
+            if (!cpkgs.empty ())
+            {
+              ss.member_name ("constraints", false /* check */);
+
+              pkg_status_json (o,
+                               cpkgs,
+                               ss,
+                               false /* recursive */,
+                               false /* immediate */);
+            }
           }
         }
       }
@@ -479,7 +542,7 @@ namespace bpkg
                                        pn,
                                        pv,
                                        move (sp),
-                                       nullopt /* constraint */});
+                                       nullopt /* version_constraint */});
               found = true;
             }
           }
@@ -490,8 +553,8 @@ namespace bpkg
                                      db,
                                      move (pn),
                                      move (pv),
-                                     nullptr  /* selected */,
-                                     nullopt  /* constraint */});
+                                     nullptr /* selected */,
+                                     nullopt /* version_constraint */});
           }
         }
       }
@@ -516,7 +579,7 @@ namespace bpkg
                                      s->name,
                                      version (),
                                      move (s),
-                                     nullopt /* constraint */});
+                                     nullopt /* version_constraint */});
           }
 
           if (!o.link ())

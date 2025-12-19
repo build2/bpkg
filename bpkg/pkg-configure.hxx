@@ -44,23 +44,24 @@ namespace bpkg
 
   // Given dependencies of a package, return its prerequisite packages,
   // 1-based indexes of the selected dependency alternatives (0 for toolchain
-  // build-time dependencies, etc), configuration variables that resulted from
-  // selection of these prerequisites (import, reflection, etc), and sources
-  // of the configuration variables resulted from evaluating the reflect
-  // clauses. Fail if for some of the dependency alternative lists there is no
-  // satisfactory alternative (all its dependencies are configured, satisfy
-  // the respective constraints, etc).
+  // build-time dependencies, etc), the constrains manifest values presence
+  // flag, configuration variables that resulted from selection of these
+  // prerequisites (import, reflection, etc), and sources of the configuration
+  // variables resulted from evaluating the reflect clauses. Fail if for some
+  // of the dependency alternative lists there is no satisfactory alternative
+  // (all its dependencies are configured, satisfy the respective version
+  // constraints, etc).
   //
-  // The package dependency constraints are expected to be complete.
+  // The package dependency version constraints are expected to be complete.
   //
   // The dependencies argument may contain pre-selected dependency
   // alternatives (with the potential empty entries for the toolchain
-  // build-time dependencies or for dependencies with all the alternatives
-  // disabled; see pkg-build for the use-case). In this case the number of
-  // dependency alternatives for each dependency must be 1 (or 0) and the
-  // alternatives argument must be specified. The alternatives argument must
-  // be parallel to the dependencies argument and specify indexes of the
-  // selected alternatives.
+  // build-time dependencies, dependencies with all the alternatives disabled,
+  // and disabled or inactive dependency constraints; see pkg-build for the
+  // use-case). In this case the number of dependency alternatives for each
+  // dependency must be 1 (or 0) and the alternatives argument must be
+  // specified. The alternatives argument must be parallel to the dependencies
+  // argument and specify indexes of the selected alternatives.
   //
   // If the dependency alternatives are not pre-selected (alternatives ==
   // NULL), then for each depends value select the first satisfactory
@@ -69,7 +70,14 @@ namespace bpkg
   // (prev_prerequisites != NULL), then for each depends value try to select
   // an alternative where dependencies all belong to this list (the "recreate
   // dependency decisions" mode). Failed that, select an alternative as if no
-  // prerequisites are specified (the "make dependency decisions" mode).
+  // prerequisites are specified (the "make dependency decisions" mode). Note
+  // that prev_prerequisites, if specified, should only refer to the
+  // prerequisites of the dependency type.
+  //
+  // For the dependency constraints contained in the dependencies argument,
+  // regardless of whether it is pre-selected or not, deduce if these
+  // constraints are active or not. Resolve the prerequisites for the active
+  // constraints and silently skip the inactive ones.
   //
   // Note that there are actually 3 possible use cases for
   // pkg_configure_prerequisites():
@@ -95,9 +103,9 @@ namespace bpkg
   // - There are no use cases when both dependency alternatives are
   //   pre-selected and the previous configured state information needs to be
   //   provided. Thus, alternatives and prev_prerequisites must never be both
-  //   NULL.
+  //   not NULL.
   //
-  // Optionally, remove constraints from the specified dependencies
+  // Optionally, remove version constraints from the specified dependencies
   // (unconstrain_deps). Only allowed in the simulation mode.
   //
   struct configure_prerequisites_result
@@ -118,6 +126,10 @@ namespace bpkg
     // config_sources member.
     //
     string config_checksum;
+
+    // True if there are constrains values in the package manifest.
+    //
+    bool has_dependency_constraint;
   };
 
   // Return the "would be" state for packages that would be configured
@@ -126,6 +138,13 @@ namespace bpkg
   using find_package_state_function =
     optional<pair<package_state, package_substate>> (
       const shared_ptr<selected_package>&);
+
+  struct configure_previous_prerequisite
+  {
+    package_name name;
+    bool         buildtime;
+    bool         runtime;
+  };
 
   // Note: loads selected packages.
   //
@@ -137,10 +156,11 @@ namespace bpkg
     const dependencies&,
     const vector<size_t>* alternatives,
     package_skeleton&&,
-    const vector<package_name>* prev_prerequisites,
+    const vector<configure_previous_prerequisite>*,
     bool simulate,
     const function<find_database_function>&,
     const function<find_package_state_function>&,
+    const function<find_package_prerequisites_function>&,
     const vector<package_key>* unconstrain_deps = nullptr);
 
   // Configure the package, update its state, and commit the transaction.
@@ -194,7 +214,7 @@ namespace bpkg
                  const dependencies&,
                  const vector<size_t>* alternatives,
                  package_skeleton&&,
-                 const vector<package_name>* prev_prerequisites,
+                 const vector<configure_previous_prerequisite>*,
                  bool disfigured,
                  bool simulate,
                  const function<find_database_function>& = {});

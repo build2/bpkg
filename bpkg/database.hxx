@@ -592,7 +592,7 @@ namespace bpkg
   // fail if that's not the case.
   //
   void
-  validate_configuration_name (const string&, const char* what);
+  validate_config_name (const string&, const char* what);
 
   // The build-time dependency configuration types.
   //
@@ -605,7 +605,7 @@ namespace bpkg
   // build-time dependency: `build2` for build2 modules and `host` for others.
   //
   const string&
-  buildtime_dependency_type (const package_name&);
+  buildtime_dependency_config_type (const package_name&);
 
   // Return the configuration type suitable for building a dependency of the
   // dependent in the specified configuration: `build2` for build2 modules,
@@ -613,12 +613,12 @@ namespace bpkg
   // configuration type for the runtime dependencies.
   //
   inline const string&
-  dependency_type (database& dependent_db,
-                   const package_name& dependency_name,
-                   bool buildtime)
+  dependency_config_type (database& dependent_db,
+                          const package_name& dependency_name,
+                          bool buildtime)
   {
     return buildtime
-           ? buildtime_dependency_type (dependency_name)
+           ? buildtime_dependency_config_type (dependency_name)
            : dependent_db.type;
   }
 

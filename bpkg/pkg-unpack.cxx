@@ -148,14 +148,13 @@ namespace bpkg
     return move (p);
   }
 
-  template <typename T>
   static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
               database& db,
               transaction& t,
               package_name n,
               version v,
-              const vector<T>& deps,
+              const dependencies& deps,
               const package_info* pi,
               dir_path d,
               repository_location rl,

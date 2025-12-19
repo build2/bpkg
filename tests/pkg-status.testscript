@@ -19,8 +19,11 @@
 # |   `-- repositories.manifest
 # |
 # |-- testing                   -> stable (complement), extra (prerequisite)
+# |   |-- libbaz-1.0.0.tar.gz
 # |   |-- libbar-1.0.0+1.tar.gz
-# |   |-- libbar-1.1.0.tar.gz
+# |   |-- libbar-1.1.0.tar.gz -> libbaz ^1.0.0
+# |   |-- libfoo-2.0.0.tar.gz -> libbar
+# |   |-- libfox-1.0.0.tar.gz -> libfoo, ?libbar >= 1.0.0
 # |   `-- repositories.manifest
 # |
 # |-- unstable                  -> testing (complement)
@@ -257,6 +260,38 @@ pkg_drop   += -d cfg --yes 2>!
 
     $* style-basic >~'%style-basic available \[1\.1\.0-a\.0\..+\]%'
   }}
+
+  : constraints
+  :
+  {{
+    +$clone_cfg
+    +$rep_add $rep/testing && $rep_fetch
+    +$pkg_build libfox
+
+    : basics
+    :
+    {
+      $clone_cfg
+
+      $* libfox >'!libfox configured 1.0.0'
+    }
+
+    : recursive
+    :
+    {
+      $clone_cfg
+
+      $* libfox --recursive --version-constraint >>EOO
+        !libfox configured 1.0.0
+          libfoo configured 2.0.0
+            libbar configured 1.0.0+1 available [1.1.0+1] 1.1.0
+              libbaz ^1.0.0 configured 1.0.0
+          ?libbar == 1.0.0 configured 1.0.0+1 available [1.1.0+1] 1.1.0
+        EOO
+    }
+
+    -$pkg_drop libfox
+  }}
 }}
 
 : json
@@ -311,7 +346,7 @@ pkg_drop   += -d cfg --yes 2>!
 
       $pkg_build libbar
 
-      $* libbar --recursive --constraint >>EOO
+      $* libbar --recursive --version-constraint >>EOO
         [
           {
             "name": "libbar",
@@ -327,7 +362,7 @@ pkg_drop   += -d cfg --yes 2>!
             "dependencies": [
               {
                 "name": "libbaz",
-                "constraint": "^1.0.0",
+                "version_constraint": "^1.0.0",
                 "status": "configured",
                 "version": "1.0.0"
               }
@@ -338,5 +373,97 @@ pkg_drop   += -d cfg --yes 2>!
 
       $pkg_drop libbar
     }
+  }}
+
+  : constraints
+  :
+  {{
+    +$clone_cfg
+    +$rep_add $rep/testing && $rep_fetch
+    +$pkg_build libfox
+
+    : basics
+    :
+    {
+      $clone_cfg
+
+      $* libfox >>EOO
+        [
+          {
+            "name": "libfox",
+            "status": "configured",
+            "version": "1.0.0",
+            "hold_package": true
+          }
+        ]
+        EOO
+    }
+
+    : recursive
+    :
+    {
+      $clone_cfg
+
+      $* libfox --recursive --version-constraint >>EOO
+        [
+          {
+            "name": "libfox",
+            "status": "configured",
+            "version": "1.0.0",
+            "hold_package": true,
+            "dependencies": [
+              {
+                "name": "libfoo",
+                "status": "configured",
+                "version": "2.0.0",
+                "dependencies": [
+                  {
+                    "name": "libbar",
+                    "status": "configured",
+                    "version": "1.0.0+1",
+                    "available_versions": [
+                      {
+                        "version": "1.1.0+1",
+                        "dependency": true
+                      },
+                      {
+                        "version": "1.1.0"
+                      }
+                    ],
+                    "dependencies": [
+                      {
+                        "name": "libbaz",
+                        "version_constraint": "^1.0.0",
+                        "status": "configured",
+                        "version": "1.0.0"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "constraints": [
+              {
+                "name": "libbar",
+                "version_constraint": "== 1.0.0",
+                "status": "configured",
+                "version": "1.0.0+1",
+                "available_versions": [
+                  {
+                    "version": "1.1.0+1",
+                    "dependency": true
+                  },
+                  {
+                    "version": "1.1.0"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+        EOO
+    }
+
+    -$pkg_drop libfox
   }}
 }}

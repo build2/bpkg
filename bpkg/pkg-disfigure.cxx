@@ -52,8 +52,11 @@ namespace bpkg
           {
             dr << info << "package " << pd.name << ddb;
 
-            if (pd.constraint)
-              dr << " on " << p->name << " " << *pd.constraint;
+            if (pd.version_constraint)
+              dr << (pd.type == dependency_type::dependency
+                     ? " depends on "
+                     : " constrains ") << p->name << ' '
+                 << *pd.version_constraint;
           }
         }
       }
@@ -78,6 +81,8 @@ namespace bpkg
     // Mark the section as loaded, so dependency alternatives are updated.
     //
     p->dependency_alternatives_section.load ();
+
+    p->has_dependency_constraint = false;
 
     assert (p->src_root); // Must be set since unpacked.
     assert (p->out_root); // Must be set since configured.

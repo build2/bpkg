@@ -34,17 +34,19 @@ namespace bpkg
   static optional<version_constraint> absent_constraint;
 
   configure_prerequisites_result
-  pkg_configure_prerequisites (const common_options& o,
-                               database& db,
-                               transaction&,
-                               const dependencies& deps,
-                               const vector<size_t>* alts,
-                               package_skeleton&& ps,
-                               const vector<package_name>* prev_prereqs,
-                               bool simulate,
-                               const function<find_database_function>& fdb,
-                               const function<find_package_state_function>& fps,
-                               const vector<package_key>* unconstrain_deps)
+  pkg_configure_prerequisites (
+    const common_options& o,
+    database& db,
+    transaction&,
+    const dependencies& deps,
+    const vector<size_t>* alts,
+    package_skeleton&& ps,
+    const vector<configure_previous_prerequisite>* prev_prereqs,
+    bool simulate,
+    const function<find_database_function>& fdb,
+    const function<find_package_state_function>& fps,
+    const function<find_package_prerequisites_function>& fpp,
+    const vector<package_key>* unconstrain_deps)
   {
     tracer trace ("pkg_configure_prerequisites");
 
@@ -130,12 +132,19 @@ namespace bpkg
 
     dep_alts.reserve (deps.size ());
 
+    bool has_dependency_constraint (false);
+
     for (size_t di (0); di != deps.size (); ++di)
     {
       // Skip the toolchain build-time dependencies and dependencies without
       // enabled alternatives.
       //
       const dependency_alternatives_ex& das (deps[di]);
+
+      bool constraint (das.type == dependency_alternatives_type::constraint);
+
+      if (constraint)
+        has_dependency_constraint = true;
 
       if (das.empty ())
       {
@@ -149,7 +158,8 @@ namespace bpkg
 
       if (alts == nullptr)
       {
-        if (toolchain_buildtime_dependency (o, das, &ps.package.name))
+        if (das.type == dependency_alternatives_type::dependencies &&
+            toolchain_buildtime_dependency (o, das, &ps.package.name))
         {
           dep_alts.push_back (0);
           continue;
@@ -193,8 +203,11 @@ namespace bpkg
         edas.push_back (make_pair (ref (das.front ()), (*alts)[di]));
       }
 
+      bool buildtime (das.buildtime);
+
       // Pick the first alternative with dependencies that can all be resolved
-      // to the configured packages, satisfying the respective constraints.
+      // to the configured packages, satisfying the respective version
+      // constraints.
       //
       // If the list of the former prerequisites is specified, then first try
       // to select an alternative in the "recreate dependency decisions" mode,
@@ -205,10 +218,16 @@ namespace bpkg
       //
       assert (!edas.empty ());
 
-      for (const vector<package_name>* pps (prev_prereqs);;)
+      // Go straight to the "make dependency decisions" mode for a single
+      // alternative.
+      //
+      for (const vector<configure_previous_prerequisite>* pps (
+             edas.size () != 1 ? prev_prereqs : nullptr);;)
       {
         const pair<reference_wrapper<const dependency_alternative>,
                    size_t>* selected_alt (nullptr);
+
+        bool inactive_constraint (false);
 
         for (const auto& eda: edas)
         {
@@ -234,24 +253,57 @@ namespace bpkg
             const dependency&   d (*i);
             const package_name& n (d.name);
 
-            database* ddb (fdb ? fdb (db, n, das.buildtime) : nullptr);
+            // If the constraint's dependency is not in the dependent's
+            // dependency tree, then skip the dependency constraint.
+            //
+            if (constraint &&
+                !direct_or_indirect_prerequisite (n, buildtime, prereqs, fpp))
+            {
+              inactive_constraint = true;
+              break;
+            }
+
+            // If we are in the "recreate dependency decisions" mode and the
+            // dependency is not in the list of the former prerequisites, then
+            // skip the dependency alternative.
+            //
+            if (pps != nullptr &&
+                find_if (
+                  pps->begin (), pps->end (),
+                  [&n, buildtime] (const configure_previous_prerequisite& p)
+                  {
+                    return p.name == n && (buildtime ? p.buildtime : p.runtime);
+                  }) == pps->end ())
+            {
+              break;
+            }
+
+            database* ddb (fdb ? fdb (db, n, buildtime) : nullptr);
 
             pair<shared_ptr<selected_package>, database*> spd (
               ddb != nullptr
               ? make_pair (ddb->find<selected_package> (n), ddb)
-              : find_dependency (db, n, das.buildtime));
+              : find_dependency (db, n, buildtime));
 
+            // If the dependency is not selected, then skip the dependency
+            // alternative.
+            //
             const shared_ptr<selected_package>& dp (spd.first);
 
             if (dp == nullptr)
               break;
 
-            database& pdb (*spd.second);
-
             optional<pair<package_state, package_substate>> dps;
             if (fps != nullptr)
               dps = fps (dp);
 
+            // If the dependency is not configured, then skip the dependency
+            // alternative.
+            //
+            if ((dps ? dps->first : dp->state) != package_state::configured)
+              break;
+
+            database& pdb (*spd.second);
             const optional<version_constraint>* dc (&d.constraint);
 
             // Unconstrain this dependency, if requested.
@@ -266,10 +318,10 @@ namespace bpkg
               }
             }
 
-            if ((dps ? dps->first : dp->state) != package_state::configured ||
-                !satisfies (dp->version, *dc)                               ||
-                (pps != nullptr &&
-                 find (pps->begin (), pps->end (), dp->name) == pps->end ()))
+            // If the dependency doesn't satisfy the version constraint, then
+            // skip the dependency alternative.
+            //
+            if (!satisfies (dp->version, *dc))
               break;
 
             // See the package_prerequisites definition for details on
@@ -277,7 +329,11 @@ namespace bpkg
             //
             prerequisites.emplace_back (
               lazy_shared_ptr<selected_package> (pdb, dp),
-              prerequisite_info {*dc, das.buildtime, !das.buildtime});
+              prerequisite_info {(constraint
+                                  ? dependency_type::constraint
+                                  : dependency_type::dependency),
+                                 *dc,
+                                 buildtime, !buildtime});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -300,16 +356,18 @@ namespace bpkg
             // If the prerequisite is already in the map, then merge
             // prerequisite info objects.
             //
-            // Currently we can only capture a single constraint, so if we
-            // already have a dependency on this package and one constraint is
-            // not a subset of the other, complain.
+            // Currently we can only capture a single version constraint, so
+            // if we already have a dependency on this package and one
+            // version constraint is not a subset of the other, complain.
             //
+            bool dependency_added (p.second && !constraint);
+
             if (!p.second)
             {
               prerequisite_info& pie (p.first->second);
 
-              auto& c1 (pie.constraint);
-              auto& c2 (pi.constraint);
+              auto& c1 (pie.version_constraint);
+              auto& c2 (pi.version_constraint);
 
               bool s1 (satisfies (c1, c2)); // c1 is a subset of c2.
               bool s2 (satisfies (c2, c1)); // c2 is a subset of c1.
@@ -327,14 +385,25 @@ namespace bpkg
                 c1 = c2;
 
               (pi.buildtime ? pie.buildtime : pie.runtime) = true;
+
+              // If there are both the depends and constrains values for the
+              // same dependency, then the type of the resulting merged
+              // prerequisite is 'dependency'.
+              //
+              if (pie.type == dependency_type::constraint &&
+                  pi.type  == dependency_type::dependency)
+              {
+                pie.type = dependency_type::dependency;
+                dependency_added = true;
+              }
             }
 
             // If the prerequisite is configured in the linked configuration,
             // then add the respective config.import.* variable, unless
-            // simulating. But only add it once, when the prerequisite is
-            // added to the map.
+            // simulating. But only add it once, when the prerequisite with
+            // the dependency type is added to the map.
             //
-            if (!simulate && p.second)
+            if (!simulate && dependency_added)
             {
               database& pdb (spl.database ());
 
@@ -417,19 +486,28 @@ namespace bpkg
           break;
         }
 
-        // Fail if no dependency alternative is selected, unless we are in the
-        // "recreate dependency decisions" mode. In the latter case fall back
-        // to the "make dependency decisions" mode and retry.
+        // If no dependency alternative is selected, then, if this is an
+        // inactive dependency constraint, just skip it. Otherwise fail,
+        // unless we are in the "recreate dependency decisions" mode. In the
+        // latter case fall back to the "make dependency decisions" mode and
+        // retry.
         //
         if (selected_alt == nullptr)
         {
+          if (inactive_constraint)
+          {
+            dep_alts.push_back (0);
+            break;
+          }
+
           if (pps != nullptr)
           {
             pps = nullptr;
             continue;
           }
 
-          fail << "unable to satisfy dependency on " << das;
+          fail << "unable to satisfy dependency "
+               << (constraint ? "constraint " : "") << "on " << das;
         }
 
         const dependency_alternative& da (selected_alt->first);
@@ -465,12 +543,12 @@ namespace bpkg
         dep_alts.push_back (selected_alt->second + 1);
 
         // The dependency alternative is selected and its dependencies are
-        // resolved to the selected packages. So proceed to the next depends
-        // value.
+        // resolved to the selected packages. So proceed to the next
+        // depends/constrains value.
         //
         break;
-      }
-    }
+      } // "recreate/make dependency decisions" modes loop.
+    } // depends/constrains values loop.
 
     // Make sure we didn't miss any selected dependency alternative.
     //
@@ -509,7 +587,8 @@ namespace bpkg
                                            move (dep_alts),
                                            move (vars),
                                            move (srcs),
-                                           move (checksum)};
+                                           move (checksum),
+                                           has_dependency_constraint};
   }
 
 
@@ -653,6 +732,8 @@ namespace bpkg
     // Mark the section as loaded, so dependency alternatives are updated.
     //
     p->dependency_alternatives_section.load ();
+
+    p->has_dependency_constraint = cpr.has_dependency_constraint;
 
     // Configure.
     //
@@ -1103,22 +1184,24 @@ namespace bpkg
                  const dependencies& deps,
                  const vector<size_t>* alts,
                  package_skeleton&& ps,
-                 const vector<package_name>* pps,
+                 const vector<configure_previous_prerequisite>* pps,
                  bool disfigured,
                  bool simulate,
                  const function<find_database_function>& fdb)
   {
     configure_prerequisites_result cpr (
-      pkg_configure_prerequisites (o,
-                                   db,
-                                   t,
-                                   deps,
-                                   alts,
-                                   move (ps),
-                                   pps,
-                                   simulate,
-                                   fdb,
-                                   nullptr));
+      pkg_configure_prerequisites (
+        o,
+        db,
+        t,
+        deps,
+        alts,
+        move (ps),
+        pps,
+        simulate,
+        fdb,
+        nullptr /* find_package_state_function */,
+        nullptr /* find_package_prerequisites_function */));
 
     if (!simulate)
     {

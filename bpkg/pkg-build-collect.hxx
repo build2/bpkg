@@ -125,10 +125,11 @@ namespace bpkg
 
     // If we end up collecting the prerequisite builds for this package, then
     // this member stores copies of the selected dependency alternatives. The
-    // dependency alternatives for toolchain build-time dependencies and for
-    // dependencies which have all the alternatives disabled are represented
-    // as empty dependency alternatives lists. If present, it is parallel to
-    // the available package's dependencies member.
+    // dependency alternatives for toolchain build-time dependencies, for
+    // dependencies which have all the alternatives disabled, and for inactive
+    // constraints are represented as empty dependency alternatives lists,
+    // which preserve the original type (dependencies, constraint, etc). If
+    // present, it is parallel to the available package's dependencies member.
     //
     // Initially nullopt. Can be filled partially if the package prerequisite
     // builds collection is postponed for any reason (see postponed_packages
@@ -205,20 +206,31 @@ namespace bpkg
     //
     optional<bool> hold_version;
 
-    // Constraint value plus, normally, the dependent package name/version
-    // that placed this constraint but can also be some other name (in which
-    // case the version is absent) for the initial selection. Currently, the
-    // only valid non-package name is 'command line', which is used when the
-    // package version is constrained by the user on the command line.
+    // Version constraint value plus, normally, the dependent package
+    // name/version that placed this constraint but can also be some other
+    // name (in which case the version is absent) for the initial selection.
+    // Currently, the only valid non-package name is 'command line', which is
+    // used when the package version is constrained by the user on the command
+    // line. Also, specifies the dependency type.
     //
     // Note that if the dependent is a package name, then this package is
     // expected to be collected (present in the map).
     //
-    struct constraint_type
+    struct constraint
     {
-      version_constraint value;
+      // If the dependency type is 'dependency', then the constraint
+      // originates from the dependent's depends manifest value (dependent's
+      // version is present) or from the build-to-hold command line spec. If
+      // the type is 'constraint', then it originates from the constrains
+      // manifest value or from the dependency command line spec.
+      //
+      bpkg::version_constraint version_constraint;
 
       package_version_key dependent;
+
+      // Note: only used for diagnostics.
+      //
+      bpkg::dependency_type dependency_type;
 
       // False for non-packages. Otherwise, indicates whether the constraint
       // comes from the existing rather than the being built dependent.
@@ -233,24 +245,51 @@ namespace bpkg
 
       // Create constraint for a package dependent.
       //
-      constraint_type (version_constraint v,
-                       database& db,
-                       package_name nm,
-                       version ver,
-                       bool e)
-          : value (move (v)),
+      constraint (bpkg::version_constraint c,
+                  database& db,
+                  package_name nm,
+                  version ver,
+                  bpkg::dependency_type t,
+                  bool e)
+          : version_constraint (move (c)),
             dependent (db, move (nm), move (ver)),
+            dependency_type (t),
             existing_dependent (e) {}
 
       // Create constraint for a non-package dependent.
       //
-      constraint_type (version_constraint v, database& db, string nm)
-          : value (move (v)),
+      constraint (bpkg::version_constraint c,
+                  database& db,
+                  string nm,
+                  bpkg::dependency_type t)
+          : version_constraint (move (c)),
             dependent (db, move (nm)),
+            dependency_type (t),
             existing_dependent (false) {}
+
+      // Return the constraint string representation.
+      //
+      std::string
+      string (const package_name& dependency) const
+      {
+        return constraint_string (dependent,
+                                  dependency,
+                                  dependency_type,
+                                  version_constraint);
+      }
+
+      // Note: ignores the existing_dependent flag.
+      //
+      bool
+      operator== (const constraint& v) const
+      {
+        return version_constraint == v.version_constraint &&
+               dependent          == v.dependent          &&
+               dependency_type    == v.dependency_type;
+      }
     };
 
-    vector<constraint_type> constraints;
+    vector<constraint> constraints;
 
     // System package indicator. See also a note in the merge() function.
     //
@@ -347,6 +386,22 @@ namespace bpkg
     //
     // Note: should not be empty, unless this is a drop, unhold, or is
     //       pre-entered.
+    //
+    // @@ Note that we don't track relations precisely for entries in
+    //    required_by. As a result when we print the execution plan, the
+    //    constraints and dependencies are indistinguishable and are all
+    //    printed with the 'required by ' prefix. The similar problem appears
+    //    for the unsatisfied_dependents::diag() function. Probably, the right
+    //    way to go is to get rid of the required_by_dependents member and
+    //    turn the required_by set into a map of packages to the relations
+    //    with each package: 'constrained by', 'required by', 'dependent
+    //    of'. For the command line entry the relation will be either
+    //    'constrained by' (dependency spec) or 'required by' (build-to-hold
+    //    spec).
+    //
+    //    Then, will be able to print in the plan:
+    //
+    //    new libbaz/1.0.0 (required by libbar, libbox; constrained by libfoo)
     //
     std::set<package_version_key> required_by;
 
@@ -503,6 +558,11 @@ namespace bpkg
     string
     name_version_db () const;
 
+    // Print information that can be useful for debugging.
+    //
+    void
+    print_info (diag_record&) const;
+
     // Merge constraints, required-by package names, hold_* flags, state
     // flags, and user-specified options/variables.
     //
@@ -611,6 +671,13 @@ namespace bpkg
 
     bool
     bogus () const {return wout_config && !with_config;}
+
+    void
+    to_checksum (xxh64& cs) const
+    {
+      cs.append (wout_config);
+      cs.append (with_config);
+    }
   };
 
   class postponed_dependencies: public std::map<package_key,
@@ -710,6 +777,15 @@ namespace bpkg
 
       return position < v.position;
     }
+
+    void
+    to_checksum (xxh64& cs) const
+    {
+      package.to_checksum (cs);
+      cs.append (version.string ());
+      cs.append (position.first);
+      cs.append (position.second);
+    }
   };
 
   using unacceptable_alternatives = std::set<unacceptable_alternative>;
@@ -770,6 +846,9 @@ namespace bpkg
   //
   struct replaced_version
   {
+    // NOTE: consider updating to_checksum() in pkg-build.cxx if changing
+    //       anything here.
+
     // Desired package version, repository fragment, system flag, and the
     // original version and system flag.
     //
@@ -835,12 +914,130 @@ namespace bpkg
           : scratch_collection ("redundant version replacement cancellation") {}
     };
 
+    // Only cancel a redundant replacement if such a cancellation has not been
+    // tried earlier for the same collection initial state. Leave the
+    // replacement in place if the cancellation has already been tried.
+    //
     void
-    cancel_redundant (tracer&, const build_packages&);
+    cancel_redundant (tracer&,
+                      const build_packages&,
+                      const xxh64& collection_initial_state);
 
   private:
     set<uint64_t> former_redundant_replacements_;
   };
+
+  // Map of the dependency constraints to their active/inactive states.
+  //
+  // When we recursively collect the prerequisites for a package build, after
+  // the package dependencies we also collect the dependency constraints
+  // (originate from the 'constrains' manifest values). This is required to
+  // incorporate the constraints into the logic of selecting the "best"
+  // satisfactory dependency version, the dependency configuration negotiation
+  // machinery, etc. We, however, only need to consider a dependency
+  // constraint if the dependency belongs to the dependent's dependency tree.
+  // We call the constraint active in this case. The problem is that the
+  // dependent's dependency tree may not be finalized at the moment of
+  // collecting the constraint, in which case we cannot really know if we need
+  // to collect it or not. Also, traversing a dependency tree during
+  // collection via the being up/down-graded and configured dependencies would
+  // be a real pain. Thus, what we will do is make initial assumptions about
+  // the constraints' active/inactive states on the first collection
+  // iteration. Then, after the plan execution is simulated, we deduce the
+  // actual constraints states, cache them, and check if our assumptions were
+  // correct. If any of them was wrong, then we re-collect using the cached
+  // states. Then, after the plan execution simulation, we re-check the used
+  // states and, if any of them doesn't match the actual state, correct them
+  // and re-collect again. Note, however, that we may potentially end up
+  // yo-yoing due to the fact that an active constraint can potentially push
+  // out the dependency from the dependent's dependency tree by applying the
+  // version constraint, reflecting, etc and the now deactivated constraint
+  // can allow the dependency back into the tree. We will detect the repeated
+  // attempt to apply a specific constraints states change to the same
+  // collection initial state, issue diagnostics, and fail.
+  //
+  // Note, however, that we could try to complete the package collection
+  // successfully for some simple constraint cycles. Consider the following
+  // case:
+  //
+  // libfoo:
+  //   depends: libbar <= 1.0 | libbaz
+  //
+  // foo:
+  //  depends: libfoo
+  //  constrains: libbar > 1.0
+  //
+  // $ bpkg build foo
+  //
+  // Here we could potentially configure libbaz as libfoo's dependency instead
+  // of failing. However, trying to resolve the cycle in this and similar
+  // cases feels too hairy at the moment. Maybe later.
+  //
+  // Also note, that potentially there can be multiple constraints of the same
+  // dependency in the dependent's manifest. We will always assume the same
+  // state for all such constraints and will use the same cache entry for
+  // them.
+  //
+  class dependency_constraints
+  {
+  public:
+    struct dependency
+    {
+      package_name name;
+      bool         buildtime;
+
+      dependency (package_name n, bool b): name (move (n)), buildtime (b) {}
+
+      bool
+      operator< (const dependency&) const;
+
+      // Return the dependency constraint string representation in the
+      // following form:
+      //
+      // <dependent>/<version> [ <config-dir>] ':' [*] <dependency>
+      //
+      std::string
+      string (const package_version_key& dependent) const;
+
+      void
+      to_checksum (xxh64&) const;
+    };
+
+    enum class state: uint8_t
+    {
+      active,
+      inactive
+    };
+
+    using dependency_states_map = std::map<dependency, state>;
+    using dependents_map = std::map<package_version_key, dependency_states_map>;
+
+    dependents_map dependents;
+
+    // Match the cached constraint states against the actual states and
+    // correct those which don't match, skipping dependents which are not
+    // configured. Return true if any states were corrected. If the deduced
+    // states correction have already been applied to the same collection
+    // initial state in the past, then assume this is a dependency
+    // constraining cycle and fail.
+    //
+    bool
+    correct_states (const xxh64& collection_initial_state);
+
+  private:
+    set<uint64_t> former_corrections_;
+  };
+
+  // Note: only used for tracing.
+  //
+  string
+  to_string (dependency_constraints::state);
+
+  inline ostream&
+  operator<< (ostream& os, const dependency_constraints::state& s)
+  {
+    return os << to_string (s);
+  }
 
   // Dependents with their ignored dependency constraints and, optionally,
   // with the respective unsatisfactory dependency versions.
@@ -916,7 +1113,7 @@ namespace bpkg
   {
     // Note: also contains the unsatisfied dependent information.
     //
-    build_package::constraint_type constraint;
+    build_package::constraint constraint;
 
     // Optional available package version which satisfies the above
     // constraint.
@@ -927,8 +1124,12 @@ namespace bpkg
 
   struct ignored_constraint
   {
-    package_key dependency;
-    version_constraint constraint;
+    package_key              dependency;
+    bpkg::version_constraint version_constraint;
+
+    // Note: only used for diagnostics.
+    //
+    bpkg::dependency_type dependency_type;
 
     // Only specified when the failure is postponed during the collection of
     // the explicitly specified packages and their dependencies.
@@ -937,11 +1138,13 @@ namespace bpkg
     vector<package_key> dependency_chain;
 
     ignored_constraint (const package_key& d,
-                        const version_constraint& c,
+                        const bpkg::version_constraint& c,
+                        bpkg::dependency_type t,
                         vector<unsatisfied_constraint>&& ucs = {},
                         vector<package_key>&& dc = {})
         : dependency (d),
-          constraint (c),
+          version_constraint (c),
+          dependency_type (t),
           unsatisfied_constraints (move (ucs)),
           dependency_chain (move (dc)) {}
   };
@@ -962,6 +1165,7 @@ namespace bpkg
     add (const package_key& dependent,
          const package_key& dependency,
          const version_constraint&,
+         dependency_type,
          vector<unsatisfied_constraint>&& ucs = {},
          vector<package_key>&& dc = {});
 
@@ -1368,7 +1572,7 @@ namespace bpkg
     // collected.
     //
     const build_package*
-    dependent_build (const build_package::constraint_type&) const;
+    dependent_build (const build_package::constraint&) const;
 
     // Collect the package being built. Return its pointer if this package
     // version was, in fact, added to the map and NULL if it was already there
@@ -1431,6 +1635,7 @@ namespace bpkg
                    const function<find_database_function>& = nullptr,
                    const function<add_priv_cfg_function>& = nullptr,
                    const repointed_dependents* = nullptr,
+                   dependency_constraints* = nullptr,
                    postponed_packages* postponed_repo = nullptr,
                    postponed_packages* postponed_alts = nullptr,
                    postponed_packages* postponed_recs = nullptr,
@@ -1632,6 +1837,7 @@ namespace bpkg
                                  const function<add_priv_cfg_function>&,
                                  const repointed_dependents&,
                                  replaced_versions&,
+                                 dependency_constraints&,
                                  postponed_packages* postponed_repo,
                                  postponed_packages* postponed_alts,
                                  size_t max_alt_index,
@@ -1652,6 +1858,7 @@ namespace bpkg
                                  const function<add_priv_cfg_function>&,
                                  const repointed_dependents&,
                                  replaced_versions&,
+                                 dependency_constraints&,
                                  postponed_packages& postponed_repo,
                                  postponed_packages& postponed_alts,
                                  size_t max_alt_index,
@@ -1674,6 +1881,7 @@ namespace bpkg
     collect_repointed_dependents (const pkg_build_options&,
                                   const repointed_dependents&,
                                   replaced_versions&,
+                                  dependency_constraints&,
                                   postponed_packages& postponed_repo,
                                   postponed_packages& postponed_alts,
                                   postponed_packages& postponed_recs,
@@ -1684,6 +1892,26 @@ namespace bpkg
                                   unsatisfied_dependents&,
                                   const function<find_database_function>&,
                                   const function<add_priv_cfg_function>&);
+
+    // Schedule for re-collection all the configured constraining dependents
+    // (have the 'constrains' value in their manifests), whose potentially
+    // indirect prerequisites are being reconfigured.
+    //
+    // Note that re-configuration of any indirect dependency of a constraining
+    // dependent can potentially push out any constrained dependency from or,
+    // instead, bring any constrained dependency to the dependent's dependency
+    // tree. Trying to precisely detect if that happens (or not) to a specific
+    // constraining dependent during the packages collection feels too
+    // complicated at the moment. Thus, we just recollect all the potentially
+    // affected dependents.
+    //
+    void
+    collect_constraining_dependents (const pkg_build_options&,
+                                     const repointed_dependents&,
+                                     replaced_versions&,
+                                     postponed_packages& postponed_recs,
+                                     postponed_configurations&,
+                                     unsatisfied_dependents&);
 
     // Collect the package being dropped. Noop if the specified package is
     // already being built and its required-by package names have the
@@ -1724,6 +1952,7 @@ namespace bpkg
     void
     collect_build_postponed (const pkg_build_options&,
                              replaced_versions&,
+                             dependency_constraints&,
                              postponed_packages& postponed_repo,
                              postponed_packages& postponed_alts,
                              postponed_packages& postponed_recs,
@@ -1827,12 +2056,39 @@ namespace bpkg
                        std::set<package_key>& printed,
                        optional<bool> existing_dependent = nullopt) const;
 
-    // Verify that builds ordering is consistent across all the data
-    // structures and the ordering expectations are fulfilled (real build
-    // actions are all ordered, etc).
+    // Verify the data consistency as follows:
+    //
+    // - Verify that builds ordering is consistent.
+    //
+    //   Specifically, verify that the real build actions are all ordered and
+    //   the pre-entered builds are not.
+    //
+    // - Verify version constraints.
+    //
+    //   Specifically, verify that if a dependency is constrained with a
+    //   dependent package, then the dependent is being built or reconfigured
+    //   as source.
+    //
+    // - Verify dependency constraints.
+    //
+    //   Specifically, for the being built from scratch or reconfigured as
+    //   source dependents which has the 'constrains' value in their
+    //   manifests, verify that they are present in the constraints cache, are
+    //   collected recursively, and the states of the enabled constraints
+    //   match the cached states.
+    //
+    //   Note, however, that in the current implementation an inactive
+    //   constraint is indistinguishable from the disabled one for a collected
+    //   package. Thus, we only perform the state verification for the enabled
+    //   active constraints.
+    //
+    // Note that the build of an existing package doesn't imply its
+    // reconfiguration and the package reconfiguration may or may not be
+    // accompanied with the package replacement (see
+    // build_package::reconfigure() for details).
     //
     void
-    verify_ordering () const;
+    verify_consistency (const dependency_constraints&) const;
 
   private:
     // Return the list of existing dependents that has a configuration clause
@@ -1938,6 +2194,16 @@ namespace bpkg
                                   postponed_configurations&,
                                   unsatisfied_dependents&);
 
+    void
+    collect_constraining_dependents (const pkg_build_options&,
+                                     const package_key&,
+                                     const repointed_dependents&,
+                                     replaced_versions&,
+                                     postponed_packages& postponed_recs,
+                                     postponed_configurations&,
+                                     unsatisfied_dependents&,
+                                     set<package_key>& visited_deps);
+
     // Skip the dependents collection for the specified dependency if that has
     // already been done.
     //
@@ -1958,7 +2224,7 @@ namespace bpkg
       const package_name& name;
 
       bool
-      operator== (const package_ref&);
+      operator== (const package_ref&) const;
     };
     using package_refs = small_vector<package_ref, 16>;
 
