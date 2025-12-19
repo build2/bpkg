@@ -149,8 +149,19 @@ namespace bpkg
     dependent_config (const package_configuration&);
 
     // For the following evaluate_*() functions assume that the clause belongs
-    // to the dependency alternative specified as a pair of indexes (depends
-    // value index and alternative index).
+    // to the dependency alternative specified as a pair of indexes
+    // (depends/constrains value index and alternative index).
+
+    // @@ Note that currently we assume that the passed value index (refers to
+    //    an entry in available_package::dependencies list) properly matches
+    //    the value indexes in the manifest file the skeleton refers to. This,
+    //    however, may not be the case for the external test packages, which
+    //    have a special dependency entry somewhere among the depends value
+    //    entries. So the indexes, starting from this entry, will mismatch.
+    //    The situation is complicated by the fact that this special entry may
+    //    itself contain the enable and/or reflect clauses, which belong to a
+    //    main package's manifest file rather than the file we match the index
+    //    against. We should probably fix that sooner rather than later.
 
     // Evaluate the enable clause.
     //

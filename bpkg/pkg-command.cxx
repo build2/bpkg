@@ -162,6 +162,13 @@ namespace bpkg
   {
     for (const auto& pr: p->prerequisites)
     {
+      // Skip the constraints, so that they won't unexpectedly be passed to
+      // build2 in the --immediate mode. Note that in the --recursive mode the
+      // skipped prerequisites will be handled via their immediate dependents.
+      //
+      if (pr.second.type == dependency_type::constraint)
+        continue;
+
       if (!allow_host_type)
       {
         database& db (pr.first.database ());

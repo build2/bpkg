@@ -142,8 +142,11 @@ namespace bpkg
           {
             dr << info << "package " << pd.name << db;
 
-            if (pd.constraint)
-              dr << " on " << sp->name << " " << *pd.constraint;
+            if (pd.version_constraint)
+              dr << (pd.type == dependency_type::dependency
+                     ? " depends on "
+                     : " constrains ") << sp->name << ' '
+                 << *pd.version_constraint;
           }
         }
       }
