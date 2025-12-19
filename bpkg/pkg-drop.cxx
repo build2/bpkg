@@ -110,6 +110,11 @@ namespace bpkg
                         const shared_ptr<selected_package>& p,
                         dependent_names& dns)
     {
+      // @@ CONSTRAINS Skip dependents with the constraint flag set to
+      //               true. Actually, it may be easier not to, since such a
+      //               dependent sooner or later will still end up in the map.
+      //
+
       for (database& ddb: db.dependent_configs (false /* sys_rep */))
       {
         for (auto& pd: query_dependents_cache (ddb, p->name, db))
@@ -158,6 +163,11 @@ namespace bpkg
 
       for (const auto& pair: p->prerequisites)
       {
+        // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+        //               true. Actually, it may be easier not to, since such a
+        //               prerequisite sooner or later will still end up in the
+        //               map.
+        //
         const lazy_shared_ptr<selected_package>& lpp (pair.first);
         database& pdb (lpp.database ());
 
@@ -226,6 +236,10 @@ namespace bpkg
         {
           database& pdb (pair.first.database ());
           const package_name& pn (pair.first.object_id ());
+
+          // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+          //               true.
+          //
 
           // The prerequisites may not necessarily be in the map (e.g.,
           // a held package that we prunned).

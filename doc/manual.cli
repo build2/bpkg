@@ -468,10 +468,15 @@ dependency package. Because there could be multiple such dependents, \c{bpkg}
 needs to come up with a dependency configuration that is acceptable to all of
 them. This process is called the dependency configuration negotiation.
 
-The desired dependency configuration is specified as part of the
-\l{#manifest-package-depends \c{depends}} manifest value and can be expressed
-as either a single \c{require} clause or as a pair of \c{prefer}/\c{accept}
-clauses.
+For immediate dependency packages the desired configuration is specified as
+part of the \l{#manifest-package-depends \c{depends}} manifest value and can
+be expressed as either a single \c{require} clause or as a pair of
+\c{prefer}/\c{accept} clauses.
+
+For indirect dependency packages the desired configuration is specified as
+part of the \l{#manifest-package-constrains \c{constrains}} manifest value
+and, similar to the \l{#manifest-package-depends \c{depends}} manifest value,
+can be expressed as a \c{require} or \c{prefer}/\c{accept} clauses.
 
 The \c{require} clause is essentially a shortcut for specifying the
 \c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
@@ -1074,11 +1079,12 @@ license: <licenses> [; <comment>]
 [build-error-email]: <email> [; <comment>]
 
 [depends]: [*] <alternatives> [; <comment>]
+[constrains]: [*] <package-constraint> [; <comment>]
 [requires]: [*] <alternatives> [; <comment>]
 
-[tests]: [*] <name> [<version-constraint>]
-[examples]: [*] <name> [<version-constraint>]
-[benchmarks]: [*] <name> [<version-constraint>]
+[tests]: [*] <test-package>
+[examples]: [*] <test-package>
+[benchmarks]: [*] <test-package>
 
 [builds]: <class-expr> [; <comment>]
 [build-include]: <config>[/<target>] [; <comment>]
@@ -2052,6 +2058,80 @@ The above example also highlights the difference between the
 dependent's configuration variables.
 
 
+\h2#manifest-package-constrains|\c{constrains}|
+
+\
+[constrains]: [*] <package-constraint> [; <comment>]
+\
+
+Single-line form:
+
+\
+<package-constraint> = <dependency> ['?' <enable-cond>] [<reflect-var>]
+<dependency>         = <name> [<version-constraint>]
+<enable-cond>        = '(' <buildfile-eval-expr> ')'
+<reflect-var>        = <config-var> '=' <value>
+\
+
+Multi-line form:
+
+\
+<package-constraint> =
+  <dependency>
+  '{'
+   [
+     'enable' <enable-cond>
+   ]
+
+   [
+     'require'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+   ] | [
+
+     'prefer'
+     '{'
+        <buildfile-fragment>
+     '}'
+
+     'accept' <accept-cond>
+   ]
+
+   [
+     'reflect'
+     '{'
+        <buildfile-fragment>
+     '}'
+   ]
+  '}'
+
+<accept-cond>        = '(' <buildfile-eval-expr> ')'
+\
+
+The indirect dependency package constraint. In contrast to the
+\l{#manifest-package-depends \c{depends}} value, the \c{constrains} value does
+not declare a package as a dependency but imposes the version constraint
+and/or configuration on a package, if it appears in the dependent's dependency
+tree. For example:
+
+\
+name: libfoo
+depends: libmariadb >= 10.0.0 | libmysqlclient
+
+name: libbar
+depends: libfoo
+constrains: libmariadb >= 11.0.0 config.libbar.mariadb=true
+\
+
+See the \l{#manifest-package-depends \c{depends}} manifest value for the
+semantics of the \c{*} mark, version constraint and \c{enable}, \c{require},
+\c{prefer}, \c{accept}, and \c{reflect} clauses.
+
+If specified, the \c{constrains} values must follow the \c{depends} values.
+
+
 \h2#manifest-package-requires|\c{requires}|
 
 \
@@ -2148,13 +2228,14 @@ configuration. See the \l{bbot \c{bbot} documentation} for details.
 \h2#manifest-package-tests-examples-benchmarks|\c{tests}, \c{examples}, \c{benchmarks}|
 
 \
-[tests]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
-[examples]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
-[benchmarks]: [*] <package> ['?' <enable-cond>] [<reflect-var>]
+[tests]: [*] <test-package>
+[examples]: [*] <test-package>
+[benchmarks]: [*] <test-package>
 
-<package>     = <name> [<version-constraint>]
-<enable-cond> = '(' <buildfile-eval-expr> ')'
-<reflect-var> = <config-var> '=' <value>
+<test-package> = <package> ['?' <enable-cond>] [<reflect-var>]
+<package>      = <name> [<version-constraint>]
+<enable-cond>  = '(' <buildfile-eval-expr> ')'
+<reflect-var>  = <config-var> '=' <value>
 \
 
 Separate tests, examples, and benchmarks packages. If the value starts with

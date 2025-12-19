@@ -214,11 +214,25 @@ namespace bpkg
     // Note that if the dependent is a package name, then this package is
     // expected to be collected (present in the map).
     //
+    // @@ CONSTRAINS Should probably contains the 'bool constraint' flag,
+    //               which if true indicates that the constraint comes from
+    //               the constrains manifest value. Affects diagnostics so,
+    //               for example, instead of '... depends on ...' we may say
+    //               '... constrains ...'.
+    //
     struct constraint_type
     {
       version_constraint value;
 
       package_version_key dependent;
+
+      // False for non-packages. Otherwise, indicates whether the version
+      // constraint comes from the constrains rather than the depends manifest
+      // value.
+      //
+      // Note: only used for diagnostics (see print_constraints() for details).
+      //
+      bool constraint;
 
       // False for non-packages. Otherwise, indicates whether the constraint
       // comes from the existing rather than the being built dependent.
@@ -237,9 +251,11 @@ namespace bpkg
                        database& db,
                        package_name nm,
                        version ver,
+                       bool c,
                        bool e)
           : value (move (v)),
             dependent (db, move (nm), move (ver)),
+            constraint (c),
             existing_dependent (e) {}
 
       // Create constraint for a non-package dependent.
@@ -247,6 +263,7 @@ namespace bpkg
       constraint_type (version_constraint v, database& db, string nm)
           : value (move (v)),
             dependent (db, move (nm)),
+            constraint (false),
             existing_dependent (false) {}
     };
 

@@ -356,6 +356,9 @@ namespace bpkg
 
     // Copy constraints, suppressing duplicates.
     //
+    // @@ CONSTRAINS The dependent constrains manifest value should also be
+    //               considered here, hopefully naturally.
+    //
     if (!constraints.empty ())
     {
       for (constraint_type& c: p.constraints)
@@ -682,6 +685,9 @@ namespace bpkg
 
   // unsatisfied_dependents
   //
+  // @@ CONSTRAINS The dependent constrains manifest value should also be
+  //               considered/handled by this class, hopefully naturally.
+  //
   void unsatisfied_dependents::
   add (const package_key& dpt,
        const package_key& dep,
@@ -933,6 +939,9 @@ namespace bpkg
   }
 
   // postponed_configuration
+  //
+  // @@ CONSTRAINS The dependent constrains manifest value should also be
+  //               considered/handled by this class, hopefully naturally.
   //
   postponed_configuration::dependency*
   postponed_configuration::dependent_info::
@@ -1594,6 +1603,9 @@ namespace bpkg
   const build_package* build_packages::
   dependent_build (const build_package::constraint_type& c) const
   {
+    // @@ CONSTRAINS The dependent constrains manifest value should also be
+    //               considered here, hopefully naturally.
+    //
     const build_package* r (nullptr);
 
     if (c.dependent.version)
@@ -1624,6 +1636,9 @@ namespace bpkg
     assert (p.second);
   }
 
+  // @@ CONSTRAINS Can be used to collect a dependency constrain to apply the
+  //               version constraint, etc, hopefully naturally.
+  //
   build_package* build_packages::
   collect_build (const pkg_build_options& options,
                  build_package pkg,
@@ -2543,7 +2558,7 @@ namespace bpkg
       //
       dependency_alternatives_ex sdas (das.buildtime, das.comment);
 
-      if (toolchain_buildtime_dependency (options, das, &nm))
+      if (!das.type && toolchain_buildtime_dependency (options, das, &nm))
       {
         if (pre_reeval)
         {
@@ -2602,6 +2617,24 @@ namespace bpkg
           }
           else
             enabled = true;
+
+          if (enabled)
+          {
+            // @@ CONSTRAINS If this is a dependency constrain, decide if the
+            //               dependency is in the dependent's dependency tree.
+            //               If it is not, then reset enable to false.
+            //
+            //               This can involve referring to some map for an
+            //               entry inserted on some previous collection
+            //               iteration. If there are none, the we can make
+            //               some initial assumption which will be checked
+            //               after simulating of the execution plan and if the
+            //               assumption was wrong we may end up adding the
+            //               entry to the map and re-collecting. The initial
+            //               assumption can be derived from the selected
+            //               package for (pre-)reevaluation and be
+            //               "is not contained" otherwise.
+          }
 
           if (enabled)
             edas.push_back (make_pair (ref (da), i));
@@ -2753,6 +2786,7 @@ namespace bpkg
                          this]
         (const dependency_alternative& da,
          bool buildtime,
+         bool constraint,
          const package_prerequisites* prereqs,
          bool check_constraints,
          bool ignore_unsatisfactory_dep_spec,
@@ -2913,6 +2947,7 @@ namespace bpkg
                                          pdb,
                                          nm,
                                          pkg.available_version (),
+                                         constraint,
                                          false /* existing_dependent */),
                         nullopt /* available_version */,
                         false   /* available_system */},
@@ -2976,6 +3011,10 @@ namespace bpkg
                  find_if (prereqs->begin (), prereqs->end (),
                           [&dsp] (const auto& v)
                           {
+                            // @@ CONSTRAINS Skip prerequisites with the
+                            //               constraint flag set to true.
+                            //
+
                             return v.first.object_id () == dsp->name;
                           }) == prereqs->end ()))
               return precollect_result (false /* postpone */);
@@ -3610,6 +3649,7 @@ namespace bpkg
                                  pdb,
                                  nm,
                                  pkg.available_version (),
+                                 constraint,
                                  false /* existing_dependent */)
               : optional<constraint_type> ());
 
@@ -4245,6 +4285,7 @@ namespace bpkg
                 precollect_result r (
                   precollect (a,
                               das.buildtime,
+                              das.constraint (),
                               prereqs,
                               check_constraints,
                               ignore_unsatisfactory_dep_spec,
@@ -4281,6 +4322,7 @@ namespace bpkg
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
+                                  das.constraint (),
                                   nullptr /* prereqs */,
                                   check_constraints,
                                   ignore_unsatisfactory_dep_spec,
@@ -4319,6 +4361,7 @@ namespace bpkg
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
+                                  das.constraint (),
                                   nullptr /* prereqs */,
                                   false /* check_constraints */,
                                   ignore_unsatisfactory_dep_spec,
@@ -4348,6 +4391,7 @@ namespace bpkg
                     precollect_result r (
                       precollect (a,
                                   das.buildtime,
+                                  das.constraint (),
                                   nullptr /* prereqs */,
                                   cc,
                                   true /* ignore_unsatisfactory_dep_spec */,
@@ -5091,6 +5135,7 @@ namespace bpkg
           precollect_result pcr (
             precollect (da,
                         das.buildtime,
+                        das.constraint (),
                         prereqs,
                         check_constraints,
                         ignore_unsatisfactory_dep_spec));
@@ -5388,6 +5433,7 @@ namespace bpkg
           {
             precollect (da.first,
                         das.buildtime,
+                        das.constraint (),
                         nullptr /* prereqs */,
                         true /* check_constraints */,
                         false /* ignore_unsatisfactory_dep_spec */,
@@ -5439,6 +5485,7 @@ namespace bpkg
           precollect_result r (
             precollect (da.first,
                         das.buildtime,
+                        das.constraint (),
                         nullptr /* prereqs */,
                         false /* check_constraints */,
                         true /* ignore_unsatisfactory_dep_spec */));
@@ -5473,6 +5520,7 @@ namespace bpkg
             precollect_result r (
               precollect (da.first,
                           das.buildtime,
+                          das.constraint (),
                           nullptr /* prereqs */,
                           true /* check_constraints */,
                           false /* ignore_unsatisfactory_dep_spec */));
@@ -5490,6 +5538,7 @@ namespace bpkg
               //
               precollect (da.first,
                           das.buildtime,
+                          das.constraint (),
                           nullptr /* prereqs */,
                           true /* check_constraints */,
                           false /* ignore_unsatisfactory_dep_spec */,
@@ -5926,6 +5975,11 @@ namespace bpkg
 
     for (const auto& pr: sp.prerequisites)
     {
+      // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+      //               true. Actually, it may be easier not to, since such a
+      //               prerequisite sooner or later will still be traversed.
+      //
+
       database& pdb (pr.first.database ());
       const package_name& nm (pr.first.object_id ());
 
@@ -7924,6 +7978,9 @@ namespace bpkg
         // dependent to the resulting set since we neither add a new entry to
         // the map nor modify an existing one.
         //
+        // Note that the dependent always ends up being reconfigured as a
+        // result.
+        //
         bool add (true);
         if (i != map_.end ())
         {
@@ -7953,6 +8010,8 @@ namespace bpkg
         }
 
         build_package& dp (i->second.package);
+
+        assert (dp.reconfigure ()); // See the above note.
 
         if (add)
         {
@@ -7988,6 +8047,7 @@ namespace bpkg
                              ddb,
                              move (dn),
                              dp.selected->version,
+                             false, // @@ CONSTRAINS pd.constrains
                              true /* existing_dependent */);
 
           // Suppress the constraint duplicates.
@@ -8451,11 +8511,12 @@ namespace bpkg
       auto i (dsp->prerequisites.find (lsp));
       assert (i != dsp->prerequisites.end ());
 
-      if (i->second.constraint)
-        p.constraints.emplace_back (*i->second.constraint,
+      if (i->second.version_constraint)
+        p.constraints.emplace_back (*i->second.version_constraint,
                                     dpt.db,
                                     dpt.name,
                                     *dpt.version,
+                                    false, // @@ CONSTRAINS i->second.constrains
                                     true /* existing_package */);
     }
 
@@ -8713,6 +8774,10 @@ namespace bpkg
       // package is just specified on the command line, not being upgraded nor
       // reconfigured) and we use its configured prerequisites list.
       // Otherwise, we use its collected prerequisites builds.
+      //
+      // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+      //               true, the dependency constraints in p.dependencies,
+      //               etc.
       //
       if (!p.dependencies)
       {

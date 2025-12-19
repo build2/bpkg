@@ -210,6 +210,9 @@ namespace bpkg
       // We only consider dependencies from target configurations, similar
       // to pkg-install.
       //
+      // @@ CONSTRAINS We also need to skip prerequisites with the constraint
+      //               flag set to true.
+      //
       database& pdb (ld.database ());
       if (pdb.type == host_config_type || pdb.type == build2_config_type)
         continue;

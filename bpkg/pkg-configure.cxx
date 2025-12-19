@@ -34,17 +34,19 @@ namespace bpkg
   static optional<version_constraint> absent_constraint;
 
   configure_prerequisites_result
-  pkg_configure_prerequisites (const common_options& o,
-                               database& db,
-                               transaction&,
-                               const dependencies& deps,
-                               const vector<size_t>* alts,
-                               package_skeleton&& ps,
-                               const vector<package_name>* prev_prereqs,
-                               bool simulate,
-                               const function<find_database_function>& fdb,
-                               const function<find_package_state_function>& fps,
-                               const vector<package_key>* unconstrain_deps)
+  pkg_configure_prerequisites (
+    const common_options& o,
+    database& db,
+    transaction&,
+    const dependencies& deps,
+    const vector<size_t>* alts,
+    package_skeleton&& ps,
+    const vector<package_name>* prev_prereqs,
+    bool simulate,
+    const function<find_database_function>& fdb,
+    const function<find_package_state_function>& fps,
+    const function<find_package_prerequisites_function>& fpp,
+    const vector<package_key>* unconstrain_deps)
   {
     tracer trace ("pkg_configure_prerequisites");
 
@@ -123,6 +125,38 @@ namespace bpkg
       }
     };
 
+    auto in_tree = [&fpp] (const lazy_shared_ptr<selected_package>& dp,
+                           const package_prerequisites& prereqs,
+                           const auto& in_tree)
+    {
+      for (const auto& pr: prereqs)
+      {
+        if (!pr.second.dependency_constraint && pr.first == dp)
+          return true;
+      }
+
+      for (const auto& pr: prereqs)
+      {
+        if (!pr.second.dependency_constraint)
+        {
+          const shared_ptr<selected_package> p (pr.first.load ());
+          const package_prerequisites* pp (fpp ? fpp (p) : nullptr);
+
+          if (pp == nullptr)
+          {
+            assert (p->state == package_state::configured);
+
+            pp = &p->prerequisites;
+          }
+
+          if (in_tree (dp, *pp, in_tree))
+            return true;
+        }
+      }
+
+      return false;
+    };
+
     // Alternatives argument must be parallel to the dependencies argument if
     // specified.
     //
@@ -149,11 +183,16 @@ namespace bpkg
 
       if (alts == nullptr)
       {
-        if (toolchain_buildtime_dependency (o, das, &ps.package.name))
+        if (!das.type &&
+            toolchain_buildtime_dependency (o, das, &ps.package.name))
         {
           dep_alts.push_back (0);
           continue;
         }
+
+        // @@ CONSTRAINS Unsupported yet.
+        //
+        assert (!das.constraint ());
 
         for (size_t i (0); i != das.size (); ++i)
         {
@@ -272,12 +311,17 @@ namespace bpkg
                  find (pps->begin (), pps->end (), dp->name) == pps->end ()))
               break;
 
+            lazy_shared_ptr<selected_package> dpl (pdb, dp);
+
+            if (das.constraint () && !in_tree (dpl, prereqs, in_tree))
+              break;
+
             // See the package_prerequisites definition for details on
             // creating the map keys with the database passed.
             //
             prerequisites.emplace_back (
-              lazy_shared_ptr<selected_package> (pdb, dp),
-              prerequisite_info {*dc});
+              move (dpl),
+              prerequisite_info {*dc, das.constraint ()});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -303,8 +347,8 @@ namespace bpkg
             //
             if (!p.second)
             {
-              auto& c1 (p.first->second.constraint);
-              auto& c2 (pi.constraint);
+              auto& c1 (p.first->second.version_constraint);
+              auto& c2 (pi.version_constraint);
 
               bool s1 (satisfies (c1, c2));
               bool s2 (satisfies (c2, c1));
@@ -1093,16 +1137,18 @@ namespace bpkg
                  const function<find_database_function>& fdb)
   {
     configure_prerequisites_result cpr (
-      pkg_configure_prerequisites (o,
-                                   db,
-                                   t,
-                                   deps,
-                                   alts,
-                                   move (ps),
-                                   pps,
-                                   simulate,
-                                   fdb,
-                                   nullptr));
+      pkg_configure_prerequisites (
+        o,
+        db,
+        t,
+        deps,
+        alts,
+        move (ps),
+        pps,
+        simulate,
+        fdb,
+        nullptr /* find_package_state_function */,
+        nullptr /* find_package_prerequisites_function */));
 
     if (!simulate)
     {

@@ -143,9 +143,13 @@ namespace bpkg
     packages r;
     for (const auto& pair: s->prerequisites)
     {
+      // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+      //               true.
+      //
+
       shared_ptr<selected_package> d (pair.first.load ());
       database& db (pair.first.database ());
-      const optional<version_constraint>& c (pair.second.constraint);
+      const optional<version_constraint>& c (pair.second.version_constraint);
       r.push_back (package {db, rdb, d->name, version (), move (d), c});
     }
     return r;

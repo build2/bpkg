@@ -5707,6 +5707,9 @@ namespace bpkg
           {
             map<package_key, bool> ps; // Old/new prerequisites.
 
+            // @@ CONSTRAINS Do we need to skip prerequisites with the
+            //               constraint flag set to true?
+
             for (const auto& p: sp->prerequisites)
             {
               database& db (p.first.database ());
@@ -5833,6 +5836,9 @@ namespace bpkg
 
         // Temporarily add the replacement prerequisites to the repointed
         // dependent prerequisites sets and persist the changes.
+        //
+        // @@ CONSTRAINS Do we need to skip prerequisites with the
+        //               constraint flag set to true?
         //
         for (auto& rd: rpt_depts)
         {
@@ -6988,6 +6994,9 @@ namespace bpkg
             prerequisites r;
             const package_prerequisites& prereqs (sp->prerequisites);
 
+            // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+            //               true.
+            //
             for (const auto& prereq: prereqs)
             {
               const lazy_shared_ptr<selected_package>& p (prereq.first);
@@ -8224,6 +8233,9 @@ namespace bpkg
       // pkg_configure_prerequisites() call (see the function documentation
       // for details).
       //
+      // @@ CONSTRAINS Do we need to skip prerequisites with the
+      //               constraint flag set to true?
+      //
       if (*p.action != build_package::drop && !p.dependencies && !p.system)
       {
         vector<package_name>& ps (previous_prerequisites[&p]);
@@ -8858,6 +8870,21 @@ namespace bpkg
         return nullopt;
       });
 
+    function<find_package_prerequisites_function> configured_prerequisites (
+      [&configure_packages] (const shared_ptr<selected_package>& sp)
+      -> const package_prerequisites*
+      {
+        for (const configure_package& cp: configure_packages)
+        {
+          const build_package& p (cp.pkg);
+
+          if (p.selected == sp)
+            return &cp.res.prerequisites;
+        }
+
+        return nullptr;
+      });
+
     for (build_package& p: reverse_iterate (build_pkgs))
     {
       assert (p.action);
@@ -8964,16 +8991,16 @@ namespace bpkg
           // resulting package skeleton and the pre-selected dependency
           // alternatives.
           //
-          // Note that we may not collect the package prerequisites builds if
-          // the package is already configured but we still need to
-          // reconfigure it due, for example, to an upgrade of its dependency.
-          // In this case we pass to pkg_configure() the newly created package
-          // skeleton which contains the package configuration variables
-          // specified on the command line but (naturally) no reflection
-          // configuration variables. Note, however, that in this case
-          // pkg_configure() call will evaluate the reflect clauses itself and
-          // so the proper reflection variables will still end up in the
-          // package configuration.
+          // Note that we may not collect the package prerequisites builds if,
+          // for example, the specified on the command line package is already
+          // configured but we still need to reconfigure it due to an upgrade
+          // of its dependency. In this case we pass to pkg_configure() the
+          // newly created package skeleton which contains the package
+          // configuration variables specified on the command line but
+          // (naturally) no reflection configuration variables. Note, however,
+          // that in this case pkg_configure() call will evaluate the reflect
+          // clauses itself and so the proper reflection variables will still
+          // end up in the package configuration.
           //
           // @@ Note that if we ever allow the user to override the
           //    alternative selection, this will break (and also if the user
@@ -8995,6 +9022,7 @@ namespace bpkg
                                                simulate,
                                                fdb,
                                                configured_state,
+                                               configured_prerequisites,
                                                unconstrain_deps ());
           }
           else
@@ -9011,6 +9039,7 @@ namespace bpkg
                                                simulate,
                                                fdb,
                                                configured_state,
+                                               configured_prerequisites,
                                                unconstrain_deps ());
           }
         }
@@ -9042,6 +9071,9 @@ namespace bpkg
           //    Note: this now works for external packages via package
           //    skeleton (which extracts user configuration).
           //
+          // @@ Isn't the above comment bogus now? Retest and remove if
+          //    bogus or clarity otherwise.
+          //
           cpr = pkg_configure_prerequisites (o,
                                              pdb,
                                              t,
@@ -9052,6 +9084,7 @@ namespace bpkg
                                              simulate,
                                              fdb,
                                              configured_state,
+                                             configured_prerequisites,
                                              unconstrain_deps ());
         }
 

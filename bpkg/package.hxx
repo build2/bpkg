@@ -33,7 +33,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 23
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 28, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 29, open)
 
 namespace bpkg
 {
@@ -346,20 +346,32 @@ namespace bpkg
   #pragma db value(dependency_alternative) definition
   #pragma db value(dependency_alternatives) definition
 
-  // Extend dependency_alternatives to also represent the special test
-  // dependencies of the test packages to the main packages, produced by
-  // inverting the main packages external test dependencies (specified with
-  // the tests, etc., manifest values).
+  // Extend dependency_alternatives to also represent the dependency
+  // constraints and the special test dependencies of the test packages to the
+  // main packages, produced by inverting the main packages external test
+  // dependencies (specified with the tests, etc., manifest values).
   //
+  enum class dependency_type_ex
+  {
+    constraint,
+    tests,
+    examples,
+    benchmarks
+  };
+
+  dependency_type_ex
+  to_dependency_type_ex (test_dependency_type);
+
   #pragma db value
   class dependency_alternatives_ex: public dependency_alternatives
   {
   public:
-    optional<test_dependency_type> type;
+    optional<dependency_type_ex> type;
 
     dependency_alternatives_ex () = default;
 
-    // Create the regular dependency alternatives object.
+    // Create the regular dependency alternatives object (depends manifest
+    // values).
     //
     dependency_alternatives_ex (dependency_alternatives da)
         : dependency_alternatives (move (da)) {}
@@ -369,23 +381,74 @@ namespace bpkg
     dependency_alternatives_ex (bool b, std::string c)
         : dependency_alternatives (b, move (c)) {}
 
-    // Create the special test dependencies object (built incrementally).
+    // Create the dependency constraint object (constrains manifest values).
+    //
+    dependency_alternatives_ex (dependency_constraint);
+
+    // Create the special test dependencies object (tests, etc manifest
+    // values; built incrementally).
     //
     dependency_alternatives_ex (test_dependency_type t, bool buildtime)
         : dependency_alternatives (buildtime, "" /* comment */),
-          type (t) {}
+          type (to_dependency_type_ex (t)) {}
+
+    bool
+    constraint () const
+    {
+      return type && *type == dependency_type_ex::constraint;
+    }
+
+    // If the type is present and it is tests, examples, or benchmarks, then
+    // return the respective test_dependency_type value and nullopt otherwise.
+    //
+    optional<test_dependency_type>
+    tests () const;
+
+    // Note: expects the object to be of the constraint type.
+    //
+    dependency_constraint
+    to_constraint () const;
   };
+
+  string
+  to_string (dependency_type_ex);
+
+  // May throw std::invalid_argument.
+  //
+  dependency_type_ex
+  to_dependency_type_ex (const std::string&);
+
+  using optional_dependency_type_ex = optional<dependency_type_ex>;
+
+  #pragma db map type(dependency_type_ex) as(string) \
+    to(to_string (?))                                \
+    from(bpkg::to_dependency_type_ex (?))
+
+  #pragma db map type(optional_dependency_type_ex)        \
+   as(bpkg::optional_string)                              \
+    to((?) ? to_string (*(?)) : bpkg::optional_string ()) \
+    from((?)                                              \
+         ? bpkg::to_dependency_type_ex (*(?))             \
+         : bpkg::optional_dependency_type_ex ())
 
   using dependencies = vector<dependency_alternatives_ex>;
 
-  // Convert the regular dependency alternatives list (normally comes from a
-  // package manifest) to the extended version of it (see above).
+  // Convert the regular dependency alternatives list and the dependency
+  // constraints list (normally come from a package manifest) to the extended
+  // version of the dependency alternatives list (see above).
   //
   inline dependencies
-  convert (vector<dependency_alternatives>&& das)
+  convert (vector<dependency_alternatives>&& das,
+           vector<dependency_constraint>&& dcs)
   {
-    return dependencies (make_move_iterator (das.begin ()),
-                         make_move_iterator (das.end ()));
+    dependencies r (make_move_iterator (das.begin ()),
+                    make_move_iterator (das.end ()));
+
+    r.insert (r.end (),
+              make_move_iterator (dcs.begin ()),
+              make_move_iterator (dcs.end ()));
+
+    return r;
   }
 
   // Return true if this is a toolchain build-time dependency. If the package
@@ -404,6 +467,9 @@ namespace bpkg
   // dependencies is specified. Optionally, verify toolchain build-time
   // dependencies specifying the package argument which will be used for
   // diagnostics only.
+  //
+  // Note that this function doesn't consider the dependency constraints as
+  // dependencies, while it does consider the special test dependency as such.
   //
   bool
   has_dependencies (const common_options&,
@@ -496,7 +562,8 @@ namespace bpkg
     //
     small_vector<package_location, 1> locations;
 
-    // Package manifest data and, potentially, the special test dependencies.
+    // Package manifest depends and constrains values and, potentially, the
+    // special test dependencies.
     //
     // Note that there can only be one special test dependencies entry in the
     // list. It can only be present for a test package and specifies all the
@@ -509,6 +576,9 @@ namespace bpkg
     // early, so that the explicit main package dependencies are already
     // resolved by the time of resolving the special clause to avoid the
     // 'unable to select dependency alternative' error.
+    //
+    // Also note that all the dependency constraints entries come after the
+    // regular and the special test dependency entries in the list.
     //
     using dependencies_type = bpkg::dependencies;
 
@@ -551,7 +621,8 @@ namespace bpkg
           type (move (m.type)),
           languages (move (m.languages)),
           project (move (m.project)),
-          dependencies (convert (move (m.dependencies))),
+          dependencies (convert (move (m.dependencies),
+                                 move (m.dependency_constraints))),
           tests (move (m.tests)),
           distribution_values (move (m.distribution_values)),
           sha256sum (move (m.sha256sum))
@@ -906,11 +977,24 @@ namespace bpkg
     // The "tightest" version constraint among all dependencies resolved to
     // this prerequisite.
     //
-    optional<version_constraint> constraint;
+    optional<bpkg::version_constraint> version_constraint;
+
+    // True if there are no dependencies resolved to this prerequisite, other
+    // than of the constraint type (see dependency_alternatives_ex for
+    // details). In other words, only constrains manifest values are resolved
+    // to this prerequisite.
+    //
+    bool dependency_constraint;
 
     // Database mapping.
     //
-    #pragma db member(constraint) column("")
+    #pragma db member(version_constraint) column("")
+
+    // Note that since no real packages use the constrains value yet, we can
+    // just set dependency_constraint to false during migration to the
+    // database schema version 29.
+    //
+    #pragma db member(dependency_constraint) default(false)
   };
 
   // Note that the keys for this map need to be created with the database

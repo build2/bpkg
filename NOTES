@@ -1,0 +1,179 @@
+When construct an available_package object we append the dependency
+constraints to the dependencies member as a special type of dependency. Note
+that we already have the type member (optional<test_dependency_type> type)
+which we could extend, adding the constraint type.
+
+Handle dependency constraints as the regular dependencies, with the following
+differences:
+
+- Before the enabled dependency constraint is considered for collecting, check
+  if the dependency is in the dependency tree (see below for the notes on the
+  dependency tree).
+
+- After all packages are collected (right before the collect_dependents()
+  call), check all the enabled dependency constraints if the presence of the
+  constrained dependency in the dependency tree didn't change since the moment
+  the constrain was collected/denied to collect. If it differs, then add the
+  record to the dependent_dependency_constraints map to consider the correct
+  (final) containment state on the next re-collection and throw an exception
+  (derived from scratch_collection) to re-collect. If on some of the
+  subsequent re-collections it turns out that the map entry was used but it
+  doesn't match the final dependency tree containment, then update the entry
+  and throw the exception to re-collect. Watch out for yo-yoing.
+
+  Note that checking for the dependency containment during collection is
+  tricky and probably not exactly cheap (see below for the notes on the
+  dependency tree). Also it can be quite a burden to maintain this check
+  implementation in sync with pkg_configure*() functions.
+
+  Actually, maybe it is easier and more reliable to initially always assume
+  that the dependency is not contained in the tree. After the plan simulation
+  we could check for that and if the assumption was wrong, then save this
+  knowledge in the dependent_dependency_constraints map and re-collect using
+  this knowledge on the subsequent iterations. Somehow this approach feels
+  preferable.
+
+- When the package is being configured, the dependency constraint is resolved
+  to the selected package in the same way as for a regular dependency but the
+  'constrains=true' flag is saved into the respective prerequisite_info
+  value. But first need to make sure that the dependency is really in the
+  dependency tree (may not be the case due to the wrong containment assumption
+  at the time of the constraint collection, etc). A dependency constraint
+  prerequisite (constrains==true) can be handled differently from a regular
+  prerequisite in some situations:
+
+  - Do not add config.import.* variable to the dependent for such prerequisite.
+
+  - evaluate_dependency() do not consider the dependent's repository when
+    searches for the available packages. It can ignore such prerequisites
+    while calculating the dependency's used/unused status. In fact, if such a
+    prerequisite is present in the dependent, then the constrained dependency
+    is used by definition (since it is in the dependency tree).
+
+  In other situations such prerequisites are handled uniformly with the
+  regular prerequisites:
+
+  - evaluate_dependency() also uses their version constraints.
+
+  - query_existing_dependents() also returns dependents for them.
+
+Notes:
+
+- Dependency tree during collection contains both collected and configured
+  uncollected dependencies. For example:
+
+  configured: libbar/1.0 -> libbiz/1.0 -> libbuz/1.0 -> libbaz/1.0
+
+  manifests:
+
+  foo/1.0 depends on libfoo/1.0 depends on libbar/1.0
+  foo/1.0 constrains libbaz
+  biz/2.0 depends on libbiz/2.0 depends on libbuz
+
+  $ bpkg build foo biz
+
+  Dependency tree for foo during collection after biz is recursively collected:
+
+  foo/1.0 (new, collected)                                       ->
+    libfoo/1.0 (new, collected)                                  ->
+      libbar/1.0 (configured, not yet collected for reconfigure) ->
+        libbiz/2.0 (upgrade, collected)                          ->
+          libbuz/1.0 (configured, collected non recursively)     ->
+            libbaz/1.0 (configured, not collected)
+
+  So to check if the dependency belongs to a dependency tree during collection
+  we would need to traverse through both the collected and configured
+  dependencies. While traversing through the collected packages we would need
+  to mimic the pkg_configure*() logic in terms of selecting the prerequisite
+  (pick the proper database, etc).
+
+  After simulating of the plan execution, checking if the dependency is present
+  in the dependency tree seems to be much more straightforward.
+
+- During collection iteration the fact of (not) belonging of a dependency to
+  the dependent's dependency tree may change in both direction, for example,
+  due to upgrade of the constrained dependency's intermediate (in the tree)
+  dependent. Such an upgrade may introduce or remove the constrained
+  dependency to/from the constraining dependent's dependency tree (imagine
+  that libbiz/2.0 in the previous example doesn't depend on libbuz).
+
+- Need to accuratelly handle the following case:
+
+  libfoo:
+    depends: libbar <= 1.0 | libbaz
+
+  foo:
+    depends: libfoo
+    constrains: libbar > 1.0 require {config.libbar.extras=true}
+
+  $ bpkg build foo
+
+  Here the applied dependency constraint effectively pushes libbar out of the
+  dependent's dependency tree. As a result the constraint is in effect despite
+  the fact that the respective dependency is out of the dependency tree.
+  Should the config.libbar.extras configuration be applied in this case?
+  Feels like it shouldn't. Also some efforts need to be applied to not start
+  you-yoing. Probably we need to record states when we are about to mark a
+  dependency constraint as not applicable (since dependency is not in the
+  tree) and then re-collect. So that if we are in the same state next time, we
+  do not re-collect or we re-collect in some special mode (apply version
+  constrain, but not apply configuration to libbar and don't collect it
+  recursively, etc). Although, would be nice to come up with something more
+  simple.
+
+
+Questions:
+
+- Does constrains value support alternatives? No.
+
+- Does constrains value support buildtime dependency? Seems like no harm in
+  that. Feels like shouldn't complicate things.
+
+- Does constrains value support multiple dependencies? What is the semantics
+  if so (the constraint is applied if all dependencies are present in the tree
+  or presence of any of them is sufficient, etc)? Probably make sence to only
+  allow a single dependent for now, not to complicate things.
+
+=============================================================================
+
+When we simulated after the first pass, when we assume all the constraints
+as inactive, we split all the constraints into 2 buckets:
+
+1) Constraints for which the dependency appeared in the tree (but which we
+   mistakenly skipped).
+
+2) Constraints for which the dependency is not in tree (and which we skipped
+   correctly).
+
+Now we recollect the second pass using the first bucket as a reference to
+consider constrains in effect. Those constrains which are not in the first
+bucket, we skip. At the end of this pass we have a new set of constraints
+which can (and normally does) overlap with a set of constraints obtained on
+the first pass. We go through the new set of constraints and do the following:
+
+1) If the constraint is new, we put it into the second bucket.
+2) If it is old, leave them at old places???
+3) Remove not existing now constraints from first and second buckets.
+
+Now match constrains in buckets agains the reality and rebuild them (something
+from the 1st bucket can go into the 2nd bucket and in the opposite direction
+as well).
+
+If the first bucket didn't change, then we are done. Otherwise, re-collect.
+May start yo-yoing. To avoid that, track using hashes and fail if repeats.
+
+As a separate step, handle corner case when constrain pushes out dependency
+from the tree specially since it is likely fail preventing yo-yoing now
+othrwise.
+
+----------------------
+
+Fix version replacement issue by tracking initiating dependents (with
+constraints they apply) in the replaced version record in the map. When the
+version is about to be applied, see if all the initiating dependents are still
+there. If not, remove them and recalculate the desired version. Otherwise,
+remove the record and recollect.
+
+The problem with this approach is that at the time the version replacement
+needs to be applied there is likely no the dependent yet, which initiated the
+replacement.

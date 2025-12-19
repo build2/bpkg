@@ -162,6 +162,10 @@ namespace bpkg
   {
     for (const auto& pr: p->prerequisites)
     {
+      // @@ CONSTRAINS Skip prerequisites with the constraint flag set to
+      //               true.
+      //
+
       if (!allow_host_type)
       {
         database& db (pr.first.database ());

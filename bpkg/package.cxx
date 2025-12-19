@@ -176,6 +176,7 @@ namespace bpkg
   // type language
   // project
   // depends
+  // constrains
   // tests examples benchmarks
   // bootstrap-build root-build *-build
   // *-name *-version *-to-downstream-version
@@ -214,9 +215,9 @@ namespace bpkg
       {
         const dependency_alternatives_ex& das (dependencies[i]);
 
-        if (das.type)
+        if (optional<test_dependency_type> t = das.tests ())
         {
-          s.next ("test-dependency-type", to_string (*das.type));
+          s.next ("test-dependency-type", to_string (*t));
           s.next ("test-dependency-index", to_string (i));
           break;
         }
@@ -246,8 +247,24 @@ namespace bpkg
       if (project)
         s.next ("project", project->string ());
 
-      for (const dependency_alternatives& das: dependencies)
-        s.next ("depends", das.string ());
+      // While at it, verify that the dependency constraints go last.
+      //
+      bool constraint (false);
+      for (const dependency_alternatives_ex& das: dependencies)
+      {
+        if (das.constraint ())
+        {
+          constraint = true;
+
+          s.next ("constrains", das.to_constraint ().string ());
+        }
+        else
+        {
+          assert (!constraint);
+
+          s.next ("depends", das.string ());
+        }
+      }
 
       for (const test_dependency& t: tests)
         s.next (to_string (t.type), t.string ());
@@ -409,7 +426,7 @@ namespace bpkg
       *this = available_package (move (m));
 
       if (tdt)
-        dependencies[*tdi].type = *tdt;
+        dependencies[*tdi].type = to_dependency_type_ex (*tdt);
     }
     catch (const manifest_parsing& e)
     {
@@ -573,6 +590,98 @@ namespace bpkg
     // Quote the result as it contains the space character.
     //
     return '\'' + name.string () + ' ' + constraint->string () + '\'';
+  }
+
+  // dependency_type_ex
+  //
+  string
+  to_string (dependency_type_ex t)
+  {
+    switch (t)
+    {
+    case dependency_type_ex::constraint: return "constraint";
+    case dependency_type_ex::tests:      return "tests";
+    case dependency_type_ex::examples:   return "examples";
+    case dependency_type_ex::benchmarks: return "benchmarks";
+    }
+
+    assert (false); // Can't be here.
+    return string ();
+  }
+
+  dependency_type_ex
+  to_dependency_type_ex (const string& t)
+  {
+         if (t == "constraint") return dependency_type_ex::constraint;
+    else if (t == "tests")      return dependency_type_ex::tests;
+    else if (t == "examples")   return dependency_type_ex::examples;
+    else if (t == "benchmarks") return dependency_type_ex::benchmarks;
+    else throw invalid_argument ("invalid extended dependency type '" + t + '\'');
+  }
+
+  dependency_type_ex
+  to_dependency_type_ex (test_dependency_type t)
+  {
+    switch (t)
+    {
+    case test_dependency_type::tests:      return dependency_type_ex::tests;
+    case test_dependency_type::examples:   return dependency_type_ex::examples;
+    case test_dependency_type::benchmarks: return dependency_type_ex::benchmarks;
+    }
+
+    assert (false); // Can't be here.
+    return dependency_type_ex::tests;
+  }
+
+  // dependency_alternatives_ex
+  //
+  dependency_alternatives_ex::
+  dependency_alternatives_ex (dependency_constraint dc)
+      : dependency_alternatives (dc.buildtime, move (dc.comment)),
+        type (dependency_type_ex::constraint)
+  {
+    push_back (dependency_alternative (move (dc.enable),
+                                       move (dc.reflect),
+                                       move (dc.prefer),
+                                       move (dc.accept),
+                                       move (dc.require),
+                                       {move (dc)}));
+  }
+
+  optional<test_dependency_type> dependency_alternatives_ex::
+  tests () const
+  {
+    if (!type)
+      return nullopt;
+
+    switch (*type)
+    {
+    case dependency_type_ex::tests:      return test_dependency_type::tests;
+    case dependency_type_ex::examples:   return test_dependency_type::examples;
+    case dependency_type_ex::benchmarks: return test_dependency_type::benchmarks;
+    default:                             return nullopt;
+    }
+  }
+
+  dependency_constraint dependency_alternatives_ex::
+  to_constraint () const
+  {
+    assert (constraint ());
+    assert (size () == 1);  // Wouldn't be here otherwise.
+
+    const dependency_alternative& da ((*this)[0]);
+    assert (da.size () == 1); // Wouldn't be here otherwise.
+
+    const dependency& d (da[0]);
+    return dependency_constraint (d.name,
+                                  buildtime,
+                                  d.constraint,
+                                  da.enable,
+                                  da.reflect,
+                                  da.prefer,
+                                  da.accept,
+                                  da.require,
+                                  comment);
   }
 
   // selected_package
@@ -1020,7 +1129,7 @@ namespace bpkg
   {
     for (const auto& das: deps)
     {
-      if (!toolchain_buildtime_dependency (o, das, pkg))
+      if (!das.constraint () && !toolchain_buildtime_dependency (o, das, pkg))
         return true;
     }
 

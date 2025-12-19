@@ -2212,7 +2212,7 @@ namespace bpkg
           //
           for (auto i (ds.begin ()), e (ds.end ()); i != e; ++i)
           {
-            if (i->type)
+            if (i->tests ())
             {
               ds.erase (i);
               break;
@@ -2274,10 +2274,23 @@ namespace bpkg
 
             // Find the special test dependencies entry, if already present.
             //
-            auto b  (ds.begin ());
-            auto e  (ds.end ());
+            auto b (ds.begin ());
+            auto e (ds.end ());
+
+            // Exclude the dependency constraint entries from the dependency
+            // entries range we operate in.
+            //
+            for (auto i (b); i != e; ++i)
+            {
+              if (i->constraint ())
+              {
+                e = i;
+                break;
+              }
+            }
+
             auto oi (b);           // Old entry location.
-            for (; oi != e && !oi->type; ++oi) ;
+            for (; oi != e && !oi->tests (); ++oi) ;
 
             // Note that since we store all the primary packages as
             // alternative dependencies (which must be all of the same
@@ -2386,6 +2399,14 @@ namespace bpkg
             da.push_back (dependency {n, version_constraint (v)});
 
             assert (ni != ds.end ()); // Must be deduced by now.
+
+            // Verify that no dependency constraints preceed the special test
+            // entry.
+            //
+#ifndef NDEBUG
+            for (auto i (ds.begin ()); i != ni; ++i)
+              assert (!i->constraint ());
+#endif
 
             ni->push_back (move (da));
 

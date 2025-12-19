@@ -49,9 +49,9 @@ namespace bpkg
   // of the configuration variables resulted from evaluating the reflect
   // clauses. Fail if for some of the dependency alternative lists there is no
   // satisfactory alternative (all its dependencies are configured, satisfy
-  // the respective constraints, etc).
+  // the respective version constraints, etc).
   //
-  // The package dependency constraints are expected to be complete.
+  // The package dependency version constraints are expected to be complete.
   //
   // The dependencies argument may contain pre-selected dependency
   // alternatives (with the potential empty entries for the toolchain
@@ -95,9 +95,9 @@ namespace bpkg
   // - There are no use cases when both dependency alternatives are
   //   pre-selected and the previous configured state information needs to be
   //   provided. Thus, alternatives and prev_prerequisites must never be both
-  //   NULL.
+  //   not NULL.
   //
-  // Optionally, remove constraints from the specified dependencies
+  // Optionally, remove version constraints from the specified dependencies
   // (unconstrain_deps). Only allowed in the simulation mode.
   //
   struct configure_prerequisites_result
@@ -127,6 +127,9 @@ namespace bpkg
     optional<pair<package_state, package_substate>> (
       const shared_ptr<selected_package>&);
 
+  using find_package_prerequisites_function =
+    const package_prerequisites* (const shared_ptr<selected_package>&);
+
   // Note: loads selected packages.
   //
   configure_prerequisites_result
@@ -141,6 +144,7 @@ namespace bpkg
     bool simulate,
     const function<find_database_function>&,
     const function<find_package_state_function>&,
+    const function<find_package_prerequisites_function>&,
     const vector<package_key>* unconstrain_deps = nullptr);
 
   // Configure the package, update its state, and commit the transaction.
