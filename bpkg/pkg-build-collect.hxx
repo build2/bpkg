@@ -751,15 +751,38 @@ namespace bpkg
   // skipped some existing dependents because of them and so need to erase
   // these entries and re-collect.
   //
+  // Also, it is possible that the version constraint, which has triggered a
+  // version replacement, doesn't exist anymore (the respective dependent has
+  // been upgraded, etc). This, in particular, may result in an unjustified
+  // configuration of a lower package version. Thus, after collection of
+  // packages we check if for any of the used replacements the constraints
+  // contained in the respective build_package object are also satisfied with
+  // the replaced (original) package version, this version is greater than the
+  // replacement version, and the system flag doesn't change. If such a
+  // redundant replacement exists, then we cancel it by erasing its entry from
+  // the map and re-collect. Note, however, that we need to beware of yo-yoing
+  // and track the replacement cancellations applied to specific package
+  // collection states. For an example of a potential cycle think of a
+  // situation when a replacement cancellation introduces a new dependency
+  // constraint (due to a different dependency alternative selection,
+  // dependency configuration, etc) which enforces the replacement back, but
+  // disappears when the replacement is applied.
+  //
   struct replaced_version
   {
-    // Desired package version, repository fragment, and system flag.
+    // Desired package version, repository fragment, system flag, and the
+    // original version and system flag.
     //
     // Both are NULL for the replacement with the drop.
     //
     shared_ptr<available_package> available;
     lazy_shared_ptr<bpkg::repository_fragment> repository_fragment;
-    bool system; // Meaningless for the drop.
+
+    // Meaningless for the drop.
+    //
+    bool system;
+    version original_version;
+    bool original_system;
 
     // True if the entry has been inserted or used for the replacement during
     // the current (re-)collection iteration. Used to keep track of "bogus"
@@ -771,10 +794,14 @@ namespace bpkg
     //
     replaced_version (shared_ptr<available_package> a,
                       lazy_shared_ptr<bpkg::repository_fragment> f,
-                      bool s)
+                      bool s,
+                      version ov,
+                      bool os)
         : available (move (a)),
           repository_fragment (move (f)),
           system (s),
+          original_version (move (ov)),
+          original_system (os),
           replaced (true) {}
 
     // Create replacement with the drop.
@@ -782,20 +809,37 @@ namespace bpkg
     replaced_version (): system (false), replaced (true) {}
   };
 
+  struct build_packages;
+
   class replaced_versions: public std::map<package_key, replaced_version>
   {
   public:
-    // Erase the bogus replacements and, if any, throw cancel_replacement, if
-    // requested.
+    // Erase the bogus replacements and, if any, throw
+    // cancel_bogus_replacement, if requested.
     //
-    struct cancel_replacement: scratch_collection
+    struct cancel_bogus_replacement: scratch_collection
     {
-      cancel_replacement ()
+      cancel_bogus_replacement ()
           : scratch_collection ("bogus version replacement cancellation") {}
     };
 
     void
     cancel_bogus (tracer&, bool scratch);
+
+    // Erase the redundant replacements and, if any, throw
+    // cancel_redundant_replacement.
+    //
+    struct cancel_redundant_replacement: scratch_collection
+    {
+      cancel_redundant_replacement ()
+          : scratch_collection ("redundant version replacement cancellation") {}
+    };
+
+    void
+    cancel_redundant (tracer&, const build_packages&);
+
+  private:
+    set<uint64_t> former_redundant_replacements_;
   };
 
   // Dependents with their ignored dependency constraints and, optionally,
@@ -907,8 +951,6 @@ namespace bpkg
     package_key dependent;
     vector<ignored_constraint> ignored_constraints;
   };
-
-  struct build_packages;
 
   class unsatisfied_dependents: public vector<unsatisfied_dependent>
   {
@@ -1748,6 +1790,19 @@ namespace bpkg
 
     void
     clear_order ();
+
+    // Append the collection state to the specified XXH64 checksum object.
+    //
+    // Specifically, calculate checksum over the names, versions,
+    // configuration paths, system and adjustment flags of the being built,
+    // dropped, and adjusted packages.
+    //
+    // Note that this checksum doesn't cover configuration variables nor the
+    // command-line originated flags (hold package/version, etc). Thus, it may
+    // not be used as a state identifier across multiple bpkg-build runs.
+    //
+    void
+    state (xxh64&) const;
 
     // Print all the version constraints (one per line) applied to this
     // package and its dependents, recursively. The specified package is

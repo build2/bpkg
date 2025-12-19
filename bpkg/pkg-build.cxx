@@ -2092,6 +2092,8 @@ namespace bpkg
   private:
     // Return the XXH64 checksum of the current command line state.
     //
+    // @@ Turn into std::uint64_t?
+    //
     string
     state () const
     {
@@ -5767,6 +5769,8 @@ namespace bpkg
       bool cmdline_deny_downgrade (cmdline_upgrade);
       bool cmdline_downgrades_denied (false);
 
+      set<package_key> existing_depts;
+
       // Iteratively refine the plan with dependency up/down-grades/drops.
       //
       // Note that we should not clean the deps list on scratch_col (scratch
@@ -6305,8 +6309,8 @@ namespace bpkg
                        [] (const build_package* p)
                        {
                          // Note that we check for the dependencies presence
-                         // rather than for the recursive_collection flag
-                         // (see collect_build_postponed() for details).
+                         // rather than for the recursive_collection flag (see
+                         // collect_build_postponed() for details).
                          //
                          return !p->dependencies;
                        }) != postponed_recs.end () ||
@@ -6329,10 +6333,48 @@ namespace bpkg
                                           rpt_depts,
                                           add_priv_cfg);
 
-          // Erase the bogus replacements and re-collect from scratch, if any
-          // (see replaced_versions for details).
+          // Cancel dropping prerequisites of the configured dependencies,
+          // which we initially decided to drop but have changed our mind
+          // later (see cancel_drop_prerequisites() for details).
+          //
+          for (const dep& d: deps)
+          {
+            if (d.available == nullptr)
+            {
+              // Note: the entry may not be present in the map, if it has
+              // already been removed by cancel_drop_prerequisites().
+              //
+              if (const build_package* p = pkgs.entered_build (d.db, d.name))
+              {
+                // Initially is a drop but could have been overwritten later.
+                //
+                assert (p->action);
+
+                if (*p->action != build_package::drop &&
+                    !p->system                        &&
+                    !p->dependencies)
+                {
+                  const shared_ptr<selected_package>& sp (p->selected);
+
+                  // Must be configured, since we have decided to drop it in
+                  // the first place.
+                  //
+                  assert (sp != nullptr);
+
+                  pkgs.cancel_drop_prerequisites (*sp, d.db);
+                }
+              }
+            }
+          }
+
+          existing_depts = pkgs.collect_dependents (rpt_depts,
+                                                    unsatisfied_depts);
+
+          // Erase the bogus and redundant replacements and re-collect from
+          // scratch, if any (see replaced_versions for details).
           //
           replaced_vers.cancel_bogus (trace, true /* scratch */);
+          replaced_vers.cancel_redundant (trace, pkgs);
         }
         catch (const scratch_collection& e)
         {
@@ -6361,43 +6403,6 @@ namespace bpkg
           t.commit ();
 
           continue;
-        }
-
-        set<package_key> depts (
-          pkgs.collect_dependents (rpt_depts, unsatisfied_depts));
-
-        // Cancel dropping prerequisites of the configured dependencies, which
-        // we initially decided to drop but have changed our mind later (see
-        // cancel_drop_prerequisites() for details).
-        //
-        for (const dep& d: deps)
-        {
-          if (d.available == nullptr)
-          {
-            // Note: the entry may not be present in the map, if it has
-            // already been removed by cancel_drop_prerequisites().
-            //
-            if (const build_package* p = pkgs.entered_build (d.db, d.name))
-            {
-              // Initially is a drop but could have been overwritten later.
-              //
-              assert (p->action);
-
-              if (*p->action != build_package::drop &&
-                  !p->system                        &&
-                  !p->dependencies)
-              {
-                const shared_ptr<selected_package>& sp (p->selected);
-
-                // Must be configured, since we have decided to drop it in the
-                // first place.
-                //
-                assert (sp != nullptr);
-
-                pkgs.cancel_drop_prerequisites (*sp, d.db);
-              }
-            }
-          }
         }
 
         // Now that we have collected all the package versions that we need to
@@ -6452,7 +6457,7 @@ namespace bpkg
         // Order the existing dependents whose dependencies are being
         // up/down-graded or reconfigured.
         //
-        for (const package_key& p: depts)
+        for (const package_key& p: existing_depts)
           pkgs.order (p.db, p.name, find_prereq_database, false /* reorder */);
 
         // Order the re-collected packages (deviated dependents, etc).

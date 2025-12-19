@@ -589,7 +589,94 @@ namespace bpkg
     if (bogus && scratch)
     {
       l5 ([&]{trace << "bogus version replacement erased, throwing";});
-      throw cancel_replacement ();
+      throw cancel_bogus_replacement ();
+    }
+  }
+
+  void replaced_versions::
+  cancel_redundant (tracer& trace, const build_packages& pkgs)
+  {
+    // Note that ideally we would like to drop as many redundant replacements
+    // as possible, at once. However, it can be quite time-consuming to find
+    // the largest untried replacements combination, since their number grows
+    // exponentially. Thus, let's implement the cancellation for only the
+    // common case (replacements are independent), trying to cancel just one
+    // replacement per collection cycle iteration and wait and see how it
+    // goes.
+    //
+    // Also note that we need to track not only the replacement cancellations
+    // themselves, but also the package collection state these cancellations
+    // are applied to. This way the same replacement cancellation can be
+    // retried for multiple collection states.
+    //
+    xxh64 collection_state; // Note: calculated on demand.
+    for (auto i (begin ()); i != end (); ++i)
+    {
+      const replaced_version& v (i->second);
+
+      if (v.replaced && v.available != nullptr) // Replaced but not with drop?
+      {
+        const package_key& p (i->first);
+        const build_package* b (pkgs.entered_build (p));
+
+        // Since the replacement has been performed.
+        //
+        assert (b != nullptr && b->available != nullptr);
+
+        const version& replacement_version (b->available_version ());
+
+        if (v.original_version > replacement_version &&
+            v.original_system == b->system)
+        {
+          bool redundant (true);
+
+          for (const build_package::constraint_type& c: b->constraints)
+          {
+            if (!satisfies (v.original_version, c.value))
+            {
+              redundant = false;
+              break;
+            }
+          }
+
+          if (redundant)
+          {
+            if (collection_state.empty ())
+              pkgs.state (collection_state);
+
+            xxh64 cs (collection_state); // Copy the checksum calculation state.
+
+            cs.append (p.name.string ());
+            cs.append (v.original_version.string ());
+            cs.append (p.db.get ().config.string ());
+            cs.append (v.system);
+            cs.append (replacement_version.string ());
+
+            if (former_redundant_replacements_.insert (cs.hash ()).second)
+            {
+              l5 ([&]{trace << "redundant version replacement "
+                            << package_string (p.name,
+                                               v.original_version,
+                                               v.system) << " -> "
+                            << replacement_version << p.db
+                            << " erased, throwing";});
+
+              erase (i);
+
+              throw cancel_redundant_replacement ();
+            }
+            else
+            {
+              l5 ([&]{trace << "erasing redundant version replacement "
+                            << package_string (p.name,
+                                               v.original_version,
+                                               v.system) << " -> "
+                            << replacement_version << p.db
+                            << " tried earlier, skipping";});
+            }
+          }
+        }
+      }
     }
   }
 
@@ -1684,9 +1771,15 @@ namespace bpkg
     // still be applied for some later collect_build() call or potentially
     // turn out bogus.
     //
-    auto replace_ver = [&pk, &vpb, &vi, &replaced_vers] (const build_package& p)
+    auto replace_ver = [&pk,
+                        &vpb,
+                        &vi,
+                        &replaced_vers] (const build_package& p,
+                                         const version& ov,
+                                         bool os)
     {
-      replaced_version rv (p.available, p.repository_fragment, p.system);
+      replaced_version rv (
+        p.available, p.repository_fragment, p.system, ov, os);
 
       if (vi != replaced_vers.end ())
         vi->second = move (rv);
@@ -1951,7 +2044,7 @@ namespace bpkg
                           << p1->available_name_version_db ();});
 
             if (scratch)
-              replace_ver (*p1);
+              replace_ver (*p1, p2->available_version (), p2->system);
           }
           else
           {
@@ -8769,6 +8862,30 @@ namespace bpkg
     chain.pop_back ();
 
     return pos = insert (i, p);
+  }
+
+  void build_packages::
+  state (xxh64& cs) const
+  {
+    cs.append (map_.size ()); // To distinguish empty map from no call.
+
+    for (const auto& bp: map_)
+    {
+      const build_package& b (bp.second.package);
+
+      if (b.action)
+      {
+        switch (*b.action)
+        {
+        case build_package::build:  cs.append ('B'); break;
+        case build_package::drop:   cs.append ('D'); break;
+        case build_package::adjust: cs.append ('A'); break;
+        }
+
+        cs.append (b.name_version_db ());
+        cs.append (b.flags);
+      }
+    }
   }
 
   build_packages::package_map::iterator build_packages::package_map::
