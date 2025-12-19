@@ -252,7 +252,7 @@ namespace bpkg
     tracer trace ("cfg_create");
 
     if (o.name_specified ())
-      validate_configuration_name (o.name (), "--name option value");
+      validate_config_name (o.name (), "--name option value");
 
     if (o.type ().empty ())
       fail << "empty --type option value";
