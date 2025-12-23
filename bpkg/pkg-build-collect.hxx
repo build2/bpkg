@@ -223,6 +223,12 @@ namespace bpkg
       // False for non-packages. Otherwise, indicates whether the constraint
       // comes from the existing rather than the being built dependent.
       //
+      // Note that we call an already configured dependent "existing", if it
+      // need not be recollected recursively (see query_existing_dependents()
+      // for details) and it is not being dropped.
+      //
+      // Note: only used for diagnostics (see print_constraints() for details).
+      //
       bool existing_dependent;
 
       // Create constraint for a package dependent.
@@ -471,9 +477,14 @@ namespace bpkg
       return external (&r) ? optional<dir_path> (move (r)) : nullopt;
     }
 
+    // Return the version of a being built package.
+    //
     const version&
     available_version () const;
 
+    // Return the name, potentially with the 'sys:' prefix, and version of a
+    // being built package.
+    //
     string
     available_name_version () const
     {
@@ -481,8 +492,16 @@ namespace bpkg
       return package_string (available->id.name, available_version (), system);
     }
 
+    // As above but also append the database string representation, if not
+    // empty.
+    //
     string
     available_name_version_db () const;
+
+    // As above but for all action types.
+    //
+    string
+    name_version_db () const;
 
     // Merge constraints, required-by package names, hold_* flags, state
     // flags, and user-specified options/variables.
@@ -809,7 +828,8 @@ namespace bpkg
   //
   // And yet, if these problems do not resolve naturally, then we still try to
   // resolve them by finding dependency versions which satisfy all the imposed
-  // constraints.
+  // constraints or by finding versions of dependents which are all satisfied
+  // with the dependency.
   //
   // Specifically, we cache such unsatisfied dependents/constraints, pretend
   // that the dependents don't impose them and proceed with the remaining

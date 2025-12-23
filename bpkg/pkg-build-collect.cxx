@@ -86,6 +86,20 @@ namespace bpkg
       : available_name_version ();
   }
 
+  string build_package::
+  name_version_db () const
+  {
+    assert (action && (available != nullptr || selected != nullptr));
+
+    if (available != nullptr)
+      return available_name_version_db ();
+
+    const string& s (db.get ().string);
+    return !s.empty ()
+      ? package_string (selected->name, selected->version, system) + ' ' + s
+      : package_string (selected->name, selected->version, system);
+  }
+
   bool build_package::
   recollect_recursively (const repointed_dependents& rpt_depts) const
   {
@@ -683,7 +697,7 @@ namespace bpkg
 
       const version& av (p->available_version ());
 
-      // See if we are upgrading or downgrading this package.
+      // See if we are upgrading or downgrading this dependency.
       //
       int ud (sp->version.compare (av));
 
@@ -713,7 +727,7 @@ namespace bpkg
                  << " depends on (" << n << ' ' << c << ')';
 
       // Print the dependency constraints tree for this unsatisfied dependent,
-      // which only contains constraints which come from its selected
+      // which only contains constraints which come from its existing
       // dependents, recursively.
       //
       {
@@ -723,7 +737,7 @@ namespace bpkg
           dk,
           indent,
           printed,
-          (verb >= 2 ? optional<bool> () : true) /* selected_dependent */);
+          (verb >= 2 ? optional<bool> () : true) /* existing_dependent */);
       }
 
       // If the dependency we failed to up/downgrade is not explicitly
@@ -776,7 +790,7 @@ namespace bpkg
             package_key (pvk.db, pvk.name),
             indent,
             printed,
-            (verb >= 2 ? optional<bool> () : false) /* selected_dependent */);
+            (verb >= 2 ? optional<bool> () : false) /* existing_dependent */);
 
           indent.resize (indent.size () - 2);
         }
@@ -7696,8 +7710,9 @@ namespace bpkg
         // dependent. But first "prune" if the dependent is being dropped or
         // this is a replaced prerequisite of the repointed dependent.
         //
-        // Note that the repointed dependents are always collected (see
-        // collect_build_prerequisites() for details).
+        // Note that the repointed dependents are always being reconfigured
+        // and are collected recursively (see collect_repointed_dependents()
+        // and collect_build_prerequisites() for details).
         //
         bool check (ud != 0 && dc);
 
@@ -7737,11 +7752,12 @@ namespace bpkg
             }
           }
 
-          // There is one tricky aspect: the dependent could be in the process
-          // of being reconfigured or up/downgraded as well. In this case all
+          // There is one tricky aspect: the dependent can be collected
+          // recursively (being up/downgraded as well, etc). In this case all
           // we need to do is detect this situation and skip the test since
-          // all the (new) constraints of this package have been satisfied in
-          // collect_build().
+          // all the constraints of this package have been considered
+          // (satisfied or ignored for the later resolution) in
+          // collect_build() called for the dependency.
           //
           if (check)
             check = !dp.dependencies;
@@ -7860,24 +7876,29 @@ namespace bpkg
 #endif
         }
 
-        // Add this dependent's constraint, if present, to the dependency's
-        // constraints list for completeness, while suppressing duplicates.
+        // Unless the dependent is collected recursively (and thus its
+        // constraints are already in the list), add the existing dependent's
+        // constraint, if present, to the dependency's constraints list. This
+        // information can, in particular, be used by the unsatisfied
+        // dependency constraints resolution logic.
         //
-        if (dc)
+        if (dc && !dp.dependencies)
         {
           using constraint_type = build_package::constraint_type;
 
           // Pre-entered entries are always converted to adjustments (see
-          // above).
+          // above). Also, the dependent must be configured by definition.
           //
-          assert (dp.action);
+          assert (dp.action && dp.selected != nullptr);
 
           constraint_type c (move (*dc),
                              ddb,
                              move (dn),
                              dp.selected->version,
-                             *dp.action != build_package::build);
+                             true /* existing_dependent */);
 
+          // Suppress the constraint duplicates.
+          //
           if (find_if (p.constraints.begin (), p.constraints.end (),
                        [&c] (const constraint_type& v)
                        {

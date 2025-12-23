@@ -2236,6 +2236,14 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
     # Repository state 1: libbar/2.0.0 is released.
     #
+    #  t9-1
+    #  |-- libbar-1.0.0.tar.gz
+    #  |-- libbar-2.0.0.tar.gz
+    #  |-- libbaz-1.0.0.tar.gz   -> libbar ^1.0.0
+    #  |-- libbox-1.0.0.tar.gz   -> libbar ^1.0.0
+    #  |-- foo-1.0.0.tar.gz      -> libbaz, libbox
+    #  `-- repositories.manifest
+    #
     r = 1/t9-1
     +cp -r $rep/t9 $r && \
      $tar xzf $r/libbar-1.0.0.tar.gz -C $r && \
@@ -2248,6 +2256,15 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
     # Repository state 2: libbaz/2.0.0 is released, which depends on
     #                     libbar ^2.0.0.
     #
+    # t9-2
+    # |-- libbar-1.0.0.tar.gz
+    # |-- libbar-2.0.0.tar.gz
+    # |-- libbaz-1.0.0.tar.gz   -> libbar ^1.0.0
+    # |-- libbaz-2.0.0.tar.gz   -> libbar ^2.0.0
+    # |-- libbox-1.0.0.tar.gz   -> libbar ^1.0.0
+    # |-- foo-1.0.0.tar.gz      -> libbaz, libbox
+    # `-- repositories.manifest
+    #
     r = 1/t9-2
     +cp -r 1/t9-1 $r && \
      $tar xzf $r/libbaz-1.0.0.tar.gz -C $r && \
@@ -2259,6 +2276,16 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
     # Repository state 3: libbox/1.1.0 is released, which still depends on
     #                     libbar ^1.0.0.
+    #
+    # t9-3
+    # |-- libbar-1.0.0.tar.gz
+    # |-- libbar-2.0.0.tar.gz
+    # |-- libbaz-1.0.0.tar.gz   -> libbar ^1.0.0
+    # |-- libbaz-2.0.0.tar.gz   -> libbar ^2.0.0
+    # |-- libbox-1.0.0.tar.gz   -> libbar ^1.0.0
+    # |-- libbox-1.1.0.tar.gz   -> libbar ^1.0.0
+    # |-- foo-1.0.0.tar.gz      -> libbaz, libbox
+    # `-- repositories.manifest
     #
     r = 1/t9-3
     +cp -r 1/t9-2 $r && \
@@ -2499,8 +2526,9 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbox/1.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependent: try to replace unsatisfiable dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfiable dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: execute_plan: simulate: yes
           %.*
@@ -2717,13 +2745,63 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbox/1.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfied dependent version libbox/1.0.0 with 1.1.0 by adding package spec '?libbox == 1.1.0' to command line
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build_prerequisites: skip configured foo/1.0.0
+          trace: execute_plan: simulate: yes
+          trace: evaluate_dependency: libbaz/1.0.0: update to libbaz/2.0.0
+          trace: evaluate_dependency: libbox/1.0.0: update to libbox/1.1.0
+          trace: pkg_build: refine package collection/plan execution
+          trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+          trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: end reached
+          trace: collect_build_prerequisites: begin libbaz/2.0.0
+          trace: collect_build: add libbar/2.0.0
+          info: package libbaz dependency on (libbar ^2.0.0) is forcing upgrade of libbar/1.0.0 to 2.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.0.0 of dependent libbaz/2.0.0
+          trace: collect_build_prerequisites: skip being built existing dependent libbaz of dependency libbar
+          trace: collect_build_prerequisites: skip unsatisfied existing dependent libbox of dependency libbar/2.0.0 due to constraint (libbar ^1.0.0)
+          trace: collect_build_prerequisites: begin libbar/2.0.0
+          trace: collect_build_prerequisites: end libbar/2.0.0
+          trace: collect_build_prerequisites: end libbaz/2.0.0
+          trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+          trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: end reached
+          trace: collect_build_prerequisites: begin libbox/1.1.0
+          trace: collect_build: postpone failure for dependent libbox unsatisfied with dependency libbar/2.0.0 (^1.0.0)
+          trace: collect_build: pick libbar/2.0.0 over libbar/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/2.0.0 of dependent libbox/1.1.0
+          trace: collect_build_prerequisites: end libbox/1.1.0
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbox/1.1.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replacement of unsatisfied dependent version libbox/1.1.0 is denied since it is specified on command line as '?libbox == 1.1.0'
+          trace: try_replace_dependent: try to replace conflicting dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace conflicting dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: pkg_build: refine package collection/plan execution from scratch
+          trace: collect_build: add foo/1.0.0
+          trace: collect_build_prerequisites: skip configured foo/1.0.0
+          trace: execute_plan: simulate: yes
+          trace: evaluate_dependency: libbaz/1.0.0: unchanged
+          trace: evaluate_dependency: libbox/1.0.0: update to libbox/1.1.0
+          trace: pkg_build: refine package collection/plan execution
+          trace: collect_build_prerequisites: pre-reeval foo/1.0.0
+          trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: end reached
+          trace: collect_build_prerequisites: begin libbox/1.1.0
+          trace: collect_build: add libbar/1.0.0
+          trace: collect_build_prerequisites: no cfg-clause for dependency libbar/1.0.0 of dependent libbox/1.1.0
+          trace: collect_build_prerequisites: skip configured libbar/1.0.0
+          trace: collect_build_prerequisites: end libbox/1.1.0
+          trace: execute_plan: simulate: yes
+          %.*
+          trace: pkg_build: start command line adjustments refinement cycle by rolling back first adjustment ('?libbox == 1.1.0')
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: skip configured foo/1.0.0
           trace: execute_plan: simulate: yes
           %.*
+          trace: pkg_build: command line adjustment '?libbox == 1.1.0' is redundant, dropping it
           build plan:
             update foo/1.0.0
           trace: execute_plan: simulate: no
@@ -2780,7 +2858,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           trace: collect_build_prerequisites: skip configured foo/1.0.0
           trace: execute_plan: simulate: yes
           trace: evaluate_dependency: libbaz/1.0.0: update to libbaz/2.0.0
-          %.*
+          trace: evaluate_dependency: libbox/1.0.0: unchanged
           trace: pkg_build: refine package collection/plan execution
           trace: collect_build_prerequisites: pre-reeval foo/1.0.0
           trace: collect_build_prerequisites: pre-reevaluated foo/1.0.0: end reached
@@ -2797,8 +2875,10 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           trace: execute_plan: simulate: yes
           %.*
           trace: pkg_build: try to replace unsatisfactory dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependent: try to replace unsatisfied dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
-          trace: try_replace_dependency: replace unsatisfied dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
+          trace: try_replace_dependent: try to replace unsatisfied dependent libbox/1.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replacement of unsatisfied dependent version libbox/1.0.0 is denied since it is specified on command line as '?libbox == 1.0.0'
+          trace: try_replace_dependent: try to replace unsatisfiable dependent libbaz/2.0.0 of dependency libbar/2.0.0 with some other version
+          trace: try_replace_dependency: replace unsatisfiable dependent version libbaz/2.0.0 with 1.0.0 by adding constraint '?libbaz' -> '?libbaz == 1.0.0' on command line
           trace: pkg_build: refine package collection/plan execution from scratch
           trace: collect_build: add foo/1.0.0
           trace: collect_build_prerequisites: skip configured foo/1.0.0
@@ -6262,8 +6342,8 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
             trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
             trace: try_replace_dependency: downgrade for libbox/2.0.0 is denied, bailing out
-            trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependency: replace unsatisfied dependent version libbix/2.0.0 with 1.0.0 by adding package spec '?libbix == 1.0.0' to command line
+            trace: try_replace_dependent: try to replace unsatisfiable dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: replace unsatisfiable dependent version libbix/2.0.0 with 1.0.0 by adding package spec '?libbix == 1.0.0' to command line
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbox/2.0.0
             trace: collect_build: add libbux/1.0.0
@@ -6338,8 +6418,8 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             trace: pkg_build: try to replace unsatisfactory dependency libbax/2.0.0 with some other version
             trace: try_replace_dependent: try to replace unsatisfied dependent libbox/2.0.0 of dependency libbax/2.0.0 with some other version
             trace: try_replace_dependency: downgrade for libbox/2.0.0 is denied, bailing out
-            trace: try_replace_dependent: try to replace unsatisfied dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
-            trace: try_replace_dependency: replacement of unsatisfied dependent version libbix/2.0.0 is denied since it is specified on command line as '?libbix == 2.0.0'
+            trace: try_replace_dependent: try to replace unsatisfiable dependent libbix/2.0.0 of dependency libbax/2.0.0 with some other version
+            trace: try_replace_dependency: replacement of unsatisfiable dependent version libbix/2.0.0 is denied since it is specified on command line as '?libbix == 2.0.0'
             trace: pkg_build: cannot resolve unsatisfied dependency constraints, now allowing downgrades
             trace: pkg_build: refine package collection/plan execution from scratch
             trace: collect_build: add libbox/2.0.0

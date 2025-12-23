@@ -2146,7 +2146,7 @@ namespace bpkg
   // Try to replace a collected package with a different available version,
   // satisfactory for all its new and/or existing dependents. Return the
   // command line adjustment if such a replacement is deduced and nullopt
-  // otherwise. In the latter case, also return the list of the being built
+  // otherwise. In the latter case, also return the list of the collected
   // dependents which are unsatisfied by some of the dependency available
   // versions (unsatisfied_dpts argument).
   //
@@ -2164,6 +2164,12 @@ namespace bpkg
   //
   // Notes:
   //
+  // - The specified dependency is expected to be collected with the build or
+  //   adjust action type.
+  //
+  // - The potentially returned unsatisfied dependents are collected with the
+  //   build or adjust action types.
+  //
   // - Doesn't perform the actual adjustment of the command line.
   //
   // - Expected to be called after the execution plan is fully refined. That,
@@ -2171,7 +2177,7 @@ namespace bpkg
   //   collected and thus the constraints they impose are already in their
   //   dependencies' constraints lists.
   //
-  // - The specified package version may or may not be satisfactory for its
+  // - The specified dependency version may or may not be satisfactory for its
   //   new and existing dependents.
   //
   // - The replacement is denied in the following cases:
@@ -2213,15 +2219,16 @@ namespace bpkg
   {
     tracer trace ("try_replace_dependency");
 
-    assert (p.available != nullptr); // By definition.
+    assert (p.action && *p.action != build_package::drop);    // Expectation.
+    assert (p.available != nullptr || p.selected != nullptr); // By definition.
 
     // Bail out for the system package build.
     //
     if (p.system)
     {
       l5 ([&]{trace << "replacement of " << what << " version "
-                    << p.available_name_version_db () << " is denied "
-                    << "since it is being configured as system";});
+                    << p.name_version_db () << " is denied since it is being "
+                    << "configured as system";});
 
       return nullopt;
     }
@@ -2230,15 +2237,14 @@ namespace bpkg
     //
     database& db (p.db);
     const package_name& nm (p.name ());
-    const version& ver (p.available->version);
 
     if (find_existing (db,
                        nm,
                        nullopt /* version_constraint */).first != nullptr)
     {
       l5 ([&]{trace << "replacement of " << what << " version "
-                    << p.available_name_version_db () << " is denied since "
-                    << "it is being built as existing archive/directory";});
+                    << p.name_version_db () << " is denied since it is being "
+                    << "built as existing archive/directory";});
 
       return nullopt;
     }
@@ -2268,9 +2274,9 @@ namespace bpkg
           if (c.min_version == c.max_version)
           {
             l5 ([&]{trace << "replacement of " << what << " version "
-                          << p.available_name_version_db () << " is denied "
-                          << "since it is specified on command line as '"
-                          << nm << ' ' << c << "'";});
+                          << p.name_version_db () << " is denied since it is "
+                          << "specified on command line as '" << nm << ' '
+                          << c << "'";});
 
             return nullopt;
           }
@@ -2297,9 +2303,9 @@ namespace bpkg
             if (c.min_version == c.max_version)
             {
               l5 ([&]{trace << "replacement of " << what << " version "
-                            << p.available_name_version_db () << " is denied "
-                            << "since it is specified on command line as '?"
-                            << nm << ' ' << c << "'";});
+                            << p.name_version_db () << " is denied since it "
+                            << "is specified on command line as '?" << nm
+                            << ' ' << c << "'";});
 
               return nullopt;
             }
@@ -2323,8 +2329,8 @@ namespace bpkg
         !p.upgrade && !p.deorphan)
     {
       l5 ([&]{trace << "replacement of " << what << " version "
-                    << p.available_name_version_db () << " is denied since "
-                    << "it is already built to hold version and it is not "
+                    << p.name_version_db () << " is denied since it is "
+                    << "already built to hold version and it is not "
                     << "specified on command line nor is being upgraded or "
                     << "deorphaned";});
 
@@ -2500,10 +2506,10 @@ namespace bpkg
     available deorphan_latest_available;
 
     // Return true if a version satisfies all the dependency constraints.
-    // Otherwise, save all the being built unsatisfied dependents into the
+    // Otherwise, save all the collected unsatisfied dependents into the
     // resulting list, suppressing duplicates.
     //
-    auto satisfactory = [&p, &unsatisfied_dpts] (const version& v)
+    auto satisfactory = [&p, &pkgs, &unsatisfied_dpts] (const version& v)
     {
       bool r (true);
 
@@ -2513,9 +2519,11 @@ namespace bpkg
         {
           r = false;
 
-          if (c.dependent.version && !c.existing_dependent)
+          if (c.dependent.version)
           {
             package_key pk (c.dependent.db, c.dependent.name);
+
+            assert (pkgs.entered_build (pk)); // By definition.
 
             if (find (unsatisfied_dpts.begin (),
                       unsatisfied_dpts.end (),
@@ -2562,6 +2570,10 @@ namespace bpkg
       return false;
     };
 
+    const version& replaced_version (p.available != nullptr
+                                     ? p.available->version
+                                     : sp->version);
+
     for (available& af: afs)
     {
       shared_ptr<available_package>& ap (af.first);
@@ -2579,7 +2591,7 @@ namespace bpkg
 
       // Don't offer to replace to the same version.
       //
-      if (av == ver)
+      if (av == replaced_version)
         continue;
 
       // Don't repeatedly offer the same adjustments for the same command
@@ -2611,7 +2623,7 @@ namespace bpkg
           // being replaced, and was never used for the same command line (see
           // above for details).
           //
-          if (!sp->system () && satisfactory (sv) && sv != ver)
+          if (!sp->system () && satisfactory (sv) && sv != replaced_version)
           {
             if (!cmdline_adjs.tried_earlier (db, nm, sv))
             {
@@ -2736,15 +2748,15 @@ namespace bpkg
         if (constraint != nullptr)
         {
           l5 ([&]{trace << "replace " << what << " version "
-                        << p.available_name_version () << " with "
-                        << r->version << " by overwriting constraint "
+                        << p.name_version_db () << " with " << r->version
+                        << " by overwriting constraint "
                         << cmdline_adjs.to_string (*r) << " on command line";});
         }
         else
         {
           l5 ([&]{trace << "replace " << what << " version "
-                        << p.available_name_version () << " with "
-                        << r->version << " by adding constraint "
+                        << p.name_version_db () << " with " << r->version
+                        << " by adding constraint "
                         << cmdline_adjs.to_string (*r) << " on command line";});
         }
       }
@@ -2755,15 +2767,15 @@ namespace bpkg
         if (constraint != nullptr)
         {
           l5 ([&]{trace << "replace " << what << " version "
-                        << p.available_name_version () << " with "
-                        << r->version << " by overwriting constraint "
+                        << p.name_version_db () << " with " << r->version
+                        << " by overwriting constraint "
                         << cmdline_adjs.to_string (*r) << " on command line";});
         }
         else
         {
           l5 ([&]{trace << "replace " << what << " version "
-                        << p.available_name_version () << " with "
-                        << r->version << " by adding constraint "
+                        << p.name_version_db () << " with " << r->version
+                        << " by adding constraint "
                         << cmdline_adjs.to_string (*r) << " on command line";});
         }
       }
@@ -2813,12 +2825,6 @@ namespace bpkg
                                 move (raf),
                                 p.upgrade,
                                 p.deorphan);
-
-        l5 ([&]{trace << "replace " << what << " version "
-                      << p.available_name_version () << " with " << r->version
-                      << " by adding package spec "
-                      << cmdline_adjs.to_string (*r)
-                      << " to command line";});
       }
       else
       {
@@ -2828,20 +2834,20 @@ namespace bpkg
                                 rap->project,
                                 p.upgrade,
                                 p.deorphan);
-
-        l5 ([&]{trace << "replace " << what << " version "
-                      << p.available_name_version () << " with " << r->version
-                      << " by adding package spec "
-                      << cmdline_adjs.to_string (*r)
-                      << " to command line";});
       }
+
+      l5 ([&]{trace << "replace " << what << " version "
+                    << p.name_version_db () << " with " << r->version
+                    << " by adding package spec "
+                    << cmdline_adjs.to_string (*r)
+                    << " to command line";});
     }
 
     return r;
   }
 
-  // Try to replace some of the being built, potentially indirect, dependents
-  // of the specified dependency with a different available version,
+  // Try to replace some of the collected, potentially indirect, dependents of
+  // the specified collected dependency with a different available version,
   // satisfactory for all its new and existing dependents (if any). Return the
   // command line adjustment if such a replacement is deduced and nullopt
   // otherwise. It is assumed that the dependency replacement has been
@@ -2904,10 +2910,8 @@ namespace bpkg
 
     using constraint_type = build_package::constraint_type;
 
-    const shared_ptr<available_package>& ap (p.available);
-    assert (ap != nullptr); // By definition.
-
-    const version& av (ap->version);
+    assert (p.action && *p.action != build_package::drop);    // Expectation.
+    assert (p.available != nullptr || p.selected != nullptr); // By definition.
 
     // List of the dependents which we have (unsuccessfully) tried to replace
     // together with the lists of the constraining dependents.
@@ -2953,9 +2957,8 @@ namespace bpkg
                 dpts.end ());
 
         l5 ([&]{trace << "try to replace " << what << ' '
-                      << d->available_name_version_db () << " of dependency "
-                      << p.available_name_version_db () << " with some "
-                      << "other version";});
+                      << d->name_version_db () << " of dependency "
+                      << p.name_version_db () << " with some other version";});
 
         vector<package_key> uds;
 
@@ -2984,11 +2987,15 @@ namespace bpkg
 
     // Try to replace unsatisfied dependents.
     //
+    const version& dependency_version (p.available != nullptr
+                                       ? p.available->version
+                                       : p.selected->version);
+
     for (const constraint_type& c: p.constraints)
     {
       const package_version_key& dvk (c.dependent);
 
-      if (dvk.version && !c.existing_dependent && !satisfies (av, c.value))
+      if (dvk.version && !satisfies (dependency_version, c.value))
       {
         if (optional<cmdline_adjustment> a = try_replace (
               package_key (dvk.db, dvk.name), "unsatisfied dependent"))
@@ -3023,7 +3030,7 @@ namespace bpkg
     {
       const package_version_key& dvk (c1.dependent);
 
-      if (dvk.version && !c1.existing_dependent)
+      if (dvk.version)
       {
         const version_constraint& v1 (c1.value);
 
@@ -5712,8 +5719,8 @@ namespace bpkg
       // backtracking by trying all the possible adjustments and picking the
       // most optimal combination. Instead, we keep collecting adjustments
       // until either the package builds collection succeeds or there are no
-      // more adjustment combinations to try (and we don't try all of
-      // them). As a result we, for example, may end up with some redundant
+      // more adjustment combinations to try (and we don't try all of them).
+      // As a result we, for example, may end up with some redundant
       // constraints on the command line just because the respective
       // dependents have been evaluated first. Generally, dropping all the
       // redundant adjustments can potentially be quite time-consuming, since
@@ -7361,8 +7368,8 @@ namespace bpkg
             prepare_recollect ();
           };
 
-          // Issue diagnostics and fail if any existing dependents are not
-          // satisfied with their dependencies.
+          // Issue diagnostics and fail if any dependents are not satisfied
+          // with their dependencies.
           //
           // But first, try to resolve the first encountered unsatisfied
           // constraint by replacing the collected unsatisfactory dependency
@@ -7384,7 +7391,10 @@ namespace bpkg
               const ignored_constraint& ic (dpt.ignored_constraints.front ());
 
               const build_package* p (pkgs.entered_build (ic.dependency));
-              assert (p != nullptr); // The dependency must be collected.
+
+              // By definition.
+              //
+              assert (p != nullptr && p->available != nullptr);
 
               l5 ([&]{trace << "try to replace unsatisfactory dependency "
                             << p->available_name_version_db () << " with some "
