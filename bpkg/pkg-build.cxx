@@ -2056,7 +2056,7 @@ namespace bpkg
         cs.append (v.string ());
       }
 
-      return former_states_.find (cs.string ()) != former_states_.end ();
+      return former_states_.find (cs.hash ()) != former_states_.end ();
     }
 
     // Return the address of an adjustment for which the specified predicate
@@ -2092,9 +2092,7 @@ namespace bpkg
   private:
     // Return the XXH64 checksum of the current command line state.
     //
-    // @@ Turn into std::uint64_t?
-    //
-    string
+    uint64_t
     state () const
     {
       // NOTE: remember to update tried_earlier() if changing anything here.
@@ -2109,7 +2107,7 @@ namespace bpkg
         cs.append (p.version->string ());
       }
 
-      return cs.string ();
+      return cs.hash ();
     }
 
     // Find the command line package spec an adjustment applies to.
@@ -2142,7 +2140,7 @@ namespace bpkg
 
     vector<cmdline_adjustment> adjustments_;   // Adjustments stack.
     set<package_version_key>   packages_;      // Replacements.
-    set<string>                former_states_; // Command line seen states.
+    set<uint64_t>              former_states_; // Command line seen states.
   };
 
   // Try to replace a collected package with a different available version,
