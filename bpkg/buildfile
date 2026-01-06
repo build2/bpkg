@@ -158,7 +158,7 @@ switch $cxx.target.class
 
 # Generated options parser.
 #
-if $cli.configured
+if $cli.build.configured
 {
   # General topics and common options.
   #
