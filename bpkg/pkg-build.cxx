@@ -3454,7 +3454,7 @@ namespace bpkg
         if (strip)
           v.erase (0, 4);
 
-        size_t p (v.find_first_of ("%/\\="));
+        size_t p (v.find_first_of ("%/\\=")); // Note: '=' is always present.
 
         if (v[p] != '=')
           fail << "visibility modifier or scope qualification in '"
@@ -3512,9 +3512,34 @@ namespace bpkg
 
               trim (a);
 
+              // Similar to parsing global (as opposed to package-specific)
+              // configuration variables, fail if a visibility modifier or
+              // scope qualification is specified.
+              //
+              // @@ TMP Drop the scope stripping when the time comes (see
+              //        above for details).
+              //
+              bool strip (a.compare (0, 4, ".../") == 0);
+              if (strip)
+                a.erase (0, 4);
+
+              // Note: '=' is always present.
+              //
+              size_t p (a.find_first_of ("%/\\="));
+
+              if (a[p] != '=')
+                fail << "visibility modifier or scope qualification in '"
+                     << (strip ? ".../" : "") << a << "'";
+
               if (a[0] == '!')
                 fail << "global override in package-specific configuration "
-                     << "variable '" << a << "'";
+                     << "variable '" << (strip ? ".../" : "") << a << "'";
+
+#if 0
+              if (strip)
+                warn << "scope qualification in '.../" << a << "' is stripped" <<
+                  info << "this warning will become error in the future";
+#endif
 
               cvs.push_back (move (a));
             }
