@@ -2956,7 +2956,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
   : config-vars
   :
   {{
-    +$cfg_create -d cfg cc config.cc.coptions=-Wall 2>- &cfg/***
+    +$cfg_create -d cfg cc config.cc.coptions=-Wall &cfg/***
     +$rep_add $rep/t5 && $rep_fetch
 
     : override-package-specific
@@ -3872,7 +3872,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
       echo 'depends: libfoo2' >+prj/libfoo1/manifest
       echo 'depends: libfoo3' >+prj/libfoo2/manifest
 
-      $cfg_create -d cfg 2>- &cfg/***
+      $cfg_create -d cfg &cfg/***
 
       $rep_add --type dir prj
       $rep_fetch
@@ -28951,7 +28951,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
       $pkg_build --yes -d cfg1 libbiz-tests \
                  { --config-name cfg2 }+ ?libbiz \
-                 { --config-name cfg3 }+ ?libfoo 2>-
+                 { --config-name cfg3 }+ ?libfoo 2>!
 
       $pkg_status -d cfg1 -ar >>/EOO
         !libbiz-tests configured 1.3.0
@@ -29020,7 +29020,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
       $pkg_build --yes -d cfg1 libbiz-tests \
                  { --config-name cfg2 }+ ?libbiz \
-                 { --config-name cfg3 }+ ?libfoo 2>-
+                 { --config-name cfg3 }+ ?libfoo 2>!
 
       $pkg_status -d cfg1 -ar >>/EOO
         !libbiz-tests configured 1.3.0
@@ -29082,7 +29082,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
       $pkg_build --yes -d cfg1 \
                  { config.libbiz_tests.libbar=false }+ libbiz-tests \
                  { --config-name cfg2 }+ { libbax ?libbiz } \
-                 { --config-name cfg3 }+ ?libfoo 2>-
+                 { --config-name cfg3 }+ ?libfoo 2>!
 
       $pkg_status -d cfg1 -ar >>/EOO
         !libbiz-tests configured 1.3.0

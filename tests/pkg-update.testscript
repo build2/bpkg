@@ -139,7 +139,7 @@ $* 2>>EOE != 0
 : vars
 :
 {{
-  +$cfg_create cxx $config_cxx -d cfg 2>- &cfg/***
+  +$cfg_create cxx $config_cxx -d cfg 2>! &cfg/***
   +$rep_fetch $rep/hello --trust $cert_fp &cfg/.bpkg/certs/**
 
   : global-and-local

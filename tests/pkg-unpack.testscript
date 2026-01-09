@@ -324,7 +324,7 @@ $* 2>>EOE != 0
   +export BPKG_FETCH_CACHE=src
   +export BPKG_FETCH_CACHE_PATH=cache
 
-  +$cfg_create -d cfg 2>- &cfg/***
+  +$cfg_create -d cfg 2>! &cfg/***
 
   : basics
   :

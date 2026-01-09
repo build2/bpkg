@@ -681,7 +681,7 @@ sc = " " # Space character to append to here-document line when required.
 
   rep_fetch += --auth all
 
-  +$cfg_create -d cfg 2>- &cfg/***
+  +$cfg_create -d cfg 2>! &cfg/***
 
   : signed
   :

@@ -1168,7 +1168,7 @@ else
   +export -u BPKG_FETCH_CACHE
   test.options += --fetch-cache-path cache
 
-  +$cfg_create -d cfg 2>- &cfg/***
+  +$cfg_create -d cfg 2>! &cfg/***
 
   : pkg-rep
   :

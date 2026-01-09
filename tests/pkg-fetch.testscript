@@ -213,7 +213,7 @@ $* libfoo/1.0.0 2>>/EOE != 0
   pkg_unpack   += --fetch-cache-path cache
   test.options += --fetch-cache-path cache -v
 
-  +$cfg_create -d cfg 2>- &cfg/***
+  +$cfg_create -d cfg 2>! &cfg/***
 
   : basics
   :
