@@ -282,7 +282,7 @@ else
     rep_fetch    += --fetch-cache-path cache
     test.options += --fetch-cache-path cache
 
-    +$cfg_create -d cfg 2>- &cfg/***
+    +$cfg_create -d cfg 2>! &cfg/***
 
     : no-src
     :

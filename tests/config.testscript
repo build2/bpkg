@@ -10,7 +10,7 @@
 # configurations are not cloned while being used by bpkg.
 #
 cfg_uuid = "00000000-0000-0000-0000-000000000001"
-+$cfg_create -d cfg --uuid $cfg_uuid 2>- &cfg/***
++$cfg_create -d cfg --uuid $cfg_uuid 2>! &cfg/***
 
 # The most commonly used configuration cloning command that copies it from the
 # parent scope working directory.
