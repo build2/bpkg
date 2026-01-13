@@ -1,4 +1,11 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
+  <changeset version="29">
+    <alter-table name="main.selected_package_prerequisites">
+      <add-column name="buildtime" type="INTEGER" null="true" default="0"/>
+      <add-column name="runtime" type="INTEGER" null="true" default="0"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="28">
     <alter-table name="main.configuration">
       <add-column name="fetch_cache_mode" type="TEXT" null="true"/>
