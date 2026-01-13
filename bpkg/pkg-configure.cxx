@@ -277,7 +277,7 @@ namespace bpkg
             //
             prerequisites.emplace_back (
               lazy_shared_ptr<selected_package> (pdb, dp),
-              prerequisite_info {*dc});
+              prerequisite_info {*dc, das.buildtime, !das.buildtime});
           }
 
           // Try the next alternative if there are unresolved dependencies for
@@ -292,42 +292,55 @@ namespace bpkg
           //
           for (auto& pr: prerequisites)
           {
-            const package_name& pn (pr.first.object_id ());
             const prerequisite_info& pi (pr.second);
 
-            auto p (prereqs.emplace (pr.first, pi));
+            auto p (prereqs.emplace (move (pr.first), pi));
+            const lazy_shared_ptr<selected_package>& spl (p.first->first);
 
+            // If the prerequisite is already in the map, then merge
+            // prerequisite info objects.
+            //
             // Currently we can only capture a single constraint, so if we
             // already have a dependency on this package and one constraint is
             // not a subset of the other, complain.
             //
             if (!p.second)
             {
-              auto& c1 (p.first->second.constraint);
+              prerequisite_info& pie (p.first->second);
+
+              auto& c1 (pie.constraint);
               auto& c2 (pi.constraint);
 
-              bool s1 (satisfies (c1, c2));
-              bool s2 (satisfies (c2, c1));
+              bool s1 (satisfies (c1, c2)); // c1 is a subset of c2.
+              bool s2 (satisfies (c2, c1)); // c2 is a subset of c1.
 
               if (!s1 && !s2)
+              {
+                const package_name& pn (spl.object_id ());
+
                 fail << "multiple dependencies on package " << pn <<
                   info << pn << " " << *c1 <<
                   info << pn << " " << *c2;
+              }
 
               if (s2 && !s1)
                 c1 = c2;
+
+              (pi.buildtime ? pie.buildtime : pie.runtime) = true;
             }
 
             // If the prerequisite is configured in the linked configuration,
-            // then add the respective config.import.* variable.
+            // then add the respective config.import.* variable, unless
+            // simulating. But only add it once, when the prerequisite is
+            // added to the map.
             //
-            if (!simulate)
+            if (!simulate && p.second)
             {
-              database& pdb (pr.first.database ());
+              database& pdb (spl.database ());
 
               if (pdb != db)
               {
-                shared_ptr<selected_package> sp (pr.first.load ());
+                shared_ptr<selected_package> sp (spl.load ());
 
                 optional<pair<package_state, package_substate>> ps;
                 if (fps != nullptr)

@@ -33,7 +33,7 @@
 //
 #define DB_SCHEMA_VERSION_BASE 23
 
-#pragma db model version(DB_SCHEMA_VERSION_BASE, 28, closed)
+#pragma db model version(DB_SCHEMA_VERSION_BASE, 29, closed)
 
 namespace bpkg
 {
@@ -891,12 +891,17 @@ namespace bpkg
 
   // A map of "effective" prerequisites (i.e., pointers to other selected
   // packages) to optional version constraint (plus some other info). Note
-  // that because it is a single constraint, we don't support multiple
-  // dependencies on the same package (e.g., two ranges of versions). See
-  // pkg_configure().
+  // that because it is a single constraint, we only support multiple
+  // dependencies on the same package if one of their constraints is a subset
+  // of all others (see pkg_configure() for details).
   //
-  // Note also that the pointer can refer to a selected package in another
-  // database.
+  // Also note that for self-hosted configurations build-time and runtime
+  // dependencies may potentially resolve into a single prerequisite, in which
+  // case both the buildtime and runtime flags are true. These flags can never
+  // be simultaneously false, unless the package is configured with bpkg prior
+  // to version 0.18.0 (see the database mapping below for details).
+  //
+  // And yet, the pointer can refer to a selected package in another database.
   //
   class selected_package;
 
@@ -908,9 +913,27 @@ namespace bpkg
     //
     optional<version_constraint> constraint;
 
+    // True if a build-time dependency is resolved to this prerequisite.
+    //
+    bool buildtime;
+
+    // True if a runtime dependency is resolved to this prerequisite.
+    //
+    bool runtime;
+
     // Database mapping.
     //
     #pragma db member(constraint) column("")
+
+    // Note that deducing these member values during migration is not possible
+    // due to the information loss. Thus, we will just set them both to false
+    // during migration to the database schema version 29. This value
+    // combination, not possible in the normal circumstances, will indicate
+    // that the build-time/runtime information is not available for the
+    // prerequisite.
+    //
+    #pragma db member(buildtime) default(false)
+    #pragma db member(runtime)   default(false)
   };
 
   // Note that the keys for this map need to be created with the database

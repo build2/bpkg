@@ -6919,9 +6919,9 @@ namespace bpkg
           // Also add the result into the `package_prereqs` map, to use it as
           // a cache and for subsequent additional dependency verification.
           //
-          // Note that all the encountered dependency sub-hierarchies that
-          // reside in configurations of different types (or beneath them) are
-          // also verified but not included into the resulting set.
+          // Note that all the encountered build-time dependency
+          // sub-hierarchies are also verified but not included into the
+          // resulting set.
           //
           using prerequisites = set<lazy_shared_ptr<selected_package>,
                                     compare_lazy_ptr_id>;
@@ -6980,17 +6980,21 @@ namespace bpkg
             // the same package (of potentially different versions) configured
             // in different host configurations.
             //
-            // Note, however, that we cannot easily determine if the
-            // prerequisite corresponds to the runtime or build-time
-            // dependency, since we don't store this information for
-            // prerequisites. The current implementation relies on the fact
-            // that the build-time dependency configuration type (host or
-            // build2) differs from the dependent configuration type (target
-            // is a common case) and doesn't work well, for example, for the
-            // self-hosted configurations. For them it can fail erroneously.
-            // We can potentially fix that by additionally storing the
-            // build-time flag for a prerequisite. However, let's first see if
-            // it ever becomes a problem.
+            // Note, however, that prior to bpkg version 0.18.0 we could not
+            // easily determine if the prerequisite corresponds to the runtime
+            // dependency, since we didn't store this information for
+            // prerequisites yet. While migrating to the database schema
+            // version 29, which invented buildtime and runtime flags for
+            // prerequisite_info, we could not deduce these flags due to the
+            // information loss (see prerequisite_info for details). As a
+            // result, configured dependents with such incomplete
+            // prerequisites may stay in a configuration indefinitely long.
+            // For such prerequisites we will rely on the fact that the
+            // build-time dependency configuration type (host or build2)
+            // differs from the dependent configuration type (target is a
+            // common case). This doesn't work well, for example, for
+            // self-hosted configurations and can fail erroneously for them.
+            // Anyway, it seems to be the best we can do here.
             //
             prerequisites r;
             const package_prerequisites& prereqs (sp->prerequisites);
@@ -7006,7 +7010,15 @@ namespace bpkg
               const prerequisites& ps (
                 verify_dependencies (pdb, p.load (), verify_dependencies));
 
-              if (pdb.type != db.type)
+              const prerequisite_info& pi (prereq.second);
+
+              // @@ TMP Consider removing the pi.buildtime and pi.runtime
+              //        check some time after the toolchain 0.18.0 is released
+              //        (see above for details).
+              //
+              if (pi.buildtime || pi.runtime
+                  ? !pi.runtime
+                  : (pdb.type != db.type))
                 continue;
 
               // Collect prerequisite sub-hierarchy, checking that none of the
