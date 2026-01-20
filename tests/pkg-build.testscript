@@ -31500,6 +31500,84 @@ else
         EOO
     }
 
+    : repoint-dependency
+    :
+    : This is a reproducer for the GH issue #508.
+    :
+    if false
+    {
+      $cfg_create -d t1 --name t1 &t1/***
+      $cfg_create -d t2 --name t2 &t2/***
+
+      $cfg_link -d t1 t2
+
+      $rep_add -d t1 $rep/t7a && $rep_fetch -d t1
+
+      test.arguments = $regex.apply($test.arguments, cfg, t1)
+
+      $* libbix --yes 2>!
+
+      $pkg_status -d t1 -r >>/EOO
+        !libbix configured 1.0.0
+          libbiz configured 1.0.0
+            foo [t1/.bpkg/host/] configured 1.0.0
+              libbaz [t1/.bpkg/host/] configured 1.0.0
+              libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
+            libbaz configured 1.0.0
+            libbuild2-foo [t1/.bpkg/build2/] configured 1.0.0
+              libbaz [t1/.bpkg/build2/] configured 1.0.0
+          libbuz configured 1.0.0
+            foo [t1/.bpkg/host/] configured 1.0.0
+              libbaz [t1/.bpkg/host/] configured 1.0.0
+              libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
+            libbuild2-foo [t1/.bpkg/build2/] configured 1.0.0
+              libbaz [t1/.bpkg/build2/] configured 1.0.0
+        EOO
+
+      $rep_add -d t2 $rep/t7a && $rep_fetch -d t2
+
+      # Repoint without actual upgrade.
+      #
+      $* --yes --update-dependent libbaz +{ --config-name t2 } ?libbiz 2>>~%EOE%
+        disfigured libbix/1.0.0
+        disfigured libbiz/1.0.0
+        disfigured libbaz/1.0.0
+        purged libbaz/1.0.0
+        %fetched libbaz/1.0.0 \[t2.\]%
+        %unpacked libbaz/1.0.0 \[t2.\]%
+        %configured libbaz/1.0.0 \[t2.\]%
+        configured libbiz/1.0.0
+        configured libbix/1.0.0
+        %info: t2.+libbaz-1.0.0.+ is up to date%
+        %info: t1.+libbix-1.0.0.+ is up to date%
+        %updated libbaz/1.0.0 \[t2.\]%
+        updated libbix/1.0.0
+        EOE
+
+      $pkg_status -d t1 --link -r >>/EOO
+        !libbix configured 1.0.0
+          libbiz configured 1.0.0
+            foo [t1/.bpkg/host/] configured 1.0.0
+              libbaz [t1/.bpkg/host/] configured 1.0.0
+              libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
+            !libbaz [t2/] configured 1.0.0
+            libbuild2-foo [t1/.bpkg/build2/] configured 1.0.0
+              libbaz [t1/.bpkg/build2/] configured 1.0.0
+          libbuz configured 1.0.0
+            foo [t1/.bpkg/host/] configured 1.0.0
+              libbaz [t1/.bpkg/host/] configured 1.0.0
+              libbuild2-bar [t1/.bpkg/build2/] configured 1.0.0
+            libbuild2-foo [t1/.bpkg/build2/] configured 1.0.0
+              libbaz [t1/.bpkg/build2/] configured 1.0.0
+        !libbaz [t2/] configured 1.0.0
+        EOO
+
+      # Repoint with downgrade.
+      #
+      $* --yes --update-dependent libbaz +{ --config-name t1 } ?libbiz/0.5.0 2>>~%EOE%
+        EOE
+    }
+
     : drop-repointed
     :
     {

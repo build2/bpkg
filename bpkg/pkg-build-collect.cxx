@@ -5639,6 +5639,16 @@ namespace bpkg
         {
           build_package& b (i->second.package);
 
+          // @@ The decision to just keep the package build pre-entered
+          //    doesn't work well, since we will crash later trying to order
+          //    pre-entered build (no action). Note that skipping such a
+          //    repointed dependency from ordering and hoping for the best
+          //    doesn't work well, since such a dependent will stay not
+          //    repointed, unless upgraded. Can't think of an easy solution
+          //    from the top of my head. A possible fix direction can be in
+          //    collecting such a package as an adjustment. The problem is
+          //    tracked in GH issue #508.
+          //
           if (!b.action || *b.action != build_package::adjust)
           {
             if (!b.action ||
@@ -5702,8 +5712,6 @@ namespace bpkg
         false,                      // Required by dependents.
         build_package::adjust_reconfigure | build_package::build_repoint};
 
-      build_package_refs dep_chain;
-
       package_key pk {db, nm};
 
       // Note that the repointed dependent can well be a dependency whose
@@ -5724,43 +5732,38 @@ namespace bpkg
 
         l5 ([&]{trace << "dep-postpone repointed dependent " << pk;});
       }
+      else if (const postponed_configuration* pcfg =
+                 postponed_cfgs.find_dependency (pk))
+      {
+        // Note: not recursive.
+        //
+        collect_build (
+          o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
+
+        l5 ([&]{trace << "dep-postpone repointed dependent " << pk
+                      << " since already in cluster " << *pcfg;});
+      }
       else
       {
-        const postponed_configuration* pcfg (
-          postponed_cfgs.find_dependency (pk));
+        build_package_refs dep_chain;
 
-        if (pcfg != nullptr)
-        {
-          // Note: not recursive.
-          //
-          collect_build (
-            o, move (p), replaced_vers, postponed_cfgs, unsatisfied_depts);
-
-          l5 ([&]{trace << "dep-postpone repointed dependent " << pk
-                        << " since already in cluster " << *pcfg;});
-        }
-        else
-        {
-          build_package_refs dep_chain;
-
-          // Note: recursive.
-          //
-          collect_build (o,
-                         move (p),
-                         replaced_vers,
-                         postponed_cfgs,
-                         unsatisfied_depts,
-                         &dep_chain,
-                         fdb,
-                         apc,
-                         &rpt_depts,
-                         &postponed_repo,
-                         &postponed_alts,
-                         &postponed_recs,
-                         &postponed_edeps,
-                         &postponed_deps,
-                         &unacceptable_alts);
-        }
+        // Note: recursive.
+        //
+        collect_build (o,
+                       move (p),
+                       replaced_vers,
+                       postponed_cfgs,
+                       unsatisfied_depts,
+                       &dep_chain,
+                       fdb,
+                       apc,
+                       &rpt_depts,
+                       &postponed_repo,
+                       &postponed_alts,
+                       &postponed_recs,
+                       &postponed_edeps,
+                       &postponed_deps,
+                       &unacceptable_alts);
       }
     }
   }
