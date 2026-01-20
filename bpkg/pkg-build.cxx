@@ -2396,7 +2396,8 @@ namespace bpkg
         }
       }
 
-      // Collect the repository fragments the existing dependents come from.
+      // Collect the repository fragments the selected package as well as its
+      // existing dependents come from.
       //
       // Note that all the existing dependents are already in the map (since
       // collect_dependents() has already been called) and are either
@@ -2404,6 +2405,8 @@ namespace bpkg
       //
       if (sp != nullptr)
       {
+        add_dependent_repo_fragments (db, sp, rfs);
+
         for (database& ddb: db.dependent_configs (true /* sys_rep */))
         {
           for (const auto& pd: query_dependents (ddb, nm, db))
