@@ -2203,6 +2203,12 @@ namespace bpkg
   //     requested to be upgraded, patched, and/or deorphaned, then we
   //     shouldn't be silently up/down-grading it.
   //
+  // - Strictly speaking, the specified package doesn't need to be a
+  //   dependency. The function is named this way for rather historical
+  //   reasons, since we also call it for unsatisfied dependents now, if we
+  //   fail to replace an unsatisfactory dependency (see
+  //   try_replace_dependent() for details).
+  //
   static optional<cmdline_adjustment>
   try_replace_dependency (const common_options& o,
                           const build_package& p,
@@ -2352,11 +2358,12 @@ namespace bpkg
         rfs.push_back (move (rf));
     };
 
-    // If the package is specified as build-to-hold on the command line, then
-    // collect the root repository fragment from its database. Otherwise,
-    // collect the repository fragments its dependent packages come from.
+    // If the package is specified as build-to-hold on the command line on
+    // this or some previous bpkg-build run, then collect the root repository
+    // fragment from its database. Otherwise, collect the repository fragments
+    // its dependent packages come from.
     //
-    if (hold_pkg != nullptr)
+    if (hold_pkg != nullptr || (sp != nullptr && sp->hold_package))
     {
       add (db.find<repository_fragment> (empty_string), rfs[db]);
     }
