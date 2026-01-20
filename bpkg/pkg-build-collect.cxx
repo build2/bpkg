@@ -398,7 +398,9 @@ namespace bpkg
     //
     flags |= (p.flags & ~build_reevaluate);
 
-    if (*action == build)
+    // Don't reset the flags when merge a pre-entered entry into the build.
+    //
+    if (*action == build && p.action)
     {
       flags &= ~build_repoint;
 
