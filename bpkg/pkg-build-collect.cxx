@@ -398,7 +398,7 @@ namespace bpkg
     //
     flags |= (p.flags & ~build_reevaluate);
 
-    if (*action == build)
+    if (*action == build && p.action)
     {
       flags &= ~build_repoint;
 
