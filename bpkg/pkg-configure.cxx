@@ -521,6 +521,9 @@ namespace bpkg
     // Re-tune the scheduler for parallel execution (see build2_init()
     // for details).
     //
+    // Note that we still have the jobserver disabled. Feels like it shouldn't
+    // be needed to configure the packages.
+    //
     if (build2_sched.tuned ())
       build2_sched.tune (0);
 

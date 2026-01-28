@@ -240,20 +240,27 @@ namespace bpkg
       load_builtin_module (&build2::cli::build2_cli_load);
 
       // Note that while all we need is serial execution (all we do is load),
-      // in the process we may need to update some build system modules (while
-      // we only support built-in and standard pre-installed modules here, we
-      // may need to build the latter during development). At the same time,
-      // this is an unlikely case and starting a parallel scheduler is not
-      // cheap. So what we will do is start a parallel scheduler pre-tuned to
-      // serial execution, which is relatively cheap. The module building
-      // logic will then re-tune it to parallel if and when necessary.
+      // in the process we may need to update some update-during-load targets
+      // and/or build system modules (while we only support built-in and
+      // standard pre-installed modules here, we may need to build the latter
+      // during development). At the same time, this is an unlikely case and
+      // starting a parallel scheduler is not cheap. So what we will do is
+      // start a parallel scheduler pre-tuned to serial execution, which is
+      // relatively cheap. The udl/module building logic will then re-tune it
+      // to parallel if and when necessary.
       //
       // Note that we now also use this in pkg_configure() where we re-tune
       // the scheduler (it may already have been initialized as part of the
       // package skeleton work).
       //
-      build2_sched.startup (1 /* max_active */,
-                            1 /* init_active */,
+      // Note also that we disable the jobserver, which should not be needed
+      // to build either modules or configure packages (theoretically it may
+      // be needed for update-during-load, but that feels a bit far-fetched
+      // for now).
+      //
+      build2_sched.startup (1       /* max_active */,
+                            nullptr /* jobserver */,
+                            1       /* init_active */,
                             bc.max_jobs,
                             bc.jobs * bo.queue_depth (),
                             bc.jobs);
