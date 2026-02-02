@@ -468,15 +468,15 @@ dependency package. Because there could be multiple such dependents, \c{bpkg}
 needs to come up with a dependency configuration that is acceptable to all of
 them. This process is called the dependency configuration negotiation.
 
-For immediate dependency packages the desired configuration is specified as
-part of the \l{#manifest-package-depends \c{depends}} manifest value and can
-be expressed as either a single \c{require} clause or as a pair of
-\c{prefer}/\c{accept} clauses.
+The desired dependency configuration is specified as part of the
+\l{#manifest-package-depends \c{depends}} manifest value and can be expressed
+as either a single \c{require} clause or as a pair of \c{prefer}/\c{accept}
+clauses.
 
-For indirect dependency packages the desired configuration is specified as
-part of the \l{#manifest-package-constrains \c{constrains}} manifest value
-and, similar to the \l{#manifest-package-depends \c{depends}} manifest value,
-can be expressed as a \c{require} or \c{prefer}/\c{accept} clauses.
+For indirect dependencies, the desired configuration is specified as part of
+the \l{#manifest-package-constrains \c{constrains}} manifest value and,
+similar to the \l{#manifest-package-depends \c{depends}} manifest value, can
+be expressed as a \c{require} or \c{prefer}/\c{accept} clauses.
 
 The \c{require} clause is essentially a shortcut for specifying the
 \c{prefer}/\c{accept} clauses where the \c{accept} condition simply verifies
@@ -1648,8 +1648,8 @@ Multi-line form:
 <accept-cond>  = '(' <buildfile-eval-expr> ')'
 \
 
-The (direct) dependency packages. The most common form of a dependency is a
-package name followed by the optional version constraint. For example:
+The dependency packages. The most common form of a dependency is a package
+name followed by the optional version constraint. For example:
 
 \
 depends: libhello ^1.0.0
@@ -2111,12 +2111,12 @@ Multi-line form:
 <accept-cond>           = '(' <buildfile-eval-expr> ')'
 \
 
-The indirect dependency package constraint. In contrast to the
+The constraint of a potentially indirect dependency. In contrast to the
 \l{#manifest-package-depends \c{depends}} value, the \c{constrains} value does
-not declare a package as a dependency. Instead, the enabled constraint imposes
-the optional version constraint and/or configuration on a package and reflects
-the configuration variables only if this package appears in the dependency
-tree. For example:
+not declare the specified package as a dependency. Instead, the constraint
+imposes the version constraint and/or configuration on the specified package
+but only if it appears in the dependency tree of the package declaring the
+constraint. For example:
 
 \
 name: libfoo
@@ -2130,18 +2130,20 @@ name: libbaz
 depends: libmariadb
 \
 
-In the above example \c{libbar} tightens the version constraint for
-\c{libmariadb}, if the latter is selected from the dependency alternatives for
-its dependency \c{libfoo}. If \c{libmysqlclient} alternative is selected
-instead, then the \c{libmariadb} constraint in \c{libbar} doesn't apply, even
-if \c{libmariadb} is built in the same configuration as, for example, a
-dependency of unrelated \c{libbaz}.
+In the above example \c{libbar} \"tightens\" the version constraint for
+\c{libmariadb} (and reflects the fact that it is being used), if
+\c{libmariadb} is selected from the dependency alternatives for its dependency
+\c{libfoo}. If \c{libmysqlclient} alternative is selected instead, then the
+\c{libmariadb} constraint in \c{libbar} doesn't apply, even if \c{libmariadb}
+is built in the same configuration as, for example, a dependency of unrelated
+\c{libbaz}.
 
 See the \l{#manifest-package-depends \c{depends}} manifest value for the
 semantics of the \c{*} mark, version constraint and \c{enable}, \c{require},
 \c{prefer}, \c{accept}, and \c{reflect} clauses.
 
-If specified, the \c{constrains} values must follow the \c{depends} values.
+If specified, the \c{constrains} values must follow the \c{depends} values
+in the \c{manifest} file.
 
 
 \h2#manifest-package-requires|\c{requires}|
