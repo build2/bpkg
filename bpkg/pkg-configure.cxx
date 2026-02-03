@@ -132,7 +132,7 @@ namespace bpkg
 
     dep_alts.reserve (deps.size ());
 
-    bool has_constraint (false);
+    bool has_dependency_constraint (false);
 
     for (size_t di (0); di != deps.size (); ++di)
     {
@@ -144,7 +144,7 @@ namespace bpkg
       bool constraint (das.type == dependency_alternatives_type::constraint);
 
       if (constraint)
-        has_constraint = true;
+        has_dependency_constraint = true;
 
       if (das.empty ())
       {
@@ -588,7 +588,7 @@ namespace bpkg
                                            move (vars),
                                            move (srcs),
                                            move (checksum),
-                                           has_constraint};
+                                           has_dependency_constraint};
   }
 
 
@@ -733,7 +733,7 @@ namespace bpkg
     //
     p->dependency_alternatives_section.load ();
 
-    p->has_constraint = cpr.has_constraint;
+    p->has_dependency_constraint = cpr.has_dependency_constraint;
 
     // Configure.
     //

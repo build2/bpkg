@@ -8247,10 +8247,10 @@ namespace bpkg
 
         // One way to know if the dependent has the constrains values in its
         // manifest is to load the selected package and check its
-        // has_constraint flag. However, given that the constraining
-        // dependents are quite rare, most of such loads will be a
-        // waste. Thus, we will only load the selected package if its
-        // has_constraint flag is true.
+        // has_dependency_constraint flag. However, given that the
+        // constraining dependents are quite rare, most of such loads will be
+        // a waste. Thus, we will only load the selected package if its
+        // has_dependency_constraint flag is true.
         //
         if (check)
         {
@@ -8281,7 +8281,7 @@ namespace bpkg
             p->query_name = move (qn);
 
             query q (query::name == query::_ref (p->name) &&
-                     query::has_constraint);
+                     query::has_dependency_constraint);
 
             pq = ddb.prepare_query<selected_package> (p->query_name.c_str (), q);
             ddb.cache_query (pq, move (p));

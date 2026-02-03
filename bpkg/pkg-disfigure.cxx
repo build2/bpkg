@@ -82,7 +82,7 @@ namespace bpkg
     //
     p->dependency_alternatives_section.load ();
 
-    p->has_constraint = false;
+    p->has_dependency_constraint = false;
 
     assert (p->src_root); // Must be set since unpacked.
     assert (p->out_root); // Must be set since configured.

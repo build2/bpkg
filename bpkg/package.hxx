@@ -1309,10 +1309,10 @@ namespace bpkg
     #pragma db member(dependency_alternatives_section) load(lazy) update(always)
 
     // Note that since no real packages use the constrains manifest value yet,
-    // we can just set has_constraint to false during migration to the
-    // database schema version 30.
+    // we can just set has_dependency_constraint to false during migration to
+    // the database schema version 30.
     //
-    #pragma db member(has_constraint) default(false)
+    #pragma db member(has_dependency_constraint) default(false)
 
     #pragma db member(config_variables) id_column("package") value_column("")
 
@@ -1372,7 +1372,7 @@ namespace bpkg
       out_root (move (o)),
       prerequisites (move (pps)),
       manifest (move (m)),
-      has_constraint (false) {}
+      has_dependency_constraint (false) {}
 
   private:
     friend class odb::access;
