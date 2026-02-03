@@ -1201,18 +1201,18 @@ namespace bpkg
     optional<std::string> manifest;
     odb::section manifest_section;
 
-    // True if there are constrains values in the package manifest.
+    // True if there are constrains values in the package manifest (regardless
+    // of whether they are active or not).
     //
-    // Note that this information is required to decide if a configured
-    // package needs to be re-collected when some of its implicit
-    // prerequisites is being reconfigured (see
-    // build_packages::collect_constraining_dependents() for details). Also
-    // note that this information may not be deduced from the prerequisites
-    // map.
+    // This information is used to decide if a configured package needs to be
+    // re-collected when some of its indirect prerequisites is being
+    // reconfigured (see build_packages::collect_constraining_dependents() for
+    // details). Also note that this information may not be deduced from the
+    // prerequisites map.
     //
     // Note: only meaningful if the package is configured as source.
     //
-    bool has_constraint;
+    bool has_dependency_constraint;
 
   public:
     bool
