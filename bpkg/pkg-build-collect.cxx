@@ -2793,6 +2793,15 @@ namespace bpkg
       // assume the constraint is inactive. Save the assumed constraint state
       // to the cache, unless it is already there.
       //
+      // Note that if an enabled dependency constraint is cached with the
+      // version_constraint_only state and this dependency constraint has the
+      // version constraint specified, then we will collect this package in
+      // the version_constraint_only mode. Specifically, we will only
+      // pre-enter the dependency or collect it non-recursively, so that this
+      // version constraint get satisfied (see the collect() lambda for
+      // details). Otherwise, we will treat the dependency alternative as
+      // disabled.
+      //
       bool version_constraint_only (false);
 
       if (pkg.postponed_dependency_alternatives)
@@ -2826,8 +2835,10 @@ namespace bpkg
           {
             assert (da.size () == 1); // By definition.
 
+            const dependency& d (da[0]);
+
             dependency_constraint_key k (
-              pdb, nm, ap->version, da[0].name, das.buildtime);
+              pdb, nm, ap->version, d.name, das.buildtime);
 
             bool active;
             auto i (dependency_constrs.find (k));
@@ -2837,7 +2848,8 @@ namespace bpkg
               dependency_constraint_state s (i->second);
 
               version_constraint_only =
-                (s == dependency_constraint_state::version_constraint_only);
+                (s == dependency_constraint_state::version_constraint_only &&
+                 d.constraint);
 
               active = (s == dependency_constraint_state::active);
 
@@ -2888,6 +2900,13 @@ namespace bpkg
                  : dependency_constraint_state::inactive);
             }
 
+            // Note that in the version_constraint_only mode we enable the
+            // dependency constraint just "temporary", until we collect the
+            // dependency package, so that the version constraint get
+            // satisfied (see the collect() lambda for details). But at the
+            // end we will add an empty alternatives list to the
+            // build_package::dependencies member.
+            //
             enabled = (active || version_constraint_only);
           }
 
@@ -4132,11 +4151,7 @@ namespace bpkg
             //
             if (version_constraint_only)
             {
-              // Skip the prebuild in the version_constraint_only mode if it
-              // doesn't have any constraints.
-              //
-              if (constraints.empty ())
-                break;
+              assert (!constraints.empty ()); // Wouldn't be here otherwise.
 
               package_key pk (b.db, b.dependency);
               build_package* p (entered_build (pk));
