@@ -694,6 +694,12 @@ namespace bpkg
     std::string
     manifest () const;
 
+    // Return true if there is the 'constrains' value in the package's
+    // manifest file.
+    //
+    bool
+    has_dependency_constraint () const;
+
     // Database mapping.
     //
     #pragma db member(id) id column("")
@@ -1710,6 +1716,9 @@ namespace bpkg
     //
     std::string
     string (bool ignore_version = false) const;
+
+    void
+    to_checksum (xxh64&) const;
   };
 
   inline ostream&

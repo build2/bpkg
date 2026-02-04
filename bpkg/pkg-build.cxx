@@ -3361,7 +3361,7 @@ namespace bpkg
   }
 
   static inline void
-  to_checksum (xxh64& cs, const dependency_constraint_key& v)
+  to_checksum (xxh64& cs, const package_version_key& v)
   {
     v.to_checksum (cs);
   }
@@ -3380,6 +3380,12 @@ namespace bpkg
 
   static inline void
   to_checksum (xxh64& cs, const replaced_dependency& v)
+  {
+    v.to_checksum (cs);
+  }
+
+  static inline void
+  to_checksum (xxh64& cs, const dependency_constraint_dependency& v)
   {
     v.to_checksum (cs);
   }
@@ -6797,7 +6803,7 @@ namespace bpkg
         }
 
 #ifndef NDEBUG
-        pkgs.verify_ordering ();
+        pkgs.verify_consistency (dependency_constrs);
 #endif
         // Now, as we are done with package builds collecting/ordering, erase
         // the replacements from the repointed dependents prerequisite sets
@@ -7640,7 +7646,7 @@ namespace bpkg
             existing_deps.clear ();
             deorphaned_deps.clear ();
 
-            dependency_constrs.clear (
+            dependency_constrs.erase (
               dependency_constraint_state::version_constraint_only);
 
             ++cmdline_adjs_iteration;

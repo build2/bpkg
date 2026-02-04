@@ -558,6 +558,11 @@ namespace bpkg
     string
     name_version_db () const;
 
+    // Print information that can be useful for debugging.
+    //
+    void
+    print_info (diag_record&) const;
+
     // Merge constraints, required-by package names, hold_* flags, state
     // flags, and user-specified options/variables.
     //
@@ -930,8 +935,8 @@ namespace bpkg
   // incorporate the constraints into the logic of selecting the "best"
   // satisfactory dependency version, the dependency configuration negotiation
   // machinery, etc. We, however, only need to consider a dependency
-  // constraint if the dependency belongs to the dependent's dependency
-  // tree. We call the constraint active in this case. The problem is that the
+  // constraint if the dependency belongs to the dependent's dependency tree.
+  // We call the constraint active in this case. The problem is that the
   // dependent's dependency tree may not be finalized at the moment of
   // collecting the constraint, in which case we cannot really know if we need
   // to collect it or not. Also, traversing a dependency tree during
@@ -983,64 +988,6 @@ namespace bpkg
   // state for all such constraints and will use the same cache entry for
   // them.
   //
-  struct dependency_constraint_key
-  {
-    reference_wrapper<database> dependent_db;
-    package_name                dependent_name;
-    version                     dependent_version;
-    package_name                dependency_name;
-    bool                        buildtime;
-
-    dependency_constraint_key (database& db,
-                               package_name dpt,
-                               version v,
-                               package_name dep,
-                               bool b)
-        : dependent_db (db),
-          dependent_name (move (dpt)),
-          dependent_version (move (v)),
-          dependency_name (move (dep)),
-          buildtime (b) {}
-
-    bool
-    operator== (const dependency_constraint_key& v) const
-    {
-      // See operator==(database, database).
-      //
-      return &dependent_db.get () == &v.dependent_db.get () &&
-             dependent_name       == v.dependent_name       &&
-             dependent_version    == v.dependent_version    &&
-             dependency_name      == v.dependency_name      &&
-             buildtime            == v.buildtime;
-    }
-
-    bool
-    operator!= (const dependency_constraint_key& v) const
-    {
-      return !(*this == v);
-    }
-
-    bool
-    operator< (const dependency_constraint_key&) const;
-
-    // Return the dependency constraint string representation in the following
-    // form:
-    //
-    // <dependent>/<version> [ <config-dir>] ':' [*] <dependency>
-    //
-    std::string
-    string () const;
-
-    void
-    to_checksum (xxh64&) const;
-  };
-
-  inline ostream&
-  operator<< (ostream& os, const dependency_constraint_key& c)
-  {
-    return os << c.string ();
-  }
-
   enum class dependency_constraint_state: uint8_t
   {
     active,
@@ -1059,8 +1006,37 @@ namespace bpkg
     return os << to_string (s);
   }
 
-  class dependency_constraints: public std::map<dependency_constraint_key,
-                                                dependency_constraint_state>
+  struct dependency_constraint_dependency
+  {
+    package_name                name;
+    bool                        buildtime;
+    dependency_constraint_state state;
+
+    dependency_constraint_dependency (package_name n,
+                                      bool b,
+                                      dependency_constraint_state s)
+        : name (move (n)),
+          buildtime (b),
+          state (s) {}
+
+    // Return the dependency constraint string representation in the following
+    // form:
+    //
+    // <dependent>/<version> [ <config-dir>] ':' [*] <dependency>
+    //
+    std::string
+    string (const package_version_key& dependent) const;
+
+    void
+    to_checksum (xxh64&) const;
+  };
+
+  // Note: it probably shouldn't be very common for a dependent to constrain
+  //       more than two dependencies.
+  //
+  class dependency_constraints:
+    public std::map<package_version_key,
+                    small_vector<dependency_constraint_dependency, 2>>
   {
   public:
     // Match the cached constraint states against the actual states and
@@ -1072,7 +1048,7 @@ namespace bpkg
     correct_states (const xxh64& collection_initial_state);
 
     void
-    clear (dependency_constraint_state);
+    erase (dependency_constraint_state);
 
   private:
     set<uint64_t> former_corrections_;
@@ -2095,12 +2071,38 @@ namespace bpkg
                        std::set<package_key>& printed,
                        optional<bool> existing_dependent = nullopt) const;
 
-    // Verify that builds ordering is consistent across all the data
-    // structures and the ordering expectations are fulfilled (real build
-    // actions are all ordered, etc).
+    // Verify the data consistency as follows:
+    //
+    // - Verify that builds ordering is consistent.
+    //
+    //   Specifically, verify that the real build actions are all ordered and
+    //   the pre-entered builds are not.
+    //
+    // - Verify version constraints.
+    //
+    //   Specifically, verify that if a dependency is constrained with a
+    //   dependent package, then the dependent is being built or reconfigured
+    //   as source.
+    //
+    // - Verify dependency constraints.
+    //
+    //   Specifically, for the being built from scratch or reconfigured as
+    //   source dependents which has the 'constrains' value in their
+    //   manifests, verify that they are present in the constraints cache, are
+    //   collected recursively, and the states of the enabled constraints
+    //   match the cached states.
+    //
+    //   Note, however, that in the current implementation an inactive
+    //   constraint is indistinguishable from the disabled one for a collected
+    //   package. Thus, we only perform the state verification for the enabled
+    //   active constraints.
+    //
+    // Note that the build of an existing package doesn't imply its
+    // reconfiguration and the package reconfiguration may or may not imply
+    // its replacement (see build_package::reconfigure() for details).
     //
     void
-    verify_ordering () const;
+    verify_consistency (const dependency_constraints&) const;
 
   private:
     // Return the list of existing dependents that has a configuration clause

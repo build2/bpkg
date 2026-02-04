@@ -123,6 +123,17 @@ namespace bpkg
     return version != v.version ? (version < v.version) : (db < v.db);
   }
 
+  void package_version_key::
+  to_checksum (xxh64& cs) const
+  {
+    cs.append (db.get ().config.string ());
+    cs.append (name.string ());
+
+    cs.append (!version          ? "<null>"     :
+               version->empty () ? empty_string :
+               version->string ());
+  }
+
   // constraint_string
   //
   string

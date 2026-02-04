@@ -3,6 +3,18 @@
 
 namespace bpkg
 {
+  inline bool available_package::
+  has_dependency_constraint () const
+  {
+    for (const dependency_alternatives_ex& d: dependencies)
+    {
+      if (d.type == dependency_alternatives_type::constraint)
+        return true;
+    }
+
+    return false;
+  }
+
   template <typename T>
   inline bool
   has_buildfile_clause (const vector<T>& ds)

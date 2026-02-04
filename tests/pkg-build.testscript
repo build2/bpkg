@@ -34329,6 +34329,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
+                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -34469,6 +34470,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_prerequisites: end buz/1.0.0
                       trace: collect_build_postponed (0): end
                       %.*
+                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -34630,6 +34632,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
+                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -36881,6 +36884,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
+                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is stashed as cycled
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -37189,6 +37193,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/1.5.0
                 trace: execute_plan: simulate: yes
                 %.*
+                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is stashed as cycled
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -37373,6 +37378,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
+                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is stashed as cycled
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -37669,6 +37675,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/1.5.0
                 trace: execute_plan: simulate: yes
                 %.*
+                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is stashed as cycled
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
