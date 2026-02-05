@@ -750,7 +750,7 @@ namespace bpkg
   bool dependency_constraints::
   correct_states (const xxh64& collection_initial_state)
   {
-    tracer trace ("dependency_constraints::collect_dependents");
+    tracer trace ("dependency_constraints::correct_states");
 
     assert (!collection_initial_state.empty ());
 

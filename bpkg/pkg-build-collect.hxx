@@ -1914,10 +1914,10 @@ namespace bpkg
                                   const function<add_priv_cfg_function>&);
 
     // Schedule for re-collection all the configured constraining dependents
-    // (have dependency constraints in their manifests), whose implicit
-    // prerequisite is being reconfigured.
+    // (have the 'constrains' value in their manifests), whose potentially
+    // indirect prerequisite is being reconfigured.
     //
-    // Note that re-configuration of any implicit dependency of a constraining
+    // Note that re-configuration of any indirect dependency of a constraining
     // dependent can potentially push out any constrained dependency from or,
     // instead, bring any constrained dependency to the dependent's dependency
     // tree. Trying to precisely detect if that happens (or not) to a specific

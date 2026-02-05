@@ -351,9 +351,12 @@ namespace bpkg
 
         cs.append ((sv != nullptr ? *sv : available->version).string ());
 
-        if (repository_fragment != nullptr)
-          cs.append (repository_fragment.object_id ());
+        cs.append (repository_fragment != nullptr
+                   ? repository_fragment.object_id ()
+                   : "<null>");
       }
+      else
+        cs.append ("<null>");
 
       cs.append (system);
       cs.append (existing);
@@ -3424,13 +3427,16 @@ namespace bpkg
 
       cs.append ((sv != nullptr ? *sv : v.available->version).string ());
 
-      if (v.repository_fragment != nullptr)
-        cs.append (v.repository_fragment.object_id ());
+      cs.append (v.repository_fragment != nullptr
+                 ? v.repository_fragment.object_id ()
+                 : "<null>");
 
       cs.append (v.system);
       cs.append (v.original_version.string ());
       cs.append (v.original_system);
     }
+    else
+      cs.append ("<null>");
   }
 
   int
