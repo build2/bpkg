@@ -75,9 +75,9 @@ namespace bpkg
   // prerequisites of the dependency type.
   //
   // For the dependency constraints contained in the dependencies argument,
-  // regardless of whether it is pre-selected or not, deduce if they are
-  // active or not. Resolve the prerequisites for the active constraints and
-  // silently skip the inactive ones.
+  // regardless of whether it is pre-selected or not, deduce if these
+  // constraints are active or not. Resolve the prerequisites for the active
+  // constraints and silently skip the inactive ones.
   //
   // Note that there are actually 3 possible use cases for
   // pkg_configure_prerequisites():

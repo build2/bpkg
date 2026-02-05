@@ -570,6 +570,7 @@
 # |   |-- libbiz-2.0.0.tar.gz
 # |   |-- libbiz-1.0.0.tar.gz
 # |   |-- libbuz-1.0.0.tar.gz
+# |   |-- buz-0.5.0.tar.gz      -> libbaz <= 1.0.0
 # |   |-- buz-1.0.0.tar.gz      -> libbaz <= 1.0.0 | libbuz
 # |   |-- fox-1.0.0.tar.gz      -> libbaz
 # |   |-- fox-1.5.0.tar.gz      -> buz
@@ -34052,12 +34053,12 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 {{
                   +$clone_cfg
 
-                  : res
+                  : dep-unconf
                   :
                   {
                     $clone_cfg
 
-                    $* fox ?libbaz ?libbuz 2>&1 | $filter 2>>~%EOE%
+                    $* fox ?libbaz ?libbuz 2>&1 != 0 | $filter 2>>~%EOE%
                       %.*
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34106,7 +34107,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34129,7 +34130,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34155,54 +34156,16 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                      trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                      trace: pkg_build: refine package collection/plan execution from scratch
-                      trace: collect_build: add fox/2.0.0
-                      trace: collect_build_prerequisites: begin fox/2.0.0
-                      trace: collect_build: add buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                      trace: collect_build_prerequisites: begin buz/1.0.0
-                      trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                        info: dependency alternative: libbaz <= 1.0.0
-                      trace: collect_build_prerequisites: postpone buz/1.0.0
-                      trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                      trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                      trace: collect_build_prerequisites: end fox/2.0.0
-                      trace: collect_build_postponed (0): begin
-                      trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                      trace: collect_build_prerequisites: resume buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                      trace: collect_build_prerequisites: begin libbuz/1.0.0
-                      trace: collect_build_prerequisites: end libbuz/1.0.0
-                      trace: collect_build_prerequisites: end buz/1.0.0
-                      trace: collect_build_postponed (0): end
-                      trace: execute_plan: simulate: yes
-                      %.*
-                      build plan:
-                        new libbuz/1.0.0 (required by buz)
-                        new buz/1.0.0 (required by fox)
-                        new fox/2.0.0
-                      trace: execute_plan: simulate: no
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                      error: dependency constraining cycle detected
+                        info: when applying constraint removes dependency from dependent's dependency tree
+                        info: and ignoring constraint adds dependency to dependent's dependency tree
+                        info: involved dependency constraint (fox/2.0.0 : libbaz)
                       %.*
                       EOE
-
-                    $pkg_status -r >>EOO
-                      !fox configured 2.0.0
-                        buz configured 1.0.0
-                          libbuz configured 1.0.0
-                      EOO
-
-                    cat cfg/fox-2.0.0/build/config.build >>~%EOO%
-                      %.*
-                      config.fox.libbaz = false
-                      EOO
-
-                    $pkg_drop fox
                   }
 
-                  : unres
+                  : dep-conf
                   :
                   {
                     $clone_cfg
@@ -34231,7 +34194,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34257,7 +34220,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34279,7 +34242,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34305,31 +34268,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                      trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                      trace: pkg_build: refine package collection/plan execution from scratch
-                      trace: collect_build: add fox/2.0.0
-                      trace: collect_build_prerequisites: begin fox/2.0.0
-                      trace: collect_build: add buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                      trace: collect_build_prerequisites: begin buz/1.0.0
-                      trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                        info: dependency alternative: libbaz <= 1.0.0
-                      trace: collect_build_prerequisites: postpone buz/1.0.0
-                      trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                      trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                      trace: collect_build_prerequisites: end fox/2.0.0
-                      trace: collect_build_postponed (0): begin
-                      trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                      trace: collect_build_prerequisites: resume buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/1.0.0
-                      trace: collect_build_prerequisites: skip configured libbaz/1.0.0
-                      trace: collect_build_prerequisites: end buz/1.0.0
-                      trace: collect_build_postponed (0): end
-                      trace: execute_plan: simulate: yes
-                      %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -34340,7 +34279,230 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     $pkg_drop libbaz
                   }
 
-                  : unres-downgrd
+                  : noalt
+                  :
+                  {{
+                    +$clone_cfg
+
+                    : unsat
+                    {
+                      $clone_cfg
+
+                      $* fox/2.0.0 ?buz/0.5.0 2>&1 != 0 | $filter 2>>~%EOE%
+                        %.*
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/2.0.0
+                        trace: collect_build_prerequisites: begin fox/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive initially
+                        trace: collect_build_prerequisites: end fox/2.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                        trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/2.0.0
+                        trace: collect_build_prerequisites: begin fox/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
+                        trace: collect_build: postpone failure for dependent fox unsatisfied with dependency libbaz/1.0.0 (> 1.0.0)
+                        trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: end fox/2.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: pkg_build: try to replace unsatisfactory dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependent: try to replace unsatisfied dependent fox/2.0.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replacement of unsatisfied dependent version fox/2.0.0 is denied since it is specified on command line as 'fox == 2.0.0'
+                        trace: try_replace_dependent: try to replace conflicting dependent buz/0.5.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replacement of conflicting dependent version buz/0.5.0 is denied since it is specified on command line as '?buz == 0.5.0'
+                        error: unable to satisfy constraints on package libbaz
+                          info: fox/2.0.0 constrains (libbaz > 1.0.0)
+                                  command line requires (fox == 2.0.0)
+                          info: buz/0.5.0 depends on (libbaz <= 1.0.0)
+                                  command line requires (buz == 0.5.0)
+                          info: available libbaz/2.0.0
+                          info: available libbaz/1.0.0
+                          info: while satisfying fox/2.0.0
+                          info: explicitly specify libbaz version to manually satisfy both constraints
+                        %.*
+                        EOE
+                    }
+
+                    : sat
+                    :
+                    {
+                      $clone_cfg
+
+                      $* fox ?buz/0.5.0 2>&1 | $filter 2>>~%EOE%
+                        %.*
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/2.0.0
+                        trace: collect_build_prerequisites: begin fox/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive initially
+                        trace: collect_build_prerequisites: end fox/2.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                        trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/2.0.0
+                        trace: collect_build_prerequisites: begin fox/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
+                        trace: collect_build: postpone failure for dependent fox unsatisfied with dependency libbaz/1.0.0 (> 1.0.0)
+                        trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: end fox/2.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: pkg_build: try to replace unsatisfactory dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependent: try to replace unsatisfied dependent fox/2.0.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replace unsatisfied dependent version fox/2.0.0 with 1.5.0 by adding constraint 'fox' -> 'fox == 1.5.0' on command line
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/1.5.0
+                        trace: collect_build_prerequisites: begin fox/1.5.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/1.5.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed inactive initially
+                        trace: collect_build_prerequisites: end fox/1.5.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                        trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/1.5.0
+                        trace: collect_build_prerequisites: begin fox/1.5.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/1.5.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
+                        trace: collect_build: postpone failure for dependent fox unsatisfied with dependency libbaz/1.0.0 (> 1.0.0)
+                        trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
+                        trace: collect_build_prerequisites: cannot cfg-postpone dependency libbaz/1.0.0 of dependent fox/1.5.0 (collected prematurely), throwing postpone_dependency
+                        trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/1.5.0
+                        trace: collect_build_prerequisites: begin fox/1.5.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/1.5.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
+                        trace: collect_build: postpone failure for dependent fox unsatisfied with dependency libbaz/1.0.0 (> 1.0.0)
+                        trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
+                        trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent fox/1.5.0
+                        trace: postponed_configurations::add: create {fox | libbaz->{fox/2,1}}
+                        trace: collect_build_prerequisites: postpone fox/1.5.0
+                        trace: collect_build_postponed (0): begin
+                        trace: collect_build_postponed (1): begin {fox | libbaz->{fox/2,1}}
+                        trace: collect_build_postponed (1): cfg-negotiate begin {fox | libbaz->{fox/2,1}}
+                        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+                        trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.5.0
+                        trace: collect_build_prerequisites: resume fox/1.5.0
+                        trace: collect_build_prerequisites: end fox/1.5.0
+                        trace: collect_build_postponed (1): cfg-negotiate end {fox | libbaz->{fox/2,1}}!
+                        trace: collect_build_postponed (1): end {fox | libbaz->{fox/2,1}}
+                        trace: collect_build_postponed (0): end
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: pkg_build: try to replace unsatisfactory dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependent: try to replace unsatisfied dependent fox/1.5.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replacement of unsatisfied dependent version fox/1.5.0 is denied since it is specified on command line as 'fox == 1.5.0'
+                        trace: try_replace_dependent: try to replace conflicting dependent buz/0.5.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replacement of conflicting dependent version buz/0.5.0 is denied since it is specified on command line as '?buz == 0.5.0'
+                        trace: pkg_build: cannot replace any package, rolling back latest command line adjustment ('fox' -> 'fox == 1.5.0')
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/2.0.0
+                        trace: collect_build_prerequisites: begin fox/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: begin buz/0.5.0
+                        trace: collect_build: add libbaz/1.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/0.5.0
+                        trace: collect_build_prerequisites: begin libbaz/1.0.0
+                        trace: collect_build_prerequisites: end libbaz/1.0.0
+                        trace: collect_build_prerequisites: end buz/0.5.0
+                        trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
+                        trace: collect_build: postpone failure for dependent fox unsatisfied with dependency libbaz/1.0.0 (> 1.0.0)
+                        trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent fox/2.0.0
+                        trace: collect_build_prerequisites: end fox/2.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        trace: pkg_build: try to replace unsatisfactory dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependent: try to replace unsatisfied dependent fox/2.0.0 of dependency libbaz/1.0.0 with some other version
+                        trace: try_replace_dependency: replacement fox/1.5.0 tried earlier for same command line, skipping
+                        trace: try_replace_dependency: replace unsatisfied dependent version fox/2.0.0 with 1.0.0 by adding constraint 'fox' -> 'fox == 1.0.0' on command line
+                        trace: pkg_build: refine package collection/plan execution from scratch
+                        trace: collect_build: add fox/1.0.0
+                        trace: collect_build_prerequisites: begin fox/1.0.0
+                        trace: collect_build: add libbaz/2.0.0
+                        trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent fox/1.0.0
+                        trace: collect_build_prerequisites: begin libbaz/2.0.0
+                        trace: collect_build_prerequisites: end libbaz/2.0.0
+                        trace: collect_build_prerequisites: end fox/1.0.0
+                        trace: execute_plan: simulate: yes
+                        %.*
+                        build plan:
+                          new libbaz/2.0.0 (required by fox)
+                          new fox/1.0.0
+                        trace: execute_plan: simulate: no
+                        %.*
+                        EOE
+
+                      $pkg_status -r >>EOO
+                        !fox configured 1.0.0 available 2.0.0 1.5.0
+                          libbaz configured 2.0.0
+                        EOO
+
+                      cat cfg/libbaz-2.0.0/build/config.build >>~%EOO%
+                        %.*
+                        config.libbaz.extras = false
+                        EOO
+
+                      $pkg_drop fox
+                    }
+                  }}
+
+                  : downgrd
                   :
                   {
                     $clone_cfg
@@ -34371,7 +34533,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34396,7 +34558,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34420,7 +34582,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34445,32 +34607,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                      trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                      trace: pkg_build: refine package collection/plan execution from scratch
-                      trace: collect_build: add fox/2.0.0
-                      trace: collect_build_prerequisites: begin fox/2.0.0
-                      trace: collect_build: add buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                      trace: collect_build_prerequisites: begin buz/1.0.0
-                      trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                        info: dependency alternative: libbaz <= 1.0.0
-                      trace: collect_build_prerequisites: postpone buz/1.0.0
-                      trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                      trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                      trace: collect_build_prerequisites: end fox/2.0.0
-                      trace: collect_build_postponed (0): begin
-                      trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                      trace: collect_build_prerequisites: resume buz/1.0.0
-                      warning: package buz dependency on (libbaz <= 1.0.0) is forcing downgrade of libbaz/2.0.0 to 1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/1.0.0
-                      trace: collect_build_prerequisites: begin libbaz/1.0.0
-                      trace: collect_build_prerequisites: end libbaz/1.0.0
-                      trace: collect_build_prerequisites: end buz/1.0.0
-                      trace: collect_build_postponed (0): end
-                      %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -34482,7 +34619,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                   }
 
 
-                  : unres-dpt
+                  : dpt
                   :
                   {
                     $clone_cfg
@@ -34516,7 +34653,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34546,7 +34683,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34573,7 +34710,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34603,36 +34740,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                      trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                      trace: pkg_build: refine package collection/plan execution from scratch
-                      trace: collect_build: add fox/2.0.0
-                      trace: collect_build: add libbiz/1.0.0
-                      trace: collect_build_prerequisites: begin fox/2.0.0
-                      trace: collect_build: add buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                      trace: collect_build_prerequisites: begin buz/1.0.0
-                      trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                        info: dependency alternative: libbaz <= 1.0.0
-                      trace: collect_build_prerequisites: postpone buz/1.0.0
-                      trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                      trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                      trace: collect_build_prerequisites: end fox/2.0.0
-                      trace: collect_build_prerequisites: pre-reeval libbaz/0.5.0
-                      trace: collect_build_prerequisites: pre-reevaluated libbaz/0.5.0: end reached
-                      trace: collect_build_prerequisites: begin libbiz/1.0.0
-                      trace: collect_build_prerequisites: end libbiz/1.0.0
-                      trace: collect_build_postponed (0): begin
-                      trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                      trace: collect_build_prerequisites: resume buz/1.0.0
-                      trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/0.5.0 of dependent buz/1.0.0
-                      trace: collect_build_prerequisites: skip configured libbaz/0.5.0
-                      trace: collect_build_prerequisites: end buz/1.0.0
-                      trace: collect_build_postponed (0): end
-                      trace: execute_plan: simulate: yes
-                      %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is stashed as cycled
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                       error: dependency constraining cycle detected
                         info: when applying constraint removes dependency from dependent's dependency tree
                         info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -34673,7 +34781,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                       trace: collect_build_postponed (0): end
                       trace: execute_plan: simulate: yes
                       %.*
-                      trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                      trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                       trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                       trace: pkg_build: refine package collection/plan execution from scratch
                       trace: collect_build: add fox/2.0.0
@@ -34702,7 +34810,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 {
                   $clone_cfg
 
-                  $* fox libfoo ?libbaz ?libbuz 2>&1 | $filter 2>>~%EOE%
+                  $* fox libfoo ?libbaz ?libbuz 2>&1 != 0 | $filter 2>>~%EOE%
                     %.*
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -34764,8 +34872,8 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (libfoo/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (libfoo/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -34808,7 +34916,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -34843,7 +34951,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -34886,999 +34994,13 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                    trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/2.0.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/1.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libfoo/2.0.0
-                    trace: collect_build_prerequisites: end libfoo/2.0.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: try to replace unsatisfactory dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependent: try to replace unsatisfied dependent libfoo/2.0.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replace unsatisfied dependent version libfoo/2.0.0 with 1.5.0 by adding constraint 'libfoo' -> 'libfoo == 1.5.0' on command line
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive initially
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed inactive initially
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build: libbaz/2.0.0 package version needs to be replaced with libbaz/1.0.0
-                    trace: pkg_build: collection failed due to package version replacement, retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (libfoo/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cannot cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0 (collected prematurely), throwing postpone_dependency
-                    trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                    trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/1.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: try to replace unsatisfactory dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependent: try to replace unsatisfied dependent libfoo/1.5.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replacement of unsatisfied dependent version libfoo/1.5.0 is denied since it is specified on command line as 'libfoo == 1.5.0'
-                    trace: try_replace_dependent: try to replace conflicting dependent fox/2.0.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replace conflicting dependent version fox/2.0.0 with 1.5.0 by adding constraint 'fox' -> 'fox == 1.5.0' on command line
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed inactive initially
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build: libbaz/2.0.0 package version needs to be replaced with libbaz/1.0.0
-                    trace: pkg_build: collection failed due to package version replacement, retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cannot cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0 (collected prematurely), throwing postpone_dependency
-                    trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/1.5.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent fox/1.5.0
-                    trace: postponed_configurations::add: create {fox | libbaz->{fox/2,1}}
-                    trace: collect_build_prerequisites: postpone fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: add {libfoo 2,1: libbaz} to {fox | libbaz->{fox/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {fox libfoo | libbaz->{fox/2,1 libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {fox libfoo | libbaz->{fox/2,1 libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.5.0
-                    trace: collect_build_prerequisites: resume fox/1.5.0
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {fox libfoo | libbaz->{fox/2,1 libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {fox libfoo | libbaz->{fox/2,1 libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.5.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.5.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                    trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                    trace: collect_build_prerequisites: end fox/1.5.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/1.5.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/1.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: try to replace unsatisfactory dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependent: try to replace unsatisfied dependent libfoo/1.5.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replacement of unsatisfied dependent version libfoo/1.5.0 is denied since it is specified on command line as 'libfoo == 1.5.0'
-                    trace: try_replace_dependent: try to replace conflicting dependent fox/1.5.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replacement of conflicting dependent version fox/1.5.0 is denied since it is specified on command line as 'fox == 1.5.0'
-                    trace: pkg_build: cannot replace any package, rolling back latest command line adjustment ('fox' -> 'fox == 1.5.0')
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive initially
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build: libbaz/2.0.0 package version needs to be replaced with libbaz/1.0.0
-                    trace: pkg_build: collection failed due to package version replacement, retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cannot cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0 (collected prematurely), throwing postpone_dependency
-                    trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed inactive as per cache
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                    trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/2.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/2.0.0
-                    trace: collect_build: add buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                    trace: collect_build_prerequisites: begin buz/1.0.0
-                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                      info: dependency alternative: libbaz <= 1.0.0
-                    trace: collect_build_prerequisites: postpone buz/1.0.0
-                    trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                    trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                    trace: collect_build_prerequisites: end fox/2.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement to 1.0.0 is denied since fox/2.0.0 constrains (libbaz > 1.0.0)
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: apply version replacement for libbaz/1.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build: postpone failure for dependent libfoo unsatisfied with dependency libbaz/2.0.0 (== 1.0.0)
-                    trace: collect_build: pick libbaz/2.0.0 over libbaz/1.0.0
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/2.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
-                    trace: collect_build_prerequisites: resume buz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                    trace: collect_build_prerequisites: begin libbuz/1.0.0
-                    trace: collect_build_prerequisites: end libbuz/1.0.0
-                    trace: collect_build_prerequisites: end buz/1.0.0
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: try to replace unsatisfactory dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependent: try to replace unsatisfied dependent libfoo/1.5.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replacement of unsatisfied dependent version libfoo/1.5.0 is denied since it is specified on command line as 'libfoo == 1.5.0'
-                    trace: try_replace_dependent: try to replace conflicting dependent fox/2.0.0 of dependency libbaz/2.0.0 with some other version
-                    trace: try_replace_dependency: replacement fox/1.5.0 tried earlier for same command line, skipping
-                    trace: try_replace_dependency: replace conflicting dependent version fox/2.0.0 with 1.0.0 by adding constraint 'fox' -> 'fox == 1.0.0' on command line
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent fox/1.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end fox/1.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build: libbaz/2.0.0 package version needs to be replaced with libbaz/1.0.0
-                    trace: pkg_build: collection failed due to package version replacement, retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent fox/1.0.0
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_prerequisites: end fox/1.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cannot cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0 (collected prematurely), throwing postpone_dependency
-                    trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.0.0
-                    trace: collect_build: add libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin fox/1.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent fox/1.0.0
-                    trace: collect_build_prerequisites: end fox/1.0.0
-                    trace: collect_build_prerequisites: begin libfoo/1.5.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build_prerequisites: dep-postpone dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/1.5.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: cfg-postpone dependency libbaz/1.0.0 of dependent libfoo/1.5.0
-                    trace: postponed_configurations::add: create {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_prerequisites: postpone libfoo/1.5.0
-                    trace: collect_build_postponed (0): begin
-                    trace: collect_build_postponed (1): begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): cfg-negotiate begin {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
-                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent libfoo/1.5.0
-                    trace: collect_build_prerequisites: resume libfoo/1.5.0
-                    trace: collect_build_prerequisites: end libfoo/1.5.0
-                    trace: collect_build_postponed (1): cfg-negotiate end {libfoo | libbaz->{libfoo/2,1}}!
-                    trace: collect_build_postponed (1): end {libfoo | libbaz->{libfoo/2,1}}
-                    trace: collect_build_postponed (0): end
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: start command line adjustments refinement cycle by rolling back first adjustment ('libfoo' -> 'libfoo == 1.5.0')
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.0.0
-                    trace: collect_build: add libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin fox/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent fox/1.0.0
-                    trace: collect_build_prerequisites: begin libbaz/2.0.0
-                    trace: collect_build_prerequisites: end libbaz/2.0.0
-                    trace: collect_build_prerequisites: end fox/1.0.0
-                    trace: collect_build_prerequisites: begin libfoo/2.0.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build: libbaz/2.0.0 package version needs to be replaced with libbaz/1.0.0
-                    trace: pkg_build: collection failed due to package version replacement, retry from scratch
-                    trace: pkg_build: refine package collection/plan execution from scratch
-                    trace: collect_build: add fox/1.0.0
-                    trace: collect_build: add libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin fox/1.0.0
-                    trace: collect_build: apply version replacement for libbaz/2.0.0
-                    trace: collect_build: replacement: libbaz/1.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent fox/1.0.0
-                    trace: collect_build_prerequisites: begin libbaz/1.0.0
-                    trace: collect_build_prerequisites: end libbaz/1.0.0
-                    trace: collect_build_prerequisites: end fox/1.0.0
-                    trace: collect_build_prerequisites: begin libfoo/2.0.0
-                    trace: collect_build: add libbar/3.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbar/3.0.0 of dependent libfoo/2.0.0
-                    trace: collect_build_prerequisites: begin libbar/3.0.0
-                    trace: collect_build: pick libbaz/1.0.0 over libbaz/2.0.0
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libbar/3.0.0
-                    trace: collect_build_prerequisites: end libbar/3.0.0
-                    trace: collect_build_prerequisites: dependency constraint (libfoo/2.0.0 : libbaz) is assumed active as per cache
-                    trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/1.0.0 of dependent libfoo/2.0.0
-                    trace: collect_build_prerequisites: end libfoo/2.0.0
-                    trace: execute_plan: simulate: yes
-                    %.*
-                    trace: pkg_build: command line adjustment 'libfoo' -> 'libfoo == 1.5.0' is redundant, dropping it
-                    build plan:
-                      new libbaz/1.0.0 (required by fox, libbar, libfoo)
-                      new fox/1.0.0
-                      new libbar/3.0.0 (required by libfoo)
-                      new libfoo/2.0.0
-                        config.libfoo.libbaz=true (set by libfoo)
-                    trace: execute_plan: simulate: no
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                    error: dependency constraining cycle detected
+                      info: when applying constraint removes dependency from dependent's dependency tree
+                      info: and ignoring constraint adds dependency to dependent's dependency tree
+                      info: involved dependency constraint (fox/2.0.0 : libbaz)
                     %.*
                     EOE
-
-                  $pkg_status -r >>EOO
-                    !fox configured 1.0.0 available 2.0.0 1.5.0
-                      libbaz configured 1.0.0 available 2.0.0
-                    !libfoo configured 2.0.0
-                      libbar configured 3.0.0
-                        libbaz configured 1.0.0 available 2.0.0
-                      ?libbaz configured 1.0.0 available 2.0.0
-                    EOO
-
-                  cat cfg/libfoo-2.0.0/build/config.build >>~%EOO%
-                    %.*
-                    config.libfoo.libbaz = true
-                    EOO
-
-                  cat cfg/libbaz-1.0.0/build/config.build >>~%EOO%
-                    %.*
-                    config.libbaz.extras = false
-                    EOO
-
-                  $pkg_drop fox libfoo
                 }
               }}
 
@@ -35953,7 +35075,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -36001,7 +35123,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/1.5.0
@@ -36040,6 +35162,92 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: try_replace_dependent: try to replace unsatisfied dependent fox/1.5.0 of dependency sys:libbaz/1.0.0 with some other version
                     trace: try_replace_dependency: replacement of unsatisfied dependent version fox/1.5.0 is denied since it is specified on command line as 'fox == 1.5.0'
                     trace: try_replace_dependent: try to replace unsatisfiable dependent buz/1.0.0 of dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replace unsatisfiable dependent version buz/1.0.0 with 0.5.0 by adding package spec '?buz == 0.5.0' to command line
+                    trace: pkg_build: refine package collection/plan execution from scratch
+                    trace: collect_build: add fox/1.5.0
+                    trace: collect_build_prerequisites: begin fox/1.5.0
+                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/1.5.0
+                    trace: collect_build_prerequisites: begin buz/0.5.0
+                    trace: collect_build_prerequisites: no cfg-clause for dependency sys:libbaz/1.0.0 of dependent buz/0.5.0
+                    trace: collect_build_prerequisites: skip system sys:libbaz/1.0.0
+                    trace: collect_build_prerequisites: end buz/0.5.0
+                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
+                    trace: collect_build: postpone failure for dependent fox unsatisfied with dependency sys:libbaz/1.0.0 (> 1.0.0)
+                    trace: collect_build: pick sys:libbaz/1.0.0 over libbaz/2.0.0
+                    trace: collect_build_prerequisites: cannot cfg-postpone dependency sys:libbaz/1.0.0 of dependent fox/1.5.0 (collected prematurely), throwing postpone_dependency
+                    trace: pkg_build: collection failed due to prematurely collected dependency (libbaz), retry from scratch
+                    trace: pkg_build: refine package collection/plan execution from scratch
+                    trace: collect_build: add fox/1.5.0
+                    trace: collect_build_prerequisites: begin fox/1.5.0
+                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/0.5.0 of dependent fox/1.5.0
+                    trace: collect_build_prerequisites: begin buz/0.5.0
+                    trace: collect_build_prerequisites: dep-postpone dependency sys:libbaz/1.0.0 of dependent buz/0.5.0
+                    trace: collect_build_prerequisites: end buz/0.5.0
+                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
+                    trace: collect_build: postpone failure for dependent fox unsatisfied with dependency sys:libbaz/1.0.0 (> 1.0.0)
+                    trace: collect_build: pick sys:libbaz/1.0.0 over libbaz/2.0.0
+                    trace: collect_build_prerequisites: cfg-postpone dependency sys:libbaz/1.0.0 of dependent fox/1.5.0
+                    trace: postponed_configurations::add: create {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_prerequisites: postpone fox/1.5.0
+                    trace: collect_build_postponed (0): begin
+                    trace: collect_build_postponed (1): begin {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (1): cfg-negotiate begin {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+                    trace: collect_build_prerequisites: skip system sys:libbaz/1.0.0
+                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.5.0
+                    trace: collect_build_prerequisites: resume fox/1.5.0
+                    trace: collect_build_prerequisites: end fox/1.5.0
+                    trace: collect_build_postponed (1): cfg-negotiate end {fox | libbaz->{fox/2,1}}!
+                    trace: collect_build_postponed (1): end {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (0): end
+                    trace: execute_plan: simulate: yes
+                    %.*
+                    trace: pkg_build: try to replace unsatisfactory dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement of unsatisfactory dependency version sys:libbaz/1.0.0 is denied since it is being configured as system
+                    trace: try_replace_dependent: try to replace unsatisfied dependent fox/1.5.0 of dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement of unsatisfied dependent version fox/1.5.0 is denied since it is specified on command line as 'fox == 1.5.0'
+                    trace: try_replace_dependent: try to replace unsatisfiable dependent buz/0.5.0 of dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement of unsatisfiable dependent version buz/0.5.0 is denied since it is specified on command line as '?buz == 0.5.0'
+                    trace: pkg_build: cannot replace any package, rolling back latest command line adjustment ('?buz == 0.5.0')
+                    trace: pkg_build: refine package collection/plan execution from scratch
+                    trace: collect_build: add fox/1.5.0
+                    trace: collect_build_prerequisites: begin fox/1.5.0
+                    trace: collect_build: add buz/1.0.0
+                    trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
+                    trace: collect_build_prerequisites: begin buz/1.0.0
+                    trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
+                      info: dependency alternative: libbaz <= 1.0.0
+                    trace: collect_build_prerequisites: postpone buz/1.0.0
+                    trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed active as per cache
+                    trace: collect_build_prerequisites: postpone failure for constraint (libbaz > 1.0.0) of dependent fox unsatisfied with user-specified constraint (libbaz == 1.0.0)
+                    trace: collect_build_prerequisites: cfg-postpone dependency sys:libbaz/1.0.0 of dependent fox/1.5.0
+                    trace: postponed_configurations::add: create {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_prerequisites: postpone fox/1.5.0
+                    trace: collect_build_postponed (0): begin
+                    trace: collect_build_postponed (1): begin {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (1): cfg-negotiate begin {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependencies
+                    trace: collect_build_prerequisites: skip system sys:libbaz/1.0.0
+                    trace: collect_build_postponed (1): recursively collect cfg-negotiated dependents
+                    trace: collect_build_postponed (1): select cfg-negotiated dependency alternative for dependent fox/1.5.0
+                    trace: collect_build_prerequisites: resume fox/1.5.0
+                    trace: collect_build_prerequisites: end fox/1.5.0
+                    trace: collect_build_postponed (1): cfg-negotiate end {fox | libbaz->{fox/2,1}}!
+                    trace: collect_build_postponed (1): index 1 collect alt-postponed buz/1.0.0
+                    trace: collect_build_prerequisites: resume buz/1.0.0
+                    trace: collect_build_prerequisites: dep-postpone dependency sys:libbaz/1.0.0 of dependent buz/1.0.0 since already in cluster {fox | libbaz->{fox/2,1}}!
+                    trace: collect_build_prerequisites: end buz/1.0.0
+                    trace: collect_build_postponed (1): end {fox | libbaz->{fox/2,1}}
+                    trace: collect_build_postponed (0): end
+                    trace: execute_plan: simulate: yes
+                    %.*
+                    trace: pkg_build: try to replace unsatisfactory dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement of unsatisfactory dependency version sys:libbaz/1.0.0 is denied since it is being configured as system
+                    trace: try_replace_dependent: try to replace unsatisfied dependent fox/1.5.0 of dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement of unsatisfied dependent version fox/1.5.0 is denied since it is specified on command line as 'fox == 1.5.0'
+                    trace: try_replace_dependent: try to replace unsatisfiable dependent buz/1.0.0 of dependency sys:libbaz/1.0.0 with some other version
+                    trace: try_replace_dependency: replacement buz/0.5.0 tried earlier for same command line, skipping
                     trace: pkg_build: cannot replace any package, rolling back latest command line adjustment ('fox' -> 'fox == 1.5.0')
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -36118,7 +35326,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                     trace: collect_build_postponed (0): end
                     trace: execute_plan: simulate: yes
                     %.*
-                    trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                    trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                     trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                     trace: pkg_build: refine package collection/plan execution from scratch
                     trace: collect_build: add fox/2.0.0
@@ -36167,7 +35375,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             {
               $clone_cfg
 
-              $* fox/1.5.0 ?libbaz ?libbuz 2>&1 | $filter 2>>~%EOE%
+              $* fox/1.5.0 ?libbaz ?libbuz 2>&1 != 0 | $filter 2>>~%EOE%
                 %.*
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36190,7 +35398,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36226,7 +35434,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36249,7 +35457,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36285,51 +35493,13 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fox/1.5.0
-                trace: collect_build_prerequisites: begin fox/1.5.0
-                trace: collect_build: add buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                trace: collect_build_prerequisites: begin buz/1.0.0
-                trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                  info: dependency alternative: libbaz <= 1.0.0
-                trace: collect_build_prerequisites: postpone buz/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                trace: collect_build_prerequisites: end fox/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                trace: collect_build_prerequisites: resume buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                trace: collect_build_prerequisites: begin libbuz/1.0.0
-                trace: collect_build_prerequisites: end libbuz/1.0.0
-                trace: collect_build_prerequisites: end buz/1.0.0
-                trace: collect_build_postponed (0): end
-                trace: execute_plan: simulate: yes
-                %.*
-                build plan:
-                  new libbuz/1.0.0 (required by buz)
-                  new buz/1.0.0 (required by fox)
-                  new fox/1.5.0
-                trace: execute_plan: simulate: no
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                error: dependency constraining cycle detected
+                  info: when applying constraint removes dependency from dependent's dependency tree
+                  info: and ignoring constraint adds dependency to dependent's dependency tree
+                  info: involved dependency constraint (fox/1.5.0 : libbaz)
                 %.*
                 EOE
-
-              $pkg_status -r >>EOO
-                !fox configured !1.5.0 available 2.0.0
-                  buz configured 1.0.0
-                    libbuz configured 1.0.0
-                EOO
-
-              cat cfg/fox-1.5.0/build/config.build >>~%EOO%
-                %.*
-                config.fox.libbaz = false
-                EOO
-
-              $pkg_drop fox
             }
           }}
 
@@ -36345,7 +35515,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
               $* fox/1.0.0 --verbose 1 2>!
 
-              $* fox ?libbaz ?libbuz 2>&1 | $filter 2>>~%EOE%
+              $* fox ?libbaz ?libbuz 2>&1 != 0 | $filter 2>>~%EOE%
                 %.*
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/2.0.0
@@ -36370,7 +35540,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/2.0.0
@@ -36394,7 +35564,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/2.0.0
@@ -36419,7 +35589,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/2.0.0
@@ -36443,56 +35613,13 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fox/2.0.0
-                trace: collect_build_prerequisites: begin fox/2.0.0
-                trace: collect_build: add buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/2.0.0
-                trace: collect_build_prerequisites: begin buz/1.0.0
-                trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                  info: dependency alternative: libbaz <= 1.0.0
-                trace: collect_build_prerequisites: postpone buz/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fox/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                trace: collect_build_prerequisites: end fox/2.0.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                trace: collect_build_prerequisites: resume buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                trace: collect_build_prerequisites: begin libbuz/1.0.0
-                trace: collect_build_prerequisites: end libbuz/1.0.0
-                trace: collect_build_prerequisites: end buz/1.0.0
-                trace: collect_build_postponed (0): end
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: evaluate_dependency: libbaz/2.0.0: unused
-                trace: evaluate_dependency: libbuz/1.0.0: unchanged
-                trace: pkg_build: refine package collection/plan execution
-                trace: collect_drop: overwrite libbaz
-                trace: execute_plan: simulate: yes
-                %.*
-                build plan:
-                  drop libbaz/2.0.0 (unused)
-                  new libbuz/1.0.0 (required by buz)
-                  new buz/1.0.0 (required by fox)
-                  upgrade fox/2.0.0
-                trace: execute_plan: simulate: no
+                trace: dependency_constraints::correct_states: dependency constraint (fox/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                error: dependency constraining cycle detected
+                  info: when applying constraint removes dependency from dependent's dependency tree
+                  info: and ignoring constraint adds dependency to dependent's dependency tree
+                  info: involved dependency constraint (fox/2.0.0 : libbaz)
                 %.*
                 EOE
-
-              $pkg_status -r >>EOO
-                !fox configured 2.0.0
-                  buz configured 1.0.0
-                    libbuz configured 1.0.0
-                EOO
-
-              cat cfg/fox-2.0.0/build/config.build >>~%EOO%
-                %.*
-                config.fox.libbaz = false
-                EOO
 
               $pkg_drop fox
             }
@@ -36504,7 +35631,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
               $* fox/1.0.0 --verbose 1 2>!
 
-              $* fox/1.5.0 ?libbaz ?libbuz 2>&1 | $filter 2>>~%EOE%
+              $* fox/1.5.0 ?libbaz ?libbuz 2>&1 != 0 | $filter 2>>~%EOE%
                 %.*
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36541,7 +35668,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36565,7 +35692,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36602,7 +35729,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fox/1.5.0
@@ -36626,56 +35753,13 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fox/1.5.0
-                trace: collect_build_prerequisites: begin fox/1.5.0
-                trace: collect_build: add buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency buz/1.0.0 of dependent fox/1.5.0
-                trace: collect_build_prerequisites: begin buz/1.0.0
-                trace: collect_build_prerequisites: alt-postpone dependent buz/1.0.0 since max index is reached: 0
-                  info: dependency alternative: libbaz <= 1.0.0
-                trace: collect_build_prerequisites: postpone buz/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fox/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: merge version constraint only libbaz into pre-entered
-                trace: collect_build_prerequisites: end fox/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): index 1 collect alt-postponed buz/1.0.0
-                trace: collect_build_prerequisites: resume buz/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbuz/1.0.0 of dependent buz/1.0.0
-                trace: collect_build_prerequisites: begin libbuz/1.0.0
-                trace: collect_build_prerequisites: end libbuz/1.0.0
-                trace: collect_build_prerequisites: end buz/1.0.0
-                trace: collect_build_postponed (0): end
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: evaluate_dependency: libbaz/2.0.0: unused
-                trace: evaluate_dependency: libbuz/1.0.0: unchanged
-                trace: pkg_build: refine package collection/plan execution
-                trace: collect_drop: overwrite libbaz
-                trace: execute_plan: simulate: yes
-                %.*
-                build plan:
-                  drop libbaz/2.0.0 (unused)
-                  new libbuz/1.0.0 (required by buz)
-                  new buz/1.0.0 (required by fox)
-                  upgrade fox/1.5.0
-                trace: execute_plan: simulate: no
+                trace: dependency_constraints::correct_states: dependency constraint (fox/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                error: dependency constraining cycle detected
+                  info: when applying constraint removes dependency from dependent's dependency tree
+                  info: and ignoring constraint adds dependency to dependent's dependency tree
+                  info: involved dependency constraint (fox/1.5.0 : libbaz)
                 %.*
                 EOE
-
-              $pkg_status -r >>EOO
-                !fox configured !1.5.0 available 2.0.0
-                  buz configured 1.0.0
-                    libbuz configured 1.0.0
-                EOO
-
-              cat cfg/fox-1.5.0/build/config.build >>~%EOO%
-                %.*
-                config.fox.libbaz = false
-                EOO
 
               $pkg_drop fox
             }
@@ -36714,7 +35798,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -36733,7 +35817,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : bux) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : bux) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -36780,7 +35864,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -36808,7 +35892,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -36855,36 +35939,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/2.0.0
-                trace: collect_build_prerequisites: begin fix/2.0.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency bux/1.0.0 of dependent fix/2.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/2.0.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): erase bogus postponement bux
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/2.0.0
-                trace: collect_build_prerequisites: begin fix/2.0.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/2.0.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: begin libbaz/2.0.0
-                trace: collect_build_prerequisites: end libbaz/2.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/2.0.0
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is stashed as cycled
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -36915,7 +35970,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/1.5.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -36960,7 +36015,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : bux) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : bux) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37026,7 +36081,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37069,7 +36124,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/1.5.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37149,51 +36204,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): erase bogus postponement bux
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): erase bogus postponement libbaz
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: begin libbaz/2.0.0
-                trace: collect_build_prerequisites: end libbaz/2.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is stashed as cycled
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -37233,7 +36244,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : bux) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : bux) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -37278,7 +36289,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -37305,7 +36316,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/2.0.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/2.0.0
@@ -37350,35 +36361,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/2.0.0
-                trace: collect_build_prerequisites: begin fix/2.0.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency bux/1.0.0 of dependent fix/2.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/2.0.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): erase bogus postponement bux
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/2.0.0
-                trace: collect_build_prerequisites: begin fix/2.0.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/2.0.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: skip configured libbaz/2.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/2.0.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/2.0.0
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/2.0.0 : libbaz) is stashed as cycled
+                trace: dependency_constraints::correct_states: dependency constraint (fix/2.0.0 : libbaz) is wrongfully assumed active, correcting
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree
@@ -37441,7 +36424,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : bux) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : bux) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37508,7 +36491,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37551,7 +36534,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_prerequisites: end fix/1.5.0
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed inactive, correcting
                 trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
                 trace: pkg_build: refine package collection/plan execution from scratch
                 trace: collect_build: add fix/1.5.0
@@ -37631,51 +36614,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
                 trace: collect_build_postponed (0): end
                 trace: execute_plan: simulate: yes
                 %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only to prevent dependency constraining cycle
-                trace: pkg_build: dependency constraints states corrected, re-collecting from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): erase bogus postponement bux
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: dep-postpone dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: collect_build_postponed (0): begin
-                trace: collect_build_postponed (0): skip being built existing dependent fix of dependency libbaz
-                trace: collect_build_postponed (0): erase bogus postponement libbaz
-                trace: collect_build_postponed (0): bogus postponements erased, throwing
-                trace: pkg_build: collection failed due to bogus dependency collection postponement cancellation, retry from scratch
-                trace: pkg_build: refine package collection/plan execution from scratch
-                trace: collect_build: add fix/1.5.0
-                trace: collect_build_prerequisites: begin fix/1.5.0
-                trace: collect_build: add bux/1.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency bux/1.0.0 of dependent fix/1.5.0
-                trace: collect_build_prerequisites: begin bux/1.0.0
-                trace: collect_build: add libbaz/2.0.0
-                trace: collect_build_prerequisites: no cfg-clause for dependency libbaz/2.0.0 of dependent bux/1.0.0
-                trace: collect_build_prerequisites: skip configured libbaz/2.0.0
-                trace: collect_build_prerequisites: end bux/1.0.0
-                trace: collect_build_prerequisites: dependency constraint (fix/1.5.0 : libbaz) is assumed version_constraint_only as per cache
-                trace: collect_build_prerequisites: end fix/1.5.0
-                trace: execute_plan: simulate: yes
-                %.*
-                trace: dependency_constraints::collect_dependents: dependency constraint (fix/1.5.0 : libbaz) is stashed as cycled
+                trace: dependency_constraints::correct_states: dependency constraint (fix/1.5.0 : libbaz) is wrongfully assumed active, correcting
                 error: dependency constraining cycle detected
                   info: when applying constraint removes dependency from dependent's dependency tree
                   info: and ignoring constraint adds dependency to dependent's dependency tree

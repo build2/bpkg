@@ -290,11 +290,9 @@ namespace bpkg
     //
     assert (db == p.db);
 
-    // We don't merge into pre-entered objects, unless they are both
-    // pre-entered. We also don't merge from/into drops.
+    // We don't merge into pre-entered objects, and from/into drops.
     //
-    assert ((!action && !p.action) ||
-            (action && *action != drop && (!p.action || *p.action != drop)));
+    assert (action && *action != drop && (!p.action || *p.action != drop));
 
     // We never merge two repointed dependent reconfigurations.
     //
@@ -420,7 +418,7 @@ namespace bpkg
 
     // Don't reset the flags when merge a pre-entered entry into the build.
     //
-    if (action && *action == build && p.action)
+    if (*action == build && p.action)
     {
       flags &= ~build_repoint;
 
@@ -736,9 +734,8 @@ namespace bpkg
   {
     switch (s)
     {
-    case dependency_constraint_state::active:                  return "active";
-    case dependency_constraint_state::inactive:                return "inactive";
-    case dependency_constraint_state::version_constraint_only: return "version_constraint_only";
+    case dependency_constraint_state::active:   return "active";
+    case dependency_constraint_state::inactive: return "inactive";
     }
 
     assert (false); // Can't be here.
@@ -756,9 +753,6 @@ namespace bpkg
 
     vector<pair<const package_version_key*,
                 dependency_constraint_dependency*>> corrected;
-
-    vector<pair<const package_version_key*,
-                const dependency_constraint_dependency*>> cycled;
 
     // Copy the checksum calculation state.
     //
@@ -780,6 +774,8 @@ namespace bpkg
       {
         for (dependency_constraint_dependency& dep: dc.second)
         {
+          dependency_constraint_state& s (dep.state);
+
           bool active (
             indirect_prerequisite (
               dep.name,
@@ -787,76 +783,46 @@ namespace bpkg
               sp->prerequisites,
               nullptr /* find_package_prerequisites_function */));
 
-          dependency_constraint_state& s (dep.state);
+          dependency_constraint_state actual_state (
+            active
+            ? dependency_constraint_state::active
+            : dependency_constraint_state::inactive);
 
-          bool assumed_active (s == dependency_constraint_state::active);
-
-          if (assumed_active != active)
+          if (s != actual_state)
           {
-            if (s == dependency_constraint_state::version_constraint_only)
-            {
-              l5 ([&]{trace << "dependency constraint (" << dep.string (dpt)
-                            << ") is stashed as cycled";});
+            l5 ([&]{trace << "dependency constraint (" << dep.string (dpt)
+                          << ") is wrongfully assumed " << s
+                          << ", correcting";});
 
-              cycled.push_back (make_pair (&dpt, &dep));
-            }
-            else
-            {
-              l5 ([&]{trace << "dependency constraint (" << dep.string (dpt)
-                            << ") is wrongfully assumed " << s
-                            << ", correcting";});
+            // Calculate the state change checksum.
+            //
+            dpt.to_checksum (cs);
+            dep.to_checksum (cs);
+            cs.append (static_cast<uint8_t> (actual_state));
 
-              // Calculate the correct state.
-              //
-              dependency_constraint_state ns (
-                active
-                ? dependency_constraint_state::active
-                : dependency_constraint_state::inactive);
+            // Correct the state and add it to the corrections list.
+            //
+            s = actual_state;
 
-              // Calculate the state change checksum.
-              //
-              dpt.to_checksum (cs);
-              dep.to_checksum (cs);
-              cs.append (static_cast<uint8_t> (ns));
-
-              // Correct the state and add it to the corrections list.
-              //
-              s = ns;
-
-              corrected.push_back (make_pair (&dpt, &dep));
-            }
+            corrected.push_back (make_pair (&dpt, &dep));
           }
         }
       }
     }
 
     // If any constraint states were corrected, then go with them if the
-    // change set have never been tried before. Otherwise, assume cycling and
-    // turn all the states into version_constraint_only.
+    // change set have never been tried before. Otherwise, assume cycling,
+    // issue diagnostics, and fail.
+    //
+    // Note that we can potentially improve this by trying different
+    // correction subsets first (from largest to smallest probably). Let's,
+    // however, keep it simple for now.
     //
     if (!corrected.empty ())
     {
-      if (!former_corrections_.insert (cs.hash ()).second)
-      {
-        for (auto& c: corrected)
-        {
-          dependency_constraint_dependency& dep (*c.second);
+      if (former_corrections_.insert (cs.hash ()).second)
+        return true;
 
-          dep.state = dependency_constraint_state::version_constraint_only;
-
-          l5 ([&]{trace << "dependency constraint (" << dep.string (*c.first)
-                        << ") is assumed " << dep.state << " to prevent "
-                        << "dependency constraining cycle";});
-        }
-      }
-
-      return true;
-    }
-
-    // Fail if no states can be corrected anymore.
-    //
-    if (!cycled.empty ())
-    {
       diag_record dr (fail);
       dr << "dependency constraining cycle detected" <<
         info << "when applying constraint removes dependency from dependent's "
@@ -864,29 +830,12 @@ namespace bpkg
         info << "and ignoring constraint adds dependency to dependent's "
              << "dependency tree";
 
-      for (const auto& c: cycled)
+      for (const auto& c: corrected)
         dr << info << "involved dependency constraint ("
-                   << c.second->string (*c.first) << ')';
+           << c.second->string (*c.first) << ')';
     }
 
     return false;
-  }
-
-  void dependency_constraints::
-  erase (dependency_constraint_state s)
-  {
-    for (auto& dc: *this)
-    {
-      small_vector<dependency_constraint_dependency, 2>& dcs (dc.second);
-
-      for (auto i (dcs.begin ()); i != dcs.end (); )
-      {
-        if (i->state == s)
-          i = dcs.erase (i);
-        else
-          ++i;
-      }
-    }
   }
 
   // unsatisfied_dependents
@@ -2793,25 +2742,6 @@ namespace bpkg
       //
       build_package::dependency_alternatives_refs edas;
 
-      // For an enabled dependency constraint make an assumption if it is
-      // active (dependency package is in the dependent's dependency tree) or
-      // not. If the constrained dependency is in the dependency constraints
-      // states cache, then use that. Otherwise, if the dependent is
-      // configured as source, then use its prerequisites map. Otherwise,
-      // assume the constraint is inactive. Save the assumed constraint state
-      // to the cache, unless it is already there.
-      //
-      // Note that if an enabled dependency constraint is cached with the
-      // version_constraint_only state and this dependency constraint has the
-      // version constraint specified, then we will collect this package in
-      // the version_constraint_only mode. Specifically, we will only
-      // pre-enter the dependency or collect it non-recursively, so that this
-      // version constraint get satisfied (see the collect() lambda for
-      // details). Otherwise, we will treat the dependency alternative as
-      // disabled.
-      //
-      bool version_constraint_only (false);
-
       if (pkg.postponed_dependency_alternatives)
       {
         edas = move (*pkg.postponed_dependency_alternatives);
@@ -2839,6 +2769,15 @@ namespace bpkg
           else
             enabled = true;
 
+          // For an enabled dependency constraint make an assumption if it is
+          // active (dependency package is in the dependent's dependency tree)
+          // or not. If the constrained dependency is in the dependency
+          // constraints states cache, then use that. Otherwise, if the
+          // dependent is configured as source, then use its prerequisites
+          // map. Otherwise, assume the constraint is inactive. Save the
+          // assumed constraint state to the cache, unless it is already
+          // there.
+          //
           if (das.type == dependency_alternatives_type::constraint)
           {
             package_version_key dpt (pdb, nm, ap->version);
@@ -2872,79 +2811,62 @@ namespace bpkg
                 const dependency_constraint_dependency& cd (*i);
                 dependency_constraint_state s (cd.state);
 
-                version_constraint_only =
-                  (s == dependency_constraint_state::version_constraint_only &&
-                   dep.constraint);
-
                 active = (s == dependency_constraint_state::active);
 
                 l5 ([&]{trace << "dependency constraint (" << cd.string (dpt)
                               << ") is assumed " << s << " as per cache";});
               }
+              else if (sp != nullptr                          &&
+                       sp->state == package_state::configured &&
+                       sp->substate != package_substate::system)
+              {
+                const package_prerequisites& prs (sp->prerequisites);
+
+                // Note that for a dependency configured prior to the
+                // toolchain version 0.18.0 the buildtime/runtime information
+                // is not available for dependent's prerequisites (both flags
+                // are false). For such a dependent the initial assumption for
+                // it's constraints is always "inactive".
+                //
+                active = (find_if (prs.begin (), prs.end (),
+                                   [&dep, &das] (const auto& pr)
+                                   {
+                                     return pr.first.object_id () == dep.name &&
+                                            (das.buildtime
+                                             ? pr.second.buildtime
+                                             : pr.second.runtime);
+                                   }) != prs.end ());
+
+                dependency_constraint_dependency cd (
+                  dep.name,
+                  das.buildtime,
+                  (active
+                   ? dependency_constraint_state::active
+                   : dependency_constraint_state::inactive));
+
+                l5 ([&]{trace << "dependency constraint ("
+                              << cd.string (dpt) << ") is assumed "
+                              << cd.state << " as per configured dependent "
+                              << sp->string (pdb);});
+
+                cds.push_back (move (cd));
+              }
               else
               {
-                if (sp != nullptr                          &&
-                    sp->state == package_state::configured &&
-                    sp->substate != package_substate::system)
-                {
-                  const package_prerequisites& prs (sp->prerequisites);
+                active = false;
 
-                  // Note that for a dependency configured prior to the
-                  // toolchain version 0.18.0 the buildtime/runtime
-                  // information is not available for dependent's
-                  // prerequisites (both flags are false). For such a
-                  // dependent the initial assumption for it's constraints is
-                  // always "inactive".
-                  //
-                  active = (
-                    find_if (
-                      prs.begin (), prs.end (),
-                      [&dep, &das] (const auto& pr)
-                      {
-                        return pr.first.object_id () == dep.name &&
-                               (das.buildtime
-                                ? pr.second.buildtime
-                                : pr.second.runtime);
-                      }) != prs.end ());
+                dependency_constraint_dependency cd (
+                  dep.name,
+                  das.buildtime,
+                  dependency_constraint_state::inactive);
 
-                  dependency_constraint_dependency cd (
-                    dep.name,
-                    das.buildtime,
-                    (active
-                     ? dependency_constraint_state::active
-                     : dependency_constraint_state::inactive));
+                l5 ([&]{trace << "dependency constraint (" << cd.string (dpt)
+                              << ") is assumed " << cd.state << " initially";});
 
-                  l5 ([&]{trace << "dependency constraint ("
-                                << cd.string (dpt) << ") is assumed "
-                                << cd.state << " as per configured dependent "
-                                << sp->string (pdb);});
-
-                  cds.push_back (move (cd));
-                }
-                else
-                {
-                  active = false;
-
-                  dependency_constraint_dependency cd (
-                    dep.name,
-                    das.buildtime,
-                    dependency_constraint_state::inactive);
-
-                  l5 ([&]{trace << "dependency constraint (" << cd.string (dpt)
-                                << ") is assumed " << cd.state << " initially";});
-
-                  cds.push_back (move (cd));
-                }
+                cds.push_back (move (cd));
               }
 
-              // Note that in the version_constraint_only mode we enable the
-              // dependency constraint just "temporary", until we collect the
-              // dependency package, so that its version constraint get
-              // satisfied (see the collect() lambda for details). But at the
-              // end we will add an empty alternatives list to the
-              // build_package::dependencies member.
-              //
-              enabled = (active || version_constraint_only);
+              enabled = active;
             }
           }
 
@@ -4097,7 +4019,6 @@ namespace bpkg
                       &fdb,
                       &rpt_depts,
                       &dependency_constrs,
-                      version_constraint_only,
                       &apc,
                       &replaced_vers,
                       &dep_chain,
@@ -4171,81 +4092,6 @@ namespace bpkg
                 constraints.push_back (*b.dependency_constraint);
             }
 
-            // If we are collecting a dependency constraint (the constrains
-            // manifest value) in the version_constraint_only mode, then we
-            // only need to "collect" its version constraint and the 'required
-            // by' information. If the dependency is ever collected as a build
-            // or adjustment, this information needs to be taken into account
-            // (constraint satisfied, etc). Otherwise, it needs to be ignored.
-            //
-            // Specifically, check if the constrained dependency is already in
-            // the map. If it is not, then pre-enter the constraints and the
-            // required-by information. Otherwise, if it is pre-entered, then
-            // merge the constraints and the required-by information into the
-            // pre-entered object. Otherwise, if this is a drop, then just
-            // skip the prebuild. Otherwise (this is a build or adjustment),
-            // fallback to collecting a build and bail out afterwards (do not
-            // collect the dependency recursively, etc).
-            //
-            if (version_constraint_only)
-            {
-              assert (!constraints.empty ()); // Wouldn't be here otherwise.
-
-              package_key pk (b.db, b.dependency);
-              build_package* p (entered_build (pk));
-
-              if (p == nullptr || !p->action)
-              {
-                build_package bp {
-                  nullopt,                    // Action.
-                  pk.db,
-                  nullptr,                    // Selected package.
-                  nullptr,                    // Available package/repo fragment.
-                  nullptr,
-                  nullopt,                    // Dependencies.
-                  nullopt,                    // Dependencies alternatives.
-                  nullopt,                    // Package skeleton.
-                  nullopt,                    // Postponed dependency alternatives.
-                  false,                      // Recursive collection.
-                  nullopt,                    // Hold package.
-                  nullopt,                    // Hold version.
-                  {move (constraints)},       // Constraints.
-                  false,                      // System.
-                  false,                      // Keep output directory.
-                  false,                      // Disfigure (from-scratch reconf).
-                  false,                      // Configure-only.
-                  nullopt,                    // Checkout root.
-                  false,                      // Checkout purge.
-                  strings (),                 // Configuration variables.
-                  nullopt,                    // Upgrade.
-                  false,                      // Deorphan.
-                  {move (pvk)},               // Required by (dependent).
-                  true,                       // Required by dependents.
-                  0};                         // State flags.
-
-                if (p == nullptr)
-                {
-                  enter (pk.name, move (bp));
-
-                  l5 ([&]{trace << "pre-enter version constraint only " << pk;});
-                }
-                else
-                {
-                  p->merge (move (bp));
-
-                  l5 ([&]{trace << "merge version constraint only " << pk
-                                << " into pre-entered";});
-                }
-
-                break;
-              }
-              else if (*p->action == build_package::drop)
-              {
-                l5 ([&]{trace << "skip being dropped constraint only " << pk;});
-                break;
-              }
-            }
-
             build_package bpk {
               build_package::build,
               b.db,
@@ -4259,7 +4105,7 @@ namespace bpkg
               false,                      // Recursive collection.
               nullopt,                    // Hold package.
               nullopt,                    // Hold version.
-              {move (constraints)},       // Constraints.
+              {move (constraints)},
               b.system,
               false,                      // Keep output directory.
               false,                      // Disfigure (from-scratch reconf).
@@ -4399,9 +4245,6 @@ namespace bpkg
                              nullptr /* postponed_deps */,
                              nullptr /* unacceptable_alts */,
                              verify));
-
-            if (version_constraint_only)
-              break;
 
             package_key dpk (b.db, b.available->id.name);
 
@@ -5748,16 +5591,6 @@ namespace bpkg
               break;
             }
 
-            // Add an empty alternatives list into the selected dependency
-            // list in the version_constraint_only mode.
-            //
-            if (version_constraint_only)
-            {
-              sdeps.push_back (move (sdas));
-              salts.push_back (0);           // Keep parallel to sdeps.
-              break;
-            }
-
             select (da, dai, move (*pcr.builds));
           }
         }
@@ -6283,15 +6116,9 @@ namespace bpkg
       build_package& bp (i->second.package);
 
       // Don't overwrite the build object if its required-by package names
-      // have the "required by dependents" semantics, unless it is
-      // pre-entered.
+      // have the "required by dependents" semantics.
       //
-      // Note that currently only the dependency constraints pre-entered in
-      // the version_constraint_only mode can have the "required by
-      // dependents" semantics and may safely be dropped (see the collect()
-      // lambda in the collect_build_prerequisites() function for details).
-      //
-      if (!bp.required_by_dependents || !bp.action)
+      if (!bp.required_by_dependents)
       {
         if (bp.available != nullptr)
         {
@@ -8867,15 +8694,8 @@ namespace bpkg
 
     // Verify version constraints.
     //
-    // Note that a package pre-entered in the version_constraint_only mode has
-    // constraints (see the collect() lambda in the
-    // collect_build_prerequisites() function for details). Thus, we iterate
-    // over the map.
-    //
-    for (const auto& b: map_)
+    for (const build_package& bp: *this)
     {
-      const build_package& bp (b.second.package);
-
       for (const build_package::constraint& c: bp.constraints)
       {
         const package_version_key& dpt (c.dependent);
@@ -8937,8 +8757,7 @@ namespace bpkg
     //
     for (const build_package& bp: *this)
     {
-      if (bp.action                         &&
-          *bp.action != build_package::drop &&
+      if (*bp.action != build_package::drop &&
           !bp.system                        &&
           new_or_reconfigure (bp))
       {
@@ -8967,8 +8786,8 @@ namespace bpkg
           if (!constraining_dependent_collected)
           {
             diag_record dr (info);
-            dr << "new or being re-configured dependent which imposes "
-               << "dependency constraint must be ";
+            dr << "new or being re-configured dependent which has dependency "
+               << "constraints must be ";
 
             if (i == dependency_constrs.end ())
               dr << "present in constraints cache";

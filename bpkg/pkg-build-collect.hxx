@@ -956,7 +956,7 @@ namespace bpkg
   // attempt to apply a specific constraints states change to the same
   // collection initial state, issue diagnostics, and fail.
   //
-  // Note, however, that we will try to complete the package collection
+  // Note, however, that we could try to complete the package collection
   // successfully for some simple constraint cycles. Consider the following
   // case:
   //
@@ -969,24 +969,9 @@ namespace bpkg
   //
   // $ bpkg build foo
   //
-  // Here we initially assume that the foo's constraint of libbar is inactive
-  // and collect the libbar/1.0 as dependency of libfoo. That, however, makes
-  // the constraint active, which leads to libbaz be collected instead. That
-  // makes the constraint inactive again, etc. Not to fail in this and similar
-  // cases outright, we invent an additional version_only constraint state,
-  // which we set if the cycle is detected for a constraint in the active or
-  // inactive state. In the version_only state the constraint is considered
-  // inactive but its version constraint is still applied to the dependency
-  // (which is, strictly speaking, not conceptually correct but is the best we
-  // can practically do, compared to giving up). This constraint state is
-  // "final" and we don't change it in the cache anymore.  If at some point we
-  // haven't made any corrections and there is the constraints in the
-  // version_only state
-  //
-  // If at some point all we have in the cache are
-  // the constraints in the version_constraint_only state, then we issue
-  // diagnostics and fail. Note that with this logic in place, for the above
-  // example, the libbaz dependency is successfully configured.
+  // Here we could potentially configure libbaz as libfoo's dependency instead
+  // of failing. However, trying to resolve the cycle in this and similar
+  // cases feels too hairy at the moment. Maybe later.
   //
   // Also note, that potentially there can be multiple constraints of the same
   // dependency in the dependent's manifest. We will always assume the same
@@ -996,8 +981,7 @@ namespace bpkg
   enum class dependency_constraint_state: uint8_t
   {
     active,
-    inactive,
-    version_constraint_only // Inactive but impose version constraint.
+    inactive
   };
 
   // Note: only used for tracing.
@@ -1047,13 +1031,12 @@ namespace bpkg
     // Match the cached constraint states against the actual states and
     // correct those which don't match, skipping constraints which refer to
     // dependents which are not configured. Return true if any states were
-    // corrected. Prevent the constraint cycles as described above.
+    // corrected. Assume a dependency constraining cycle and fail if the
+    // deduced states correction have already been applied to the same
+    // collection initial state in the past.
     //
     bool
     correct_states (const xxh64& collection_initial_state);
-
-    void
-    erase (dependency_constraint_state);
 
   private:
     set<uint64_t> former_corrections_;
@@ -1926,7 +1909,7 @@ namespace bpkg
     // affected dependents.
     //
     void
-    collect_constraining_dependents (const pkg_build_options& o,
+    collect_constraining_dependents (const pkg_build_options&,
                                      const repointed_dependents&,
                                      replaced_versions&,
                                      postponed_packages& postponed_recs,
@@ -2103,8 +2086,9 @@ namespace bpkg
     //   active constraints.
     //
     // Note that the build of an existing package doesn't imply its
-    // reconfiguration and the package reconfiguration may or may not imply
-    // its replacement (see build_package::reconfigure() for details).
+    // reconfiguration and the package reconfiguration may or may not be
+    // accompanied with the package replacement (see
+    // build_package::reconfigure() for details).
     //
     void
     verify_consistency (const dependency_constraints&) const;
@@ -2214,7 +2198,7 @@ namespace bpkg
                                   unsatisfied_dependents&);
 
     void
-    collect_constraining_dependents (const pkg_build_options& o,
+    collect_constraining_dependents (const pkg_build_options&,
                                      const package_key&,
                                      const repointed_dependents&,
                                      replaced_versions&,

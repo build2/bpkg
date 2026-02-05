@@ -254,7 +254,7 @@ namespace bpkg
             const package_name& n (d.name);
 
             // If the constraint's dependency is not in the dependent's
-            // dependency tree, then skip it.
+            // dependency tree, then skip the dependency constraint.
             //
             if (constraint &&
                 !indirect_prerequisite (n, buildtime, prereqs, fpp))

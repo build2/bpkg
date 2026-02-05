@@ -1775,11 +1775,7 @@ namespace bpkg
                      dependency_type t,
                      const version_constraint& vc)
   {
-    return constraint_string (package_key (db, dpt).string (),
-                              true /* is_package */,
-                              dep,
-                              t,
-                              vc);
+    return constraint_string (package_key (db, dpt), dep, t, vc);
   }
 
   inline string

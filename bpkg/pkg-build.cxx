@@ -5965,8 +5965,8 @@ namespace bpkg
 
       // The command line adjustments iteration counter.
       //
-      // Incremented prior to each re-collection after every command line
-      // modification or the mode change (see the above cmdline_refine_*,
+      // Incremented prior to each re-collection after the command line
+      // modifications or the mode changes (see the above cmdline_refine_*,
       // cmdline_deny*, etc for details). Never reset. Used for calculating
       // checksum of the collection initial state (see below).
       //
@@ -7642,7 +7642,6 @@ namespace bpkg
                                                  &replaced_deps,
                                                  &existing_deps,
                                                  &deorphaned_deps,
-                                                 &dependency_constrs,
                                                  &cmdline_adjs_iteration] ()
           {
             refine = true;
@@ -7651,9 +7650,6 @@ namespace bpkg
             replaced_deps.clear ();
             existing_deps.clear ();
             deorphaned_deps.clear ();
-
-            dependency_constrs.erase (
-              dependency_constraint_state::version_constraint_only);
 
             ++cmdline_adjs_iteration;
           };
