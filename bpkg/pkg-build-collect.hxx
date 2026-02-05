@@ -218,11 +218,11 @@ namespace bpkg
     //
     struct constraint
     {
-      // If the dependency type is 'dependency', then originates from the
-      // dependent's depends manifest value (dependent's version is present)
-      // or from the build-to-hold command line spec. If the type is
-      // 'constraint', then originates from the constrains manifest value or
-      // from the dependency command line spec.
+      // If the dependency type is 'dependency', then the constraint
+      // originates from the dependent's depends manifest value (dependent's
+      // version is present) or from the build-to-hold command line spec. If
+      // the type is 'constraint', then it originates from the constrains
+      // manifest value or from the dependency command line spec.
       //
       bpkg::version_constraint version_constraint;
 
@@ -394,7 +394,7 @@ namespace bpkg
     //    for the unsatisfied_dependents::diag() function. Probably, the right
     //    way to go is to get rid of the required_by_dependents member and
     //    turn the required_by set into a map of packages to the relations
-    //    with that packages: 'constrained by', 'required by', 'dependent
+    //    with each package: 'constrained by', 'required by', 'dependent
     //    of'. For the command line entry the relation will be either
     //    'constrained by' (dependency spec) or 'required by' (build-to-hold
     //    spec).
@@ -973,12 +973,17 @@ namespace bpkg
   // and collect the libbar/1.0 as dependency of libfoo. That, however, makes
   // the constraint active, which leads to libbaz be collected instead. That
   // makes the constraint inactive again, etc. Not to fail in this and similar
-  // cases outright, we invent an additional version_constraint_only
-  // constraint state, which we set if the cycle is detected for a constraint
-  // in the active or inactive state. In the version_constraint_only state the
-  // constraint is considered inactive but its version constraint is applied
-  // to the dependency. This constraint state is "final" and we don't change
-  // it in the cache anymore. If at some point all we have in the cache are
+  // cases outright, we invent an additional version_only constraint state,
+  // which we set if the cycle is detected for a constraint in the active or
+  // inactive state. In the version_only state the constraint is considered
+  // inactive but its version constraint is still applied to the dependency
+  // (which is, strictly speaking, not conceptually correct but is the best we
+  // can practically do, compared to giving up). This constraint state is
+  // "final" and we don't change it in the cache anymore.  If at some point we
+  // haven't made any corrections and there is the constraints in the
+  // version_only state
+  //
+  // If at some point all we have in the cache are
   // the constraints in the version_constraint_only state, then we issue
   // diagnostics and fail. Note that with this logic in place, for the above
   // example, the libbaz dependency is successfully configured.

@@ -641,12 +641,7 @@ namespace bpkg
   {
     switch (t)
     {
-      // @@ Should we map it to an empty string instead, to save some space?
-      //    If so, don't forget to change the default pragma in ODB mapping.
-      //    Same question about dependency_type enum.
-      //
     case dependency_alternatives_type::dependencies: return "dependencies";
-
     case dependency_alternatives_type::constraint:   return "constraint";
     case dependency_alternatives_type::tests:        return "tests";
     case dependency_alternatives_type::examples:     return "examples";
