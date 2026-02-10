@@ -25,6 +25,9 @@ namespace bpkg
   // system invocations (for example, because you are printing your own
   // progress).
   //
+  // Note: the clean and disfigure arguments are only meaningful if we are not
+  // simulating.
+  //
   void
   pkg_disfigure (const common_options&,
                  database&,

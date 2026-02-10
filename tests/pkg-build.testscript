@@ -37547,7 +37547,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
         %.*: develop=true%
         configured libhello/1.0.0
         %.*: develop=true%
-        %(mkdir|c\+\+|ld|ar) .+%{8}
+        %info: .+libhello.+ is up to date%
         updated libhello/1.0.0
         EOE
   }
@@ -37565,7 +37565,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
         %.*: develop=false%
         configured libhello/1.0.0
         %.*: develop=false%
-        %(mkdir|c\+\+|ld|ar) .+%{8}
+        %info: .+libhello.+ is up to date%
         updated libhello/1.0.0
         EOE
   }

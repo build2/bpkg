@@ -8477,21 +8477,6 @@ namespace bpkg
       //
       transaction t (pdb, !simulate /* start */);
 
-      // Figure out if an external package is being replaced with another
-      // external.
-      //
-      bool external (false);
-      if (!simulate)
-      {
-        external = (sp->external () && p.external ());
-
-        // Reset the keep_out flag if the package being unpacked is not
-        // external.
-        //
-        if (p.keep_out && !external)
-          p.keep_out = false;
-      }
-
       // Save prerequisites before disfiguring the package.
       //
       // Note that we add the prerequisites list to the map regardless if
@@ -8549,10 +8534,42 @@ namespace bpkg
         }
       }
 
+      // Keep the build output, if this is an external package being replaced
+      // with another external and --keep-out option is specified or the
+      // package is not being replaced with another version (i.e., it is
+      // only being reconfigured).
+      //
       // For an external package being replaced with another external, keep
       // the configuration unless requested not to with --disfigure.
       //
-      bool disfigure (p.disfigure || !external);
+      // Note: only meaningful if we are not simulating.
+      //
+      bool clean (false);
+      bool disfigure (false);
+
+      if (!simulate)
+      {
+        // Figure out if an external package is being replaced with another
+        // external.
+        //
+        bool external (sp->external () && p.external ());
+
+        bool keep_out (external && p.keep_out);
+
+        // It seems that the most probable negative scenario when keeping the
+        // output on reconfiguration is that some conditional targets may no
+        // longer be built. In this case, some now irrelevant output files may
+        // lay around indefinitely long. If it ever becomes a problem, we may
+        // invent an option which suppresses this behavior.
+        //
+        if (!keep_out)
+          keep_out = (p.available == nullptr ||
+                      sp->version == p.available_version ());
+
+        clean = !keep_out;
+
+        disfigure = !(external && !p.disfigure);
+      }
 
       // If the skeleton was not initialized yet (this is an existing package
       // reconfiguration and no configuration was printed as a part of the
@@ -8579,7 +8596,7 @@ namespace bpkg
                             : nullptr));
         }
 
-        if (disfigure && !simulate)
+        if (!simulate && disfigure)
           p.skeleton->load_old_config ();
       }
 
@@ -8587,7 +8604,7 @@ namespace bpkg
       //
       pkg_disfigure (o, pdb, t,
                      sp,
-                     !p.keep_out /* clean */,
+                     clean,
                      disfigure,
                      progress /* no_progress */,
                      simulate);
