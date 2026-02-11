@@ -205,31 +205,69 @@ namespace bpkg
   bool build_package::
   external (dir_path* d) const
   {
+    // NOTE: keep the implementation aligned with execute_plan().
+    //
     assert (action);
 
-    if (*action == build_package::drop)
+    if (*action == build_package::drop || system)
       return false;
 
-    // If adjustment or orphan, then new and old are the same.
+    // If the package is selected and will not be replaced (this is an
+    // adjustment, reconfiguration, build of a package in the fetched/unpacked
+    // state, etc), then use the external() function of the selected
+    // package. Note that this is not merely an optimization, since the
+    // resulting value computed using the available package information may
+    // not match the currently selected (and so the resulting) package. For
+    // example:
     //
+    // $ bpkg fetch <url>          # Archive-based, available foo/1.
+    // $ bpkg pkg-unpack -e ../foo # Unpacks foo/1 from dir as external.
+    // $ bpkg build foo            # Configures selected foo/1 as external.
+    //
+    // $ bpkg fetch /...                   # Directory-based, available bar/1.
+    // $ bpkg pkg-fetch -e ../bar-1.tar.gz # Fetches bar/1 as internal.
+    // $ bpkg build bar                    # Configures selected bar/1 as internal.
+    //
+    if (available == nullptr ||
+        (selected != nullptr                       &&
+         selected->version == available_version () &&
+         !selected->system ()                      &&
+         !replace ()))
+    {
+      bool r (selected->external ());
+
+      if (r)
+      {
+        assert (selected->src_root);
+
+        if (d != nullptr)
+          *d = *selected->src_root;
+      }
+
+      return r;
+    }
+
     // Note that in the common case a package version doesn't come from too
     // many repositories (8).
     //
     small_vector<reference_wrapper<const package_location>, 8> locations;
+    locations.reserve (available->locations.size ());
 
-    if (available != nullptr) // Not adjustment?
+    for (const package_location& pl: available->locations)
     {
-      locations.reserve (available->locations.size ());
-
-      for (const package_location& pl: available->locations)
-      {
-        if (!rep_masked_fragment (pl.repository_fragment))
-          locations.push_back (pl);
-      }
+      if (!rep_masked_fragment (pl.repository_fragment))
+        locations.push_back (pl);
     }
 
     if (locations.empty ())
     {
+      // Note that it's not really clear if we ever can get here (at least
+      // none of our tests does), since the being preserved orphans should
+      // have been handled above. For orphans being replaced in the --deorphan
+      // mode we should have failed earlier if there are no repositories where
+      // we could search for the replacement package. Let's, however, keep it
+      // for good measure.
+      //
       assert (selected != nullptr);
 
       if (selected->external ())

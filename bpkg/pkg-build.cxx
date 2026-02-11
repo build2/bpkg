@@ -8090,6 +8090,17 @@ namespace bpkg
               // Even if we already have this package selected, we have to
               // make sure it is configured and updated.
               //
+              // @@ Note that currently the plan may look wrong if the package
+              //    is not configured but is already selected. For example, if
+              //    libfoo package is just fetched and it is now being built
+              //    as sys:libfoo/*, we will print 'reconfigure sys:libfoo/*'
+              //    in the plan (should probably be 'configure sys:libfoo/*').
+              //    Or, if we build the fetched libfoo/1.0 as source, we will
+              //    print 'update libfoo/1.0', even when running with
+              //    --configure-only (should probably be 'configure
+              //    libfoo/1.0' regardless whether we running with or without
+              //    --configure-only).
+              //
               if (sp == nullptr)
               {
                 act = p.system ? "configure" : "new";
@@ -8460,6 +8471,29 @@ namespace bpkg
     map<const build_package*, vector<configure_previous_prerequisite>>
       previous_prerequisites;
 
+#if 0
+    // Verify the build_package::external() function.
+    //
+    // Specifically, stash the results of the build_package::external_dir() (a
+    // thin wrapper over build_package::external()) calls for all the being
+    // built packages. Then, at the end of the plan execution, verify that
+    // these results match the configured packages.
+    //
+    // Map of the packages that are supposed to be external as a result of the
+    // build to their source root directories. Packages that are not in the
+    // map are supposed to be internal.
+    //
+    map<const build_package*, dir_path> external_package_dirs;
+
+    for (const build_package& p: build_pkgs)
+    {
+      assert (p.action);
+
+      if (optional<dir_path> d = p.external_dir ())
+        external_package_dirs[&p] = move (*d);
+    }
+#endif
+
     for (build_package& p: build_pkgs)
     {
       assert (p.action);
@@ -8800,6 +8834,9 @@ namespace bpkg
         //
         transaction t (pdb, false /* start */);
 
+        // NOTE: consider updating build_package::external() if changing
+        //       anything here.
+        //
         if (sp == nullptr                         ||
             sp->version != p.available_version () ||
             p.replace ())
@@ -9609,6 +9646,26 @@ namespace bpkg
         }
       }
     }
+
+#if 0
+    // Verify that the results of build_package::external_dir() calls at the
+    // beginning of the plan execution match the resulting packages.
+    //
+    for (const build_package& p: build_pkgs)
+    {
+      const shared_ptr<selected_package>& sp (p.selected);
+
+      assert (p.action &&
+              (*p.action == build_package::drop) == (sp == nullptr));
+
+      auto i (external_package_dirs.find (&p));
+
+      if (sp != nullptr && sp->external ())
+        assert (i != external_package_dirs.end () && i->second == sp->src_root);
+      else
+        assert (i == external_package_dirs.end ());
+    }
+#endif
 
     return r;
   }

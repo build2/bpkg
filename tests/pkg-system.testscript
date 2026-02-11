@@ -49,6 +49,7 @@
 pkg_build  += -d cfg --yes
 pkg_drop   += -d cfg --yes 2>!
 pkg_status += -d cfg
+pkg_fetch  += -d cfg 2>!
 rep_add    += -d cfg 2>!
 rep_fetch  += -d cfg --auth all --trust-yes 2>!
 rep_remove += -d cfg 2>!
@@ -632,6 +633,22 @@ rep_remove += -d cfg 2>!
     $pkg_build --upgrade 2>'info: nothing to build'
 
     $pkg_drop libbar
+  }
+
+  : configure-fetched
+  :
+  {
+    $clone_cfg
+
+    $pkg_fetch libbaz/2
+
+    $pkg_build --plan "" 'sys:libbaz' 2>>EOE
+        reconfigure sys:libbaz/*
+      purged libbaz/2
+      configured sys:libbaz/*
+      EOE
+
+    $pkg_drop libbaz
   }
 }}
 
