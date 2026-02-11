@@ -1,2 +1,2 @@
-project = satisfy-libfoo
+project = libfoo
 using config

@@ -1,0 +1,1 @@
+config [bool] config.libfoo.extras ?= false

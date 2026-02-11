@@ -115,10 +115,13 @@ namespace bpkg
     strings               config_variables;        // Note: name and value.
 
     // Only contains sources of configuration variables collected using the
-    // package skeleton, excluding those user-specified variables which are
-    // not the project variables for the specified package (module
-    // configuration variables, etc). Thus, it is not parallel to the
-    // config_variables member.
+    // package skeleton and doesn't contain variables that may be passed by
+    // bpkg itself (config.*.build.readonly, config.config.disfigure, etc).
+    // Thus, it is not parallel to the config_variables member.
+    //
+    // Note that besides the project variables for the specified package, it
+    // may also contain the user-specified configuration variables for build2
+    // modules (config.cc.*, etc).
     //
     vector<config_variable> config_sources; // Note: name and source.
 
