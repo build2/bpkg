@@ -9450,6 +9450,42 @@ namespace bpkg
 
         if (!simulate)
         {
+          // If the config.<project>.build.readonly variable is not explicitly
+          // specified by the user on this or some previous bpkg run, then we
+          // specify it ourselves. Set this variable to false for the external
+          // packages, reasonaly assuming that these packages are likely being
+          // developed, and to true otherwise.
+          //
+          // Note that the user-specified configuration variable is preserved
+          // throughout all the re-configurations, being collected by the
+          // package skeleton. However, if the variable is specified by us, it
+          // bypasses the skeleton and thus needs to be specified on every
+          // package (re)configuration. Note, in particular, that this takes
+          // care of the external->internal and internal->external
+          // replacements, where we want the value to be switched to the
+          // opposite (unless specified by the user, that is).
+          //
+          {
+            string var ("config." + p.name ().variable () + ".build.readonly");
+
+            const vector<config_variable>& css (cpr.config_sources);
+
+            if (find_if (css.begin (), css.end (),
+                         [&var] (const config_variable& v)
+                         {
+                           return v.name == var;
+                         }) == css.end ())
+            {
+              // Note that while the package is not configured yet, the fact
+              // whether it is external or not will not be changed by
+              // pkg_configure().
+              //
+              var += (sp->external () ? "=false" : "=true");
+
+              cpr.config_variables.push_back (move (var));
+            }
+          }
+
           // Add config.config.disfigure unless already disfigured (see the
           // high-level pkg_configure() version for background).
           //

@@ -590,6 +590,12 @@
 # |   |                         ?> bux ? ($config.fix.libbaz) config.fix.bux=true require {config.bux.extras=true}
 # |   `-- repositories.manifest
 # |
+# |-- t18a
+# |   |-- libfoo-1.0.0.tar.gz
+# |   |-- libfoo-1.1.0.tar.gz
+# |   |-- libfoo-1.2.0.tar.gz
+# |   `-- repositories.manifest
+# |
 # `-- git
 #     |-- libbar.git            -> style-basic.git (prerequisite repository)
 #     |-- libbaz.git
@@ -758,6 +764,9 @@ posix = ($cxx.target.class != 'windows')
 
   cp -r $src/t17a $out/t17a
   $rep_create $out/t17a &$out/t17a/packages.manifest &$out/t17a/signature.manifest
+
+  cp -r $src/t18a $out/t18a
+  $rep_create $out/t18a &$out/t18a/packages.manifest &$out/t18a/signature.manifest
 
   # Create git repositories.
   #
@@ -3498,6 +3507,868 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
       $pkg_drop foo
     }
+  }}
+
+  : build-readonly
+  :
+  {{
+    +$clone_root_cfg
+
+    test.arguments += --plan "" --configure-only
+
+    : internal
+    :
+    {{
+      +$clone_cfg
+
+      : arc-repo
+      :
+      {{
+        +$clone_cfg
+        +$rep_add $rep/t18a && $rep_fetch
+
+        : from-repo
+        :
+        {
+          $clone_cfg
+
+          $* libfoo 2>>EOE
+              new libfoo/1.2.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          # While at it, test that if we turn the package into external, it
+          # becomes not read-only.
+          #
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
+
+          $rep_add --type dir libfoo && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0#1
+            disfigured libfoo/1.2.0
+            using libfoo/1.2.0#1 (external)
+            configured libfoo/1.2.0#1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-fetched-arc
+        :
+        {
+          $clone_cfg
+
+          $pkg_fetch --existing $src/t18a/libfoo-1.2.0.tar.gz
+
+          $* libfoo 2>>EOE
+              update libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-arc
+        :
+        {
+          $clone_cfg
+
+          $* $src/t18a/libfoo-1.1.0.tar.gz 2>>EOE
+              new libfoo/1.1.0
+            fetched libfoo/1.1.0
+            unpacked libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo-1.1.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-sys
+        :
+        {
+          $clone_cfg
+
+          $* 'sys:libfoo/1.2.0' 2>!
+
+          $* libfoo 2>>EOE
+              reconfigure libfoo/1.2.0
+            purged libfoo/1.2.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : dir-repo
+      :
+      {{
+        +$clone_cfg
+        +$rep_add --type dir $src/libfoo-1.1.0 && $rep_fetch
+
+        : from-fetched-arc
+        :
+        {
+          $clone_cfg
+
+          $pkg_fetch --existing $src/t18a/libfoo-1.2.0.tar.gz
+
+          $* libfoo 2>>EOE
+              update libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-arc
+        :
+        {
+          $clone_cfg
+
+          $* $src/t18a/libfoo-1.1.0.tar.gz 2>>EOE
+              new libfoo/1.1.0
+            fetched libfoo/1.1.0
+            unpacked libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo-1.1.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : no-repo
+      :
+      {{
+        +$clone_cfg
+
+        : from-fetched-arc
+        :
+        {
+          $clone_cfg
+
+          $pkg_fetch --existing $src/t18a/libfoo-1.2.0.tar.gz
+
+          $* libfoo 2>>EOE
+              update libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-arc
+        :
+        {
+          $clone_cfg
+
+          $* $src/t18a/libfoo-1.2.0.tar.gz 2>>EOE
+              new libfoo/1.2.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : user-spec
+      :
+      {{
+        +$clone_cfg
+        +$rep_add $rep/t18a && $rep_fetch
+
+        : false
+        :
+        {
+          $clone_cfg
+
+          $* config.libfoo.build.readonly=false -- libfoo/1.1.0 2>>EOE
+              new libfoo/1.1.0
+                config.libfoo.build.readonly=false (user configuration)
+            fetched libfoo/1.1.0
+            unpacked libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo-1.1.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays not read-only on upgrade.
+          #
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0
+                config.libfoo.build.readonly=false (user configuration)
+            disfigured libfoo/1.1.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays not read-only on reconfiguration.
+          #
+          $* config.libfoo.extras=true -- libfoo 2>>EOO
+              reconfigure libfoo/1.2.0
+                config.libfoo.build.readonly=false (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOO
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we turn the package into external, it stays not
+          # read-only.
+          #
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
+
+          $rep_add --type dir libfoo && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0#1
+                config.libfoo.build.readonly=false (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.2.0
+            using libfoo/1.2.0#1 (external)
+            configured libfoo/1.2.0#1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = true
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : true
+        :
+        {
+          $clone_cfg
+
+          $* config.libfoo.build.readonly=true -- libfoo/1.1.0 2>>EOE
+              new libfoo/1.1.0
+                config.libfoo.build.readonly=true (user configuration)
+            fetched libfoo/1.1.0
+            unpacked libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo-1.1.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays read-only on upgrade.
+          #
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0
+                config.libfoo.build.readonly=true (user configuration)
+            disfigured libfoo/1.1.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays read-only on reconfiguration.
+          #
+          $* config.libfoo.extras=true -- libfoo 2>>EOO
+              reconfigure libfoo/1.2.0
+                config.libfoo.build.readonly=true (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOO
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we turn the package into external, it stays
+          # read-only.
+          #
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
+
+          $rep_add --type dir libfoo && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0#1
+                config.libfoo.build.readonly=true (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.2.0
+            using libfoo/1.2.0#1 (external)
+            configured libfoo/1.2.0#1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = true
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+    }}
+
+    : external
+    :
+    {{
+      +$clone_cfg
+
+      : dir-repo
+      :
+      {{
+        +$clone_cfg
+        +$rep_add --type dir $src/libfoo-1.1.0 && $rep_fetch
+
+        : from-repo
+        :
+        {
+          $clone_cfg
+
+          $* libfoo 2>>EOE
+              new libfoo/1.1.0
+            using libfoo/1.1.0 (external)
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          # While at it, test that if we turn the package into internal, it
+          # becomes read-only.
+          #
+          $rep_add $rep/t18a && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0
+            disfigured libfoo/1.1.0
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-unpacked-dir
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          $pkg_unpack --existing libfoo 2>>~%EOE% != 0
+            %error: external package libfoo/1.1.0 is already available from dir:.+libfoo-1.1.0%
+            EOE
+
+          sed -i -e 's/(version:) .*/\1 1.1.1/' libfoo/manifest
+
+          $pkg_unpack --existing libfoo 2>'using libfoo/1.1.1 (external)'
+
+          $* libfoo 2>>EOE
+              update libfoo/1.1.1
+            configured libfoo/1.1.1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-dir
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          $* libfoo/ 2>>~%EOE% != 0
+            %error: external package libfoo/1.1.0 is already available from dir:.+libfoo-1.1.0%
+            EOE
+
+          sed -i -e 's/(version:) .*/\1 1.1.1/' libfoo/manifest
+
+          $* libfoo/ 2>>EOE
+              new libfoo/1.1.1
+            using libfoo/1.1.1 (external)
+            configured libfoo/1.1.1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-sys
+        :
+        {
+          $clone_cfg
+
+          $* 'sys:libfoo/1.1.0' 2>!
+
+          $* libfoo 2>>EOE
+              reconfigure libfoo/1.1.0
+            purged libfoo/1.1.0
+            using libfoo/1.1.0 (external)
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : arc-repo
+      :
+      {{
+        +$clone_cfg
+        +$rep_add $rep/t18a && $rep_fetch
+
+        : from-unpacked-dir
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
+
+          $pkg_unpack --existing libfoo 2>'using libfoo/1.2.0 (external)'
+
+          $* libfoo 2>>EOE
+              update libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-dir
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
+
+          $* libfoo/ 2>>EOE
+              new libfoo/1.2.0
+            using libfoo/1.2.0 (external)
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-dir-repo
+        :
+        {
+          $clone_cfg
+
+          $rep_add --type dir $src/libfoo-1.1.0 && $rep_fetch
+
+          $pkg_unpack libfoo/1.1.0 2>'using libfoo/1.1.0 (external)'
+
+          $* libfoo/1.1.0 2>>EOE
+              update libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : no-repo
+      :
+      {{
+        +$clone_cfg
+
+        : from-unpacked-dir
+        :
+        {
+          $clone_cfg
+
+          $pkg_unpack --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+
+          $* libfoo 2>>EOE
+              update libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : from-dir
+        :
+        {
+          $clone_cfg
+
+          $* $src/libfoo-1.1.0/ 2>>EOE
+              new libfoo/1.1.0
+            using libfoo/1.1.0 (external)
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+
+      : user-spec
+      :
+      {{
+        +$clone_cfg
+
+        : true
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          $rep_add --type dir libfoo && $rep_fetch
+
+          $* config.libfoo.build.readonly=true -- libfoo 2>>EOE
+              new libfoo/1.1.0
+                config.libfoo.build.readonly=true (user configuration)
+            using libfoo/1.1.0 (external)
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays read-only on reconfiguration.
+          #
+          $* config.libfoo.extras=true -- libfoo 2>>EOO
+              reconfigure libfoo/1.1.0
+                config.libfoo.build.readonly=true (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOO
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we edit the external package's manifest, the
+          # package stays read-only.
+          #
+          echo '' >+libfoo/manifest
+
+          $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.1.0#1
+                config.libfoo.build.readonly=true (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0
+            using libfoo/1.1.0#1 (external)
+            configured libfoo/1.1.0#1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we turn the package into internal, it stays
+          # read-only.
+          #
+          $rep_add $rep/t18a && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0
+                config.libfoo.build.readonly=true (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0#1
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = true
+            config.libfoo.extras = true
+            EOO
+
+          $pkg_drop libfoo
+        }
+
+        : false
+        :
+        {
+          $clone_cfg
+
+          cp -r $src/libfoo-1.1.0 libfoo
+
+          $rep_add --type dir libfoo && $rep_fetch
+
+          $* config.libfoo.build.readonly=false -- libfoo 2>>EOE
+              new libfoo/1.1.0
+                config.libfoo.build.readonly=false (user configuration)
+            using libfoo/1.1.0 (external)
+            configured libfoo/1.1.0
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = false
+            EOO
+
+          # Test that the package stays not read-only on reconfiguration.
+          #
+          $* config.libfoo.extras=true -- libfoo 2>>EOO
+              reconfigure libfoo/1.1.0
+                config.libfoo.build.readonly=false (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0
+            configured libfoo/1.1.0
+            EOO
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we edit the external package's manifest, the
+          # package stays not read-only.
+          #
+          echo '' >+libfoo/manifest
+
+          $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.1.0#1
+                config.libfoo.build.readonly=false (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0
+            using libfoo/1.1.0#1 (external)
+            configured libfoo/1.1.0#1
+            EOE
+
+          cat cfg/libfoo/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = true
+            EOO
+
+          # Test that when we turn the package into internal, it stays not
+          # read-only.
+          #
+          $rep_add $rep/t18a && $rep_fetch
+
+          $* libfoo 2>>EOE
+              upgrade libfoo/1.2.0
+                config.libfoo.build.readonly=false (user configuration)
+                config.libfoo.extras=true (user configuration)
+            disfigured libfoo/1.1.0#1
+            fetched libfoo/1.2.0
+            unpacked libfoo/1.2.0
+            configured libfoo/1.2.0
+            EOE
+
+          cat cfg/libfoo-1.2.0/build/config.build >>~%EOO%
+            %.*
+
+            config.libfoo.build.readonly = false
+            config.libfoo.extras = true
+            EOO
+
+          $pkg_drop libfoo
+        }
+      }}
+    }}
   }}
 }}
 
@@ -10139,6 +11010,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
         cat cfg/fux-0.2.0/build/config.build >>~%EOO%
           %.*
 
+          config.fux.build.readonly = true
           config.fux.extras = false
           config.fux.network = true
           EOO
@@ -10203,6 +11075,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
         cat cfg/fux-0.2.0/build/config.build >>~%EOO%
           %.*
 
+          config.fux.build.readonly = true
           config.fux.extras = true
           config.fux.network = true
           EOO
@@ -10247,6 +11120,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/fux-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.fux.build.readonly = true
               config.fux.extras = true
               config.fux.network = false
               EOO
@@ -10265,6 +11139,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/fux-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.fux.build.readonly = true
               config.fux.extras = true
               config.fux.network = false
               EOO
@@ -10359,6 +11234,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
               %.*
 
+              config.libfoo.build.readonly = true
               config.libfoo.extras = true
 
               %.+
@@ -10396,6 +11272,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/libfoo-1.0.0/build2/config.build2 >>~%EOO%
               %.*
 
+              config.libfoo.build.readonly = true
               config.libfoo.extras = true
               config.libfoo.network = false
 
@@ -10419,6 +11296,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
               %.*
 
+              config.libfoo.build.readonly = true
               config.libfoo.extras = true
 
               %.+
@@ -10575,6 +11453,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
             %.*
 
+            config.libfoo.build.readonly = true
             config.libfoo.extras = true
 
             %.+
@@ -10635,6 +11514,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
           cat cfg/libfoo-0.1.0/build/config.build >>~%EOO%
             %.*
 
+            config.libfoo.build.readonly = true
             config.libfoo.extras = true
 
             %.+
@@ -16151,6 +17031,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/tex-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.tex.build.readonly = true
               config.tex.extras = false
               config.tex.libfoo_extras = true
               EOO
@@ -16270,6 +17151,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/tex-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.tex.build.readonly = true
               config.tex.extras = true
               config.tex.libfoo_extras = true
               EOO
@@ -16367,6 +17249,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/tex-0.3.0/build/config.build >>~%EOO%
               %.*
 
+              config.tex.build.readonly = true
               config.tex.extras = true
               EOO
 
@@ -18203,6 +19086,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/dex-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.dex.build.readonly = true
               config.dex.extras = false
               EOO
 
@@ -18401,6 +19285,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
             cat cfg/dex-1.0.0/build/config.build >>~%EOO%
               %.*
 
+              config.dex.build.readonly = true
               config.dex.extras = true
               EOO
 
