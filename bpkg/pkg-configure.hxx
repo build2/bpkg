@@ -129,7 +129,7 @@ namespace bpkg
 
     // True if there are constrains values in the package manifest.
     //
-    bool has_dependency_constraint;
+    bool has_dependency_constraint = false;
   };
 
   // Return the "would be" state for packages that would be configured
