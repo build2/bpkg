@@ -129,7 +129,21 @@ namespace bpkg
 
     // True if there are constrains values in the package manifest.
     //
-    bool has_dependency_constraint = false;
+    bool has_dependency_constraint;
+
+    configure_prerequisites_result (): has_dependency_constraint (false) {}
+    configure_prerequisites_result (package_prerequisites prs,
+                                    vector<size_t> das,
+                                    strings cvs,
+                                    vector<config_variable> css,
+                                    string cc,
+                                    bool hdc)
+        : prerequisites (move (prs)),
+          dependency_alternatives (move (das)),
+          config_variables (move (cvs)),
+          config_sources (move (css)),
+          config_checksum (move (cc)),
+          has_dependency_constraint (hdc) {}
   };
 
   // Return the "would be" state for packages that would be configured
