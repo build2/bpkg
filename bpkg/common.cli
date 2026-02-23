@@ -88,14 +88,15 @@ namespace bpkg
        OUTPUT section below for details on the \cb{json} format."
     }
 
-    size_t --jobs|-j
+    int32_t --jobs|-j
     {
       "<num>",
       "Number of jobs to perform in parallel. If this option is not
        specified or specified with the \c{0} value, then the number of
-       available hardware threads is used. This option is also propagated
-       when performing build system operations such as \cb{update},
-       \cb{test}, etc."
+       available hardware threads is used. If the specified value is negative,
+       then the number of available hardware threads reduced by this value is
+       used. This option is also propagated when performing build system
+       operations such as \cb{update}, \cb{test}, etc."
     }
 
     bool --no-result

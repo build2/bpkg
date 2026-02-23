@@ -156,7 +156,9 @@ namespace bpkg
                               static_cast<int> (argv.size ()), argv.data (),
                               bo,
                               bpkg::verb,
-                              co.jobs_specified () ? co.jobs () : 0);
+                              (co.jobs_specified ()
+                               ? optional<int32_t> (co.jobs ())
+                               : nullopt));
 
         if (!bc.buildspec.empty ())
           fail << "argument specified with --build-option";

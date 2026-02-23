@@ -9,7 +9,7 @@
 #include <memory>        // unique_ptr, shared_ptr
 #include <utility>       // pair
 #include <cstddef>       // size_t, nullptr_t
-#include <cstdint>       // uint{8,16,32,64,ptr}_t
+#include <cstdint>       // [u]int{8,16,32,64,ptr}_t
 #include <istream>
 #include <ostream>
 #include <functional>    // function, reference_wrapper
@@ -51,6 +51,7 @@ namespace bpkg
   //
   using std::uint8_t;
   using std::uint16_t;
+  using std::int32_t;
   using std::uint32_t;
   using std::uint64_t;
   using std::uintptr_t;
