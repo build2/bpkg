@@ -701,7 +701,7 @@ namespace bpkg
           is.exceptions (istringstream::failbit | istringstream::badbit);
 
           path_name in ("<cmdline>");
-          lexer lex (is, in, 1 /* line */, "\'\"\\$("); // Effective.
+          lexer lex (is, in, 1 /* line */, 1 /* column */, "\'\"\\$("); // Effective.
 
           parser par (ctx);
           pair<value, token> r (
