@@ -1,3 +1,66 @@
+Version 0.18.0
+
+  * Fetch cache and offline mode.
+
+    The fetch cache stores downloaded resources (repository metadata, package
+    archives, etc) which are then reused whenever appropriate. This can speed
+    up operations like rep-fetch and pkg-build substantially. If all the
+    resources are cached, then bpkg can now be instructed to run offline
+    without making any network requests.
+
+    Relevant new options:
+
+    --offline
+    --no-fetch-cache
+    --fetch-cache <mode>
+    --fetch-cache-path <dir>
+    --fetch-cache-session
+
+    See bpkg-common-options(1) for detail.
+
+  * Support for the `constrains` package manifest value in addition to
+    `depends`.
+
+    See the `constrains` package manifest value documentation in the manual
+    for details.
+
+  * Non-external packages are now by default configured as read-only.
+
+    For details, refer to the config.*.build.readonly variable documentation
+    in the build system.
+
+  * Ability to specify negative values for the -j|--jobs option.
+
+    If the value is negative, then the number of available hardware threads
+    is reduced by this value.
+
+  * New --sqlite-synchronous option and BUILD2_SQLITE_SYNCHRONOUS environment
+    variable.
+
+    These option and environment variable can be used to set the filesystem
+    synchronization mode for the fetch cache and configuration SQLite
+    databases. See bpkg-common-options(1) for detail.
+
+  * Data and documentation are now installed into a subdirectory for recursive
+    pkg-bindist.
+
+    If the installation is not private and the --recursive auto or full mode
+    of pkg-bindist is used, then all the data, documentation, and legal files
+    are now installed into an additional, named as the main bpkg package,
+    subdirectory.
+
+  * New pkg-bindist command options:
+
+    --debian-no-debug
+    --fedora-no-debug
+    --archive-strip-comps <num>
+    --recursive [?]<pkg>=<mode>
+
+    See bpkg-pkg-bindist(1) for details.
+
+  * The rep-create command now generates the signature.manifest file even for
+    unsigned repositories.
+
 Version 0.17.0
 
   * Support for preserving existing package configuration on up/downgrade
