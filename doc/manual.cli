@@ -270,8 +270,8 @@ version while the caret (\c{^}) constraint \- also to any further minor
 version.
 
 \N|Zero major version component is customarily used during early development
-where the minor version effectively becomes major. As a result, the tilde
-constraint has special semantics for this case.|
+where the minor version effectively becomes major. As a result, the caret
+constraint has the above-mentioned special semantics for this case.|
 
 Note that the shortuct operators can only be used with the complete,
 three-component versions (\c{X.Y.Z} with the optional pre-release part per the
