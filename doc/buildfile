@@ -7,6 +7,7 @@ bpkg-cfg-info      \
 bpkg-cfg-link      \
 bpkg-cfg-unlink    \
 bpkg-help          \
+bpkg-pkg-bindist   \
 bpkg-pkg-build     \
 bpkg-pkg-checkout  \
 bpkg-pkg-clean     \
