@@ -5,7 +5,7 @@ project: build2
 summary: build2 package dependency manager
 license: MIT
 topics: package dependency management, build toolchain
-description-file: README
+description-file: README.md
 changes-file: NEWS
 url: https://build2.org
 doc-url: https://build2.org/doc.xhtml
