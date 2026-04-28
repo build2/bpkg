@@ -1400,9 +1400,7 @@ namespace bpkg
   // Note: must be called inside the transaction.
   //
   shared_ptr<available_package>
-  make_available (const common_options&,
-                  database&,
-                  const shared_ptr<selected_package>&);
+  make_available (database&, const shared_ptr<selected_package>&);
 
   // Try to find a dependency in the dependency configurations (see
   // database::dependency_configs() for details). Return pointers to the found

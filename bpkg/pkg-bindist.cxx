@@ -35,9 +35,7 @@ namespace bpkg
   // `*`?
   //
   static available_packages
-  find_available_packages (const common_options& co,
-                           database& db,
-                           const shared_ptr<selected_package>& p)
+  find_available_packages (database& db, const shared_ptr<selected_package>& p)
   {
     assert (p->state == package_state::configured);
 
@@ -50,7 +48,7 @@ namespace bpkg
     {
       pair<shared_ptr<available_package>,
            lazy_shared_ptr<repository_fragment>> ap (
-             find_available_fragment (co, db, p));
+             find_available_fragment (db, p));
 
       if (ap.second.loaded () && ap.second == nullptr)
       {
@@ -62,38 +60,17 @@ namespace bpkg
         if (!p->manifest_section.loaded ())
           db.load (*p, p->manifest_section);
 
-        if (p->manifest)
+        // Fail if the manifest is not present (see make_available() for a
+        // possible reason).
+        //
+        if (!p->manifest)
         {
-          ap.first = make_shared<available_package> (*p->manifest);
+          fail << "no repository information for " << *p << db <<
+            info << "upgrade or deorphan " << p->name << db <<
+            info << "run 'bpkg help pkg-build' for more information";
         }
-        else
-        {
-          // @@ TMP Given this is unlikely an external test package, it feels
-          //        that keeping this fallback is harmless, in contrast to the
-          //        make_available() case. Let's however, for the sake of
-          //        configurations sanity, also drop it after 0.18.0 toolchain
-          //        is released.
-          //
-          //fail << "no repository information for " << *p << db <<
-          //  info << "upgrade or deorphan " << p->name << db <<
-          //  info << "run 'bpkg help pkg-build' for more information";
-          //
-          package_manifest m (
-            pkg_verify (co,
-                        p->effective_src_root (db.config_orig),
-                        true  /* ignore_unknown */,
-                        false /* ignore_toolchain */,
-                        false /* load_buildfiles */,
-                        // Copy potentially fixed up version from selected package.
-                        [&p] (version& v) {v = p->version;}));
 
-          // Fake the buildfile information (not used).
-          //
-          m.alt_naming = false;
-          m.bootstrap_build = "project = " + p->name.string () + '\n';
-
-          ap.first = make_shared<available_package> (move (m));
-        }
+        ap.first = make_shared<available_package> (*p->manifest);
 
         // Fake the location (only used for diagnostics).
         //
@@ -289,7 +266,7 @@ namespace bpkg
 
         if (ps != nullptr || recursive)
         {
-          available_packages aps (find_available_packages (co, db, d));
+          available_packages aps (find_available_packages (db, d));
 
           // Load and merge languages.
           //
@@ -582,7 +559,7 @@ namespace bpkg
         // Load the available package for type/languages as well as the
         // mapping information.
         //
-        available_packages aps (find_available_packages (o, db, p));
+        available_packages aps (find_available_packages (db, p));
         const shared_ptr<available_package>& ap (aps.front ().first);
         db.load (*ap, ap->languages_section);
 

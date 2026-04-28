@@ -1399,7 +1399,7 @@ namespace bpkg
       // configuration (but instead be present in the configuration we are
       // linked to, etc) and create a transient available package outright.
       //
-      shared_ptr<available_package> ap (make_available (o, db, p));
+      shared_ptr<available_package> ap (make_available (db, p));
 
       optional<dir_path> src_root (p->external () ? p->src_root : nullopt);
 

@@ -163,9 +163,7 @@ namespace bpkg
   // can be too restrictive.
   //
   shared_ptr<available_package>
-  find_available (const common_options&,
-                  database&,
-                  const shared_ptr<selected_package>&);
+  find_available (database&, const shared_ptr<selected_package>&);
 
   // As above but also pair the available package with the repository fragment
   // the available package comes from. Note that the package locations list is
@@ -174,9 +172,7 @@ namespace bpkg
   //
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
-  find_available_fragment (const common_options&,
-                           database&,
-                           const shared_ptr<selected_package>&);
+  find_available_fragment (database&, const shared_ptr<selected_package>&);
 
   // Try to find packages in multiple databases, traversing the explicitly and
   // implicitly linked databases recursively and suppressing duplicates and,
@@ -210,9 +206,7 @@ namespace bpkg
   //
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
-  make_available_fragment (const common_options&,
-                           database&,
-                           const shared_ptr<selected_package>&);
+  make_available_fragment (database&, const shared_ptr<selected_package>&);
 
   // Try to find an available stub package in the imaginary system repository.
   // Such a repository contains stubs corresponding to the system packages

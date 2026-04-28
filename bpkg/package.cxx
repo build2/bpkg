@@ -818,9 +818,7 @@ namespace bpkg
   }
 
   shared_ptr<available_package>
-  make_available (const common_options& options,
-                  database& db,
-                  const shared_ptr<selected_package>& sp)
+  make_available (database& db, const shared_ptr<selected_package>& sp)
   {
     assert (sp != nullptr && sp->state != package_state::broken);
 
@@ -829,52 +827,31 @@ namespace bpkg
 
     // @@ PERF We should probably implement the available package caching not
     //    to parse the same manifests multiple times during all that build
-    //    plan refinement iterations. What should be the cache key? Feels like
-    //    it should be the archive/directory path. Note that the package
-    //    manifests can potentially differ in different external package
-    //    directories for the same version iteration. Testing showed 6%
-    //    speedup on tests (debug/sanitized).
+    //    plan refinement iterations. What should be the cache key? Should it
+    //    be the package name/version/configuration combination or the
+    //    manifest checksum? Note that the package manifests can potentially
+    //    differ in different external package directories for the same
+    //    version iteration. Testing showed 6% speedup on tests
+    //    (debug/sanitized), but that was before we have stopped using
+    //    pkg_verify() (see the 'Fail if manifest is not present in selected
+    //    source package' commit for details).
     //
     if (!sp->manifest_section.loaded ())
       db.load (*sp, sp->manifest_section);
 
-    if (sp->manifest)
-      return make_shared<available_package> (*sp->manifest);
+    // Note that for configurations created with the schema version 27 and
+    // above the manifest should always be present for the selected source
+    // packages. For earlier (but migrated) configurations it can be absent,
+    // in which case we just fail.
+    //
+    if (!sp->manifest)
+    {
+      fail << "no repository information for " << *sp << db <<
+        info << "upgrade or deorphan " << sp->name << db <<
+        info << "run 'bpkg help pkg-build' for more information";
+    }
 
-    // @@ TMP For configurations created with the schema version 27 and above
-    //        the manifest should always be present for the selected source
-    //        packages. For earlier (but migrated) configurations it can be
-    //        absent, in which case we will use the manifest file as a
-    //        fallback. Given that this can result in a broken configuration
-    //        (see pkg-build/dependent/external-tests/no-available-package
-    //        test for details), we may want to remove this fallback early
-    //        enough, say after 0.18.0 toolchain is released, and just fail
-    //        instead.
-    //
-    //fail << "no repository information for " << *sp << db <<
-    //  info << "upgrade or deorphan " << sp->name << db <<
-    //  info << "run 'bpkg help pkg-build' for more information";
-    //
-    // The package is in at least fetched state, which means we should be able
-    // to get its manifest.
-    //
-    package_manifest m (
-      sp->state == package_state::fetched
-      ? pkg_verify (options,
-                    sp->effective_archive (db.config_orig),
-                    true /* ignore_unknown */,
-                    false /* ignore_toolchain */,
-                    false /* expand_values */,
-                    true /* load_buildfiles */)
-      : pkg_verify (options,
-                    sp->effective_src_root (db.config_orig),
-                    true /* ignore_unknown */,
-                    false /* ignore_toolchain */,
-                    true /* load_buildfiles */,
-                    // Copy potentially fixed up version from selected package.
-                    [&sp] (version& v) {v = sp->version;}));
-
-    return make_shared<available_package> (move (m));
+    return make_shared<available_package> (*sp->manifest);
   }
 
   pair<shared_ptr<selected_package>, database*>

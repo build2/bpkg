@@ -3422,7 +3422,7 @@ namespace bpkg
                 // (returning stub as an available package feels wrong).
                 //
                 if (dap == nullptr || dap->stub ())
-                  rp = make_available_fragment (options, *ddb, dsp);
+                  rp = make_available_fragment (*ddb, dsp);
               }
               else
                 // Remember that we may be forcing up/downgrade; we will deal
@@ -5977,7 +5977,7 @@ namespace bpkg
       // The repointed dependent can be an orphan, so just create the
       // available package from the selected package.
       //
-      auto rp (make_available_fragment (o, db, sp));
+      auto rp (make_available_fragment (db, sp));
 
       // Add the prerequisite replacements as the required-by packages.
       //
@@ -8216,7 +8216,7 @@ namespace bpkg
           {
             pair<shared_ptr<available_package>,
                  lazy_shared_ptr<repository_fragment>> rp (
-                   find_available_fragment (o, ddb, sp));
+                   find_available_fragment (ddb, sp));
 
             package_version_key rb {pdb, name, version ()};
 
@@ -9018,7 +9018,7 @@ namespace bpkg
 
         pair<shared_ptr<available_package>,
              lazy_shared_ptr<repository_fragment>> rp (
-               find_available_fragment (o, ddb, dsp));
+               find_available_fragment (ddb, dsp));
 
         optional<package_key> orig_dep (package_key {db, name});
         package_version_key rb {db, name, version ()};
@@ -9154,7 +9154,7 @@ namespace bpkg
 
     pair<shared_ptr<available_package>,
          lazy_shared_ptr<repository_fragment>> rp (
-           find_available_fragment (o, dep.db, sp));
+           find_available_fragment (dep.db, sp));
 
     bool system (sp->system ());
 
@@ -9220,7 +9220,7 @@ namespace bpkg
 
     pair<shared_ptr<available_package>,
          lazy_shared_ptr<repository_fragment>> rp (
-           find_available_fragment (o, ed.db, ed.selected));
+           find_available_fragment (ed.db, ed.selected));
 
     set<package_version_key> rb;
 
@@ -9270,7 +9270,7 @@ namespace bpkg
   {
     pair<shared_ptr<available_package>,
          lazy_shared_ptr<repository_fragment>> rp (
-           find_available_fragment (o, ed.db, ed.selected));
+           find_available_fragment (ed.db, ed.selected));
 
     uint16_t flags (build_package::build_recollect);
 

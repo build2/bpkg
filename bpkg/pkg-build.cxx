@@ -452,8 +452,7 @@ namespace bpkg
   using existing_dependencies = vector<package_key>;
 
   static evaluate_result
-  evaluate_dependency (const common_options&,
-                       database&,
+  evaluate_dependency (database&,
                        const shared_ptr<selected_package>&,
                        const optional<version_constraint>& desired,
                        bool desired_sys,
@@ -478,8 +477,7 @@ namespace bpkg
   // have dependents in the current configurations.
   //
   static optional<evaluate_result>
-  evaluate_dependency (const common_options& o,
-                       database& db,
+  evaluate_dependency (database& db,
                        const shared_ptr<selected_package>& sp,
                        const dependency_packages& deps,
                        bool no_move,
@@ -701,8 +699,7 @@ namespace bpkg
         dpt_constrs.emplace_back (ddb, move (p), move (*dep.version_constraint));
     }
 
-    return evaluate_dependency (o,
-                                db,
+    return evaluate_dependency (db,
                                 sp,
                                 dvc,
                                 dsys,
@@ -744,8 +741,7 @@ namespace bpkg
   };
 
   static evaluate_result
-  evaluate_dependency (const common_options& o,
-                       database& db,
+  evaluate_dependency (database& db,
                        const shared_ptr<selected_package>& sp,
                        const optional<version_constraint>& dvc,
                        bool dsys,
@@ -1039,7 +1035,7 @@ namespace bpkg
           if (reconfigure ())
           {
             l5 ([&]{trace << *dsp << ddb << ": reconfigure (best)";});
-            return build_result (find_available_fragment (o, ddb, dsp));
+            return build_result (find_available_fragment (ddb, dsp));
           }
           else
           {
@@ -1245,7 +1241,7 @@ namespace bpkg
       if (reconfigure ())
       {
         l5 ([&]{trace << *dsp << ddb << ": reconfigure (only)";});
-        return build_result (find_available_fragment (o, ddb, dsp));
+        return build_result (find_available_fragment (ddb, dsp));
       }
       else
       {
@@ -1502,8 +1498,7 @@ namespace bpkg
   // evaluate_dependency() function description for details).
   //
   static optional<evaluate_result>
-  evaluate_recursive (const common_options& o,
-                      database& db,
+  evaluate_recursive (database& db,
                       const shared_ptr<selected_package>& sp,
                       const recursive_packages& recs,
                       const existing_dependencies& existing_deps,
@@ -1571,8 +1566,7 @@ namespace bpkg
            find_existing (db, sp->name, nullopt /* version_constraint */));
 
     optional<evaluate_result> r (
-      evaluate_dependency (o,
-                           db,
+      evaluate_dependency (db,
                            sp,
                            nullopt /* desired */,
                            false /* desired_sys */,
@@ -2265,8 +2259,7 @@ namespace bpkg
   //   try_replace_dependent() for details).
   //
   static optional<cmdline_adjustment>
-  try_replace_dependency (const common_options& o,
-                          const build_package& p,
+  try_replace_dependency (const build_package& p,
                           bool deny_downgrade,
                           bool& downgrades_denied,
                           bool deny_multiple_project_versions,
@@ -2689,7 +2682,7 @@ namespace bpkg
           {
             if (!cmdline_adjs.tried_earlier (db, nm, sv))
             {
-              available af (make_available_fragment (o, db, sp));
+              available af (make_available_fragment (db, sp));
 
               if (!deny_multiple_project_versions ||
                   !af.first->project              ||
@@ -2947,8 +2940,7 @@ namespace bpkg
   // the try_replace_dependency() function.
   //
   static optional<cmdline_adjustment>
-  try_replace_dependent (const common_options& o,
-                         const build_package& p, // Dependency.
+  try_replace_dependent (const build_package& p, // Dependency.
                          bool deny_downgrade,
                          bool& downgrades_denied,
                          bool deny_multiple_project_versions,
@@ -2982,8 +2974,7 @@ namespace bpkg
 
     // Try to replace a dependent, unless we have already tried to replace it.
     //
-    auto try_replace = [&o,
-                        &p,
+    auto try_replace = [&p,
                         deny_downgrade,
                         &downgrades_denied,
                         deny_multiple_project_versions,
@@ -3025,7 +3016,6 @@ namespace bpkg
         vector<package_key> uds;
 
         if (optional<cmdline_adjustment> a = try_replace_dependency (
-              o,
               *d,
               deny_downgrade,
               downgrades_denied,
@@ -3139,7 +3129,6 @@ namespace bpkg
       assert (d != nullptr);
 
       if (optional<cmdline_adjustment> a = try_replace_dependent (
-            o,
             *d,
             deny_downgrade,
             downgrades_denied,
@@ -5509,7 +5498,7 @@ namespace bpkg
         {
           assert (sp != nullptr && sp->system () == sys);
 
-          auto rp (make_available_fragment (o, *pdb, sp));
+          auto rp (make_available_fragment (*pdb, sp));
           ap = move (rp.first);
           af = move (rp.second); // Could be NULL (orphan).
         }
@@ -6918,8 +6907,7 @@ namespace bpkg
             // See if there is an optional dependency upgrade recommendation.
             //
             if (!sp->hold_package)
-              r = evaluate_dependency (o,
-                                       db,
+              r = evaluate_dependency (db,
                                        sp,
                                        dep_pkgs,
                                        o.no_move (),
@@ -6935,8 +6923,7 @@ namespace bpkg
             // configured as such for a reason.
             //
             if (!r && !sp->system () && !rec_pkgs.empty ())
-              r = evaluate_recursive (o,
-                                      db,
+              r = evaluate_recursive (db,
                                       sp,
                                       rec_pkgs,
                                       existing_deps,
@@ -7709,7 +7696,6 @@ namespace bpkg
               set<const build_package*> visited_dpts;
 
               if ((a = try_replace_dependency (
-                     o,
                      *p,
                      cmdline_deny_downgrade,
                      cmdline_downgrades_denied,
@@ -7722,7 +7708,6 @@ namespace bpkg
                      unsatisfied_dpts,
                      "unsatisfactory dependency")) ||
                   (a = try_replace_dependent (
-                     o,
                      *p,
                      cmdline_deny_downgrade,
                      cmdline_downgrades_denied,
@@ -8078,7 +8063,7 @@ namespace bpkg
                 //
                 cfg = &p.init_skeleton (o,
                                         true /* load_old_dependent_config */,
-                                        find_available (o, pdb, sp));
+                                        find_available (pdb, sp));
               }
             }
             else
@@ -8626,7 +8611,7 @@ namespace bpkg
           p.init_skeleton (o,
                            true /* load_old_dependent_config */,
                            (p.available == nullptr
-                            ? find_available (o, pdb, sp)
+                            ? find_available (pdb, sp)
                             : nullptr));
         }
 

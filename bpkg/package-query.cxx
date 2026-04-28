@@ -654,9 +654,7 @@ namespace bpkg
   }
 
   shared_ptr<available_package>
-  find_available (const common_options& options,
-                  database& db,
-                  const shared_ptr<selected_package>& sp)
+  find_available (database& db, const shared_ptr<selected_package>& sp)
   {
     package_id pid (sp->name, sp->version);
     for (database& ddb: db.dependent_configs (true /* sys_rep */))
@@ -667,14 +665,12 @@ namespace bpkg
         return ap;
     }
 
-    return make_available (options, db, sp);
+    return make_available (db, sp);
   }
 
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
-  find_available_fragment (const common_options& options,
-                           database& db,
-                           const shared_ptr<selected_package>& sp)
+  find_available_fragment (database& db, const shared_ptr<selected_package>& sp)
   {
     package_id pid (sp->name, sp->version);
     const string& cn (sp->repository_fragment.canonical_name ());
@@ -696,7 +692,7 @@ namespace bpkg
       }
     }
 
-    return make_pair (find_available (options, db, sp), nullptr);
+    return make_pair (find_available (db, sp), nullptr);
   }
 
   available_packages
@@ -776,11 +772,9 @@ namespace bpkg
 
   pair<shared_ptr<available_package>,
        lazy_shared_ptr<repository_fragment>>
-  make_available_fragment (const common_options& options,
-                           database& db,
-                           const shared_ptr<selected_package>& sp)
+  make_available_fragment (database& db, const shared_ptr<selected_package>& sp)
   {
-    shared_ptr<available_package> ap (make_available (options, db, sp));
+    shared_ptr<available_package> ap (make_available (db, sp));
 
     if (sp->system ())
       return make_pair (move (ap), nullptr);
