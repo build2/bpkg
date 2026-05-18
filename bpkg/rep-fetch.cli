@@ -31,7 +31,7 @@ namespace bpkg
      command.
 
      Note that fetching only a specific repository that happens to be a
-     prerequisite or complete of another repository not being fetched may
+     prerequisite or complement of another repository not being fetched may
      result in an inconsistent repository state."
   }
 
