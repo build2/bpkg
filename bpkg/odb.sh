@@ -38,7 +38,10 @@ sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
 
 else
 
-  inc+=("-I../../libbutl/libbutl-odb")
+#  inc+=("-I../../libbutl/libbutl-odb")
+
+    inc+=("-I$HOME/work/odb/odb-new/libodb-sqlite")
+    inc+=("-I$HOME/work/odb/odb-new/libodb")
 
   inc+=(-I.. -I../../libbpkg -I../../libbutl)
 
