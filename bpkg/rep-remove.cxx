@@ -224,7 +224,7 @@ namespace bpkg
                  pointer_result (
                    db.query<repository> (
                      query::name != "" &&
-                     query::location.type == to_string (r->location.type ()))))
+                     query::location.type == r->location.type ())))
           {
             if (repository_state (rp->location) == d)
             {

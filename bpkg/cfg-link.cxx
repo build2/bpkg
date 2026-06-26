@@ -142,7 +142,7 @@ namespace bpkg
       // Verify the backlink integrity.
       //
       shared_ptr<configuration> cf (
-        ldb.query_one<configuration> (query::uuid == db.uuid.string ()));
+        ldb.query_one<configuration> (query::uuid == db.uuid));
 
       // Note: both sides of the link cannot be implicit.
       //

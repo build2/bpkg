@@ -4,7 +4,7 @@
 #ifndef BPKG_WRAPPER_TRAITS_HXX
 #define BPKG_WRAPPER_TRAITS_HXX
 
-#include <cstdint> // std::uint64_t
+#include <type_traits> // std::remove_const
 
 #include <libbutl/optional.hxx>
 
@@ -22,8 +22,7 @@ namespace odb
     // T can be const.
     //
     typedef
-    typename odb::details::meta::remove_const<T>::result
-    unrestricted_wrapped_type;
+    typename std::remove_const<T>::type unrestricted_wrapped_type;
 
     static const bool null_handler = true;
     static const bool null_default = true;
@@ -55,17 +54,6 @@ namespace odb
       return const_cast<unrestricted_wrapped_type&> (*o);
     }
   };
-
-  // Workaround for unstable std::uint64_t name (no hint).
-  //
-  // @@ TMP: can drop once upgraded past ODB 2.5.0.
-  //
-  using wrapper_traits_for_optional_uint64_t =
-    wrapper_traits<butl::optional<std::uint64_t>>;
-
-#ifdef ODB_COMPILER
-  template class wrapper_traits<butl::optional<std::uint64_t>>;
-#endif
 }
 
 #endif // BPKG_WRAPPER_TRAITS_HXX

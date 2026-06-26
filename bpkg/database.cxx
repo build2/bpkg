@@ -488,7 +488,7 @@ namespace bpkg
     assert (transaction::has_current ());
 
     for (const auto& p: query<selected_package> (
-           odb::query<selected_package>::substate == "system"))
+           odb::query<selected_package>::substate == package_substate::system))
       system_repository->insert (p.name,
                                  p.version,
                                  false /* authoritative */);
@@ -698,7 +698,7 @@ namespace bpkg
     using q = odb::query<configuration>;
 
     shared_ptr<configuration> cf (
-      db.query_one<configuration> (q::uuid == uuid.string ()));
+      db.query_one<configuration> (q::uuid == uuid));
 
     if (cf == nullptr)
       fail << "configuration " << db.config_orig << " is linked with "

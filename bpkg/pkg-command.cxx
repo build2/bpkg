@@ -364,9 +364,9 @@ namespace bpkg
       {
         using query = query<selected_package>;
 
-        query q (query::hold_package          &&
-                 query::state == "configured" &&
-                 query::substate != "system");
+        query q (query::hold_package                       &&
+                 query::state == package_state::configured &&
+                 query::substate != package_substate::system);
 
         for (shared_ptr<selected_package> p:
                pointer_result (db.query<selected_package> (q)))
