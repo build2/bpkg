@@ -5596,7 +5596,8 @@ namespace bpkg
           for (shared_ptr<selected_package> sp:
                  pointer_result (
                    cdb.query<selected_package> (
-                     query::state == "configured" && query::hold_package)))
+                     query::state == package_state::configured &&
+                     query::hold_package)))
           {
             // Let's skip upgrading system packages as they are, probably,
             // configured as such for a reason.
@@ -5858,7 +5859,7 @@ namespace bpkg
 
         using query = query<selected_package>;
 
-        query q (query::state == "configured");
+        query q (query::state == package_state::configured);
 
         for (database& cdb: current_configs)
         {
@@ -7054,7 +7055,7 @@ namespace bpkg
 
               using query = query<selected_package>;
 
-              query q (query::state == "configured");
+              query q (query::state == package_state::configured);
 
               if (rec_pkgs.empty ())
                 q = q && !query::hold_package;

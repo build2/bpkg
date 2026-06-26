@@ -101,7 +101,8 @@ namespace bpkg
 
       for (shared_ptr<selected_package> sp:
              pointer_result (
-               udb.query<selected_package> (query::state == "configured")))
+               udb.query<selected_package> (
+                 query::state == package_state::configured)))
       {
         for (auto i (dcs.begin_linked ()); i != dcs.end (); ++i)
         {
@@ -163,7 +164,7 @@ namespace bpkg
       // Explicit link.
       //
       shared_ptr<configuration> uc (
-        mdb.query_one<configuration> (query::uuid == udb.uuid.string ()));
+        mdb.query_one<configuration> (query::uuid == udb.uuid));
 
       // The integrity of the current configuration explicit links is verified
       // by the database constructor.
@@ -173,7 +174,7 @@ namespace bpkg
       // Implicit backlink.
       //
       shared_ptr<configuration> cc (
-        udb.query_one<configuration> (query::uuid == mdb.uuid.string ()));
+        udb.query_one<configuration> (query::uuid == mdb.uuid));
 
       // The integrity of the implicit links of the configuration being
       // unlinked is verified by the above dependent_configs() call.

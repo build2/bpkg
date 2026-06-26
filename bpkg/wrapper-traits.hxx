@@ -6,6 +6,8 @@
 
 #include <cstdint> // std::uint64_t
 
+#include <type_traits> // std::remove_const
+
 #include <libbutl/optional.hxx>
 
 #include <odb/wrapper-traits.hxx>
@@ -22,8 +24,7 @@ namespace odb
     // T can be const.
     //
     typedef
-    typename odb::details::meta::remove_const<T>::result
-    unrestricted_wrapped_type;
+    typename std::remove_const<T>::type unrestricted_wrapped_type;
 
     static const bool null_handler = true;
     static const bool null_default = true;

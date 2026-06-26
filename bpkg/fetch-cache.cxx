@@ -42,7 +42,7 @@ namespace bpkg
   {
   public:
     explicit
-    transaction (odb::sqlite::transaction_impl* t)
+    transaction (unique_ptr<odb::sqlite::transaction_impl>&& t)
         : t_ (), // Finalized.
           ct_ (nullptr)
     {
@@ -52,7 +52,7 @@ namespace bpkg
                        ? &transaction::current ()
                        : nullptr);
 
-      t_.reset (t, ct == nullptr);
+      t_.reset (move (t), ct == nullptr);
 
       if (ct != nullptr)
         transaction::current (t_);
@@ -747,15 +747,8 @@ namespace bpkg
     auto tg = make_guard ([o = db.tracer (), &db] () {db.tracer (o);});
     db.tracer (trace);
 
-    auto since_epoch_ns = [] (timestamp t)
-    {
-      return chrono::duration_cast<chrono::nanoseconds> (
-        t.time_since_epoch ()).count ();
-    };
-
     timestamp now (system_clock::now ());
-
-    uint64_t three_months_ago (since_epoch_ns (now - chrono::hours (24 * 90)));
+    timestamp three_months_ago (now - chrono::hours (24 * 90));
 
     try
     {
@@ -1004,7 +997,7 @@ namespace bpkg
       for (pkg_repository_auth& o:
              db.query<pkg_repository_auth> (
                query<pkg_repository_auth>::end_date.is_not_null () &&
-               query<pkg_repository_auth>::end_date < since_epoch_ns (now)))
+               query<pkg_repository_auth>::end_date < now))
       {
         if (stop ()) return;
 
