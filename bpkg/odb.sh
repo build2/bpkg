@@ -45,7 +45,6 @@ else
 fi
 
 $odb "${inc[@]}"                                                      \
-    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
     --std c++14 -d sqlite --sqlite-version 3.53.3                     \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
@@ -54,7 +53,6 @@ $odb "${inc[@]}"                                                      \
     package-common.hxx
 
 $odb "${inc[@]}"                                                      \
-    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
     --std c++14 -d sqlite --sqlite-version 3.53.3                     \
     --generate-query --generate-prepared --generate-schema            \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'          \
@@ -67,7 +65,6 @@ $odb "${inc[@]}"                                                      \
     package.hxx
 
 $odb "${inc[@]}"                                                      \
-    -DLIBODB_BUILD2 -DLIBODB_SQLITE_BUILD2                            \
     --std c++14 -d sqlite --sqlite-version 3.53.3                     \
     --generate-query --generate-schema --schema-name 'fetch-cache'    \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
