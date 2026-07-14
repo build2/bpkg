@@ -63,6 +63,9 @@ namespace bpkg
   static const migration_entry<30>
   migrate_v30 ([] (odb::database& db)
   {
+    // Note: this takes care of older databases that were still created with
+    // code generated with --sqlite-override-null.
+    //
     db.execute ("UPDATE \"main\".available_package_dependencies "
                 "SET type = 'dependencies' WHERE type IS NULL");
   });

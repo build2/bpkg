@@ -1,17 +1,17 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="sqlite" version="1">
   <changeset version="30">
     <alter-table name="main.selected_package">
-      <add-column name="has_dependency_constraint" type="INTEGER" null="true" default="0"/>
+      <add-column name="has_dependency_constraint" type="INTEGER" null="false" default="0"/>
     </alter-table>
     <alter-table name="main.selected_package_prerequisites">
-      <add-column name="type" type="TEXT" null="true" default="'dependency'"/>
+      <add-column name="type" type="TEXT" null="false" default="'dependency'"/>
     </alter-table>
   </changeset>
 
   <changeset version="29">
     <alter-table name="main.selected_package_prerequisites">
-      <add-column name="buildtime" type="INTEGER" null="true" default="0"/>
-      <add-column name="runtime" type="INTEGER" null="true" default="0"/>
+      <add-column name="buildtime" type="INTEGER" null="false" default="0"/>
+      <add-column name="runtime" type="INTEGER" null="false" default="0"/>
     </alter-table>
   </changeset>
 
@@ -29,16 +29,16 @@
 
   <model version="26">
     <table name="main.repository_fragment" kind="object">
-      <column name="name" type="TEXT" null="true"/>
-      <column name="url" type="TEXT" null="true"/>
-      <column name="type" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false"/>
+      <column name="url" type="TEXT" null="false"/>
+      <column name="type" type="TEXT" null="false"/>
       <primary-key>
         <column name="name"/>
       </primary-key>
     </table>
     <table name="main.repository_fragment_complements" kind="container">
-      <column name="repository_fragment" type="TEXT" null="true"/>
-      <column name="complement" type="TEXT" null="true"/>
+      <column name="repository_fragment" type="TEXT" null="false"/>
+      <column name="complement" type="TEXT" null="false"/>
       <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
         <column name="repository_fragment"/>
         <references table="main.repository_fragment">
@@ -56,8 +56,8 @@
       </foreign-key>
     </table>
     <table name="main.repository_fragment_prerequisites" kind="container">
-      <column name="repository_fragment" type="TEXT" null="true"/>
-      <column name="prerequisite" type="TEXT" null="true"/>
+      <column name="repository_fragment" type="TEXT" null="false"/>
+      <column name="prerequisite" type="TEXT" null="false"/>
       <foreign-key name="repository_fragment_fk" on-delete="CASCADE">
         <column name="repository_fragment"/>
         <references table="main.repository_fragment">
@@ -75,9 +75,9 @@
       </foreign-key>
     </table>
     <table name="main.repository" kind="object">
-      <column name="name" type="TEXT" null="true"/>
-      <column name="url" type="TEXT" null="true"/>
-      <column name="type" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false"/>
+      <column name="url" type="TEXT" null="false"/>
+      <column name="type" type="TEXT" null="false"/>
       <column name="certificate" type="TEXT" null="true"/>
       <column name="local" type="INTEGER" null="true"/>
       <primary-key>
@@ -85,9 +85,9 @@
       </primary-key>
     </table>
     <table name="main.repository_fragments" kind="container">
-      <column name="repository" type="TEXT" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="friendly_name" type="TEXT" null="true"/>
+      <column name="repository" type="TEXT" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="friendly_name" type="TEXT" null="false"/>
       <column name="fragment" type="TEXT" null="true"/>
       <foreign-key name="repository_fk" on-delete="CASCADE">
         <column name="repository"/>
@@ -109,13 +109,13 @@
       </foreign-key>
     </table>
     <table name="main.available_package" kind="object">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="version_upstream" type="TEXT" null="false"/>
       <column name="version_release" type="TEXT" null="true"/>
       <column name="sha256sum" type="TEXT" null="true"/>
       <column name="bootstrap_build" type="TEXT" null="true" default="''"/>
@@ -134,14 +134,14 @@
       </primary-key>
     </table>
     <table name="main.available_package_locations" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
       <column name="repository_fragment" type="TEXT" null="true"/>
-      <column name="location" type="TEXT" null="true"/>
+      <column name="location" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -174,16 +174,16 @@
       </foreign-key>
     </table>
     <table name="main.available_package_dependencies" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="buildtime" type="INTEGER" null="true"/>
-      <column name="comment" type="TEXT" null="true"/>
-      <column name="type" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="buildtime" type="INTEGER" null="false"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <column name="type" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -213,14 +213,14 @@
       </index>
     </table>
     <table name="main.available_package_dependency_alternatives" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="dependency_index" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="dependency_index" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
       <column name="enable" type="TEXT" null="true"/>
       <column name="reflect" type="TEXT" null="true"/>
       <column name="prefer" type="TEXT" null="true"/>
@@ -252,35 +252,35 @@
       </index>
     </table>
     <table name="main.selected_package" kind="object">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false"/>
       <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="version_upstream" type="TEXT" null="true"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="version_upstream" type="TEXT" null="false"/>
       <column name="version_release" type="TEXT" null="true"/>
-      <column name="state" type="TEXT" null="true"/>
-      <column name="substate" type="TEXT" null="true"/>
-      <column name="hold_package" type="INTEGER" null="true"/>
-      <column name="hold_version" type="INTEGER" null="true"/>
-      <column name="repository_fragment_url" type="TEXT" null="true"/>
-      <column name="repository_fragment_type" type="TEXT" null="true"/>
+      <column name="state" type="TEXT" null="false"/>
+      <column name="substate" type="TEXT" null="false"/>
+      <column name="hold_package" type="INTEGER" null="false"/>
+      <column name="hold_version" type="INTEGER" null="false"/>
+      <column name="repository_fragment_url" type="TEXT" null="false"/>
+      <column name="repository_fragment_type" type="TEXT" null="false"/>
       <column name="archive" type="TEXT" null="true"/>
-      <column name="purge_archive" type="INTEGER" null="true"/>
+      <column name="purge_archive" type="INTEGER" null="false"/>
       <column name="src_root" type="TEXT" null="true"/>
-      <column name="purge_src" type="INTEGER" null="true"/>
+      <column name="purge_src" type="INTEGER" null="false"/>
       <column name="manifest_checksum" type="TEXT" null="true"/>
       <column name="out_root" type="TEXT" null="true"/>
       <column name="buildfiles_checksum" type="TEXT" null="true"/>
-      <column name="config_checksum" type="TEXT" null="true" default="''"/>
+      <column name="config_checksum" type="TEXT" null="false" default="''"/>
       <primary-key>
         <column name="name"/>
       </primary-key>
     </table>
     <table name="main.selected_package_prerequisites" kind="container">
-      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="prerequisite" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="package" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="prerequisite" type="TEXT" null="false" options="COLLATE NOCASE"/>
       <column name="min_version_epoch" type="INTEGER" null="true"/>
       <column name="min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="min_version_canonical_release" type="TEXT" null="true"/>
@@ -297,7 +297,7 @@
       <column name="max_version_release" type="TEXT" null="true"/>
       <column name="min_open" type="INTEGER" null="true"/>
       <column name="max_open" type="INTEGER" null="true"/>
-      <column name="configuration" type="TEXT" null="true"/>
+      <column name="configuration" type="TEXT" null="false"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="main.selected_package">
@@ -309,26 +309,26 @@
       </index>
     </table>
     <table name="main.certificate" kind="object">
-      <column name="id" type="TEXT" null="true"/>
-      <column name="fingerprint" type="TEXT" null="true"/>
-      <column name="name" type="TEXT" null="true"/>
-      <column name="organization" type="TEXT" null="true"/>
-      <column name="email" type="TEXT" null="true"/>
-      <column name="start_date" type="INTEGER" null="true"/>
-      <column name="end_date" type="INTEGER" null="true"/>
+      <column name="id" type="TEXT" null="false"/>
+      <column name="fingerprint" type="TEXT" null="false"/>
+      <column name="name" type="TEXT" null="false"/>
+      <column name="organization" type="TEXT" null="false"/>
+      <column name="email" type="TEXT" null="false"/>
+      <column name="start_date" type="INTEGER" null="false"/>
+      <column name="end_date" type="INTEGER" null="false"/>
       <primary-key>
         <column name="id"/>
       </primary-key>
     </table>
     <table name="main.available_package_tests" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="test_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="test_name" type="TEXT" null="false" options="COLLATE NOCASE"/>
       <column name="test_min_version_epoch" type="INTEGER" null="true"/>
       <column name="test_min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="test_min_version_canonical_release" type="TEXT" null="true"/>
@@ -345,8 +345,8 @@
       <column name="test_max_version_release" type="TEXT" null="true"/>
       <column name="test_min_open" type="INTEGER" null="true"/>
       <column name="test_max_open" type="INTEGER" null="true"/>
-      <column name="test_type" type="TEXT" null="true"/>
-      <column name="test_buildtime" type="INTEGER" null="true" default="0"/>
+      <column name="test_type" type="TEXT" null="false"/>
+      <column name="test_buildtime" type="INTEGER" null="false" default="0"/>
       <column name="test_reflect" type="TEXT" null="true"/>
       <column name="test_enable" type="TEXT" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
@@ -378,12 +378,12 @@
       </index>
     </table>
     <table name="main.configuration" kind="object">
-      <column name="id" type="INTEGER" null="true"/>
-      <column name="uuid" type="TEXT" null="true"/>
+      <column name="id" type="INTEGER" null="false"/>
+      <column name="uuid" type="TEXT" null="false"/>
       <column name="name" type="TEXT" null="true"/>
-      <column name="type" type="TEXT" null="true"/>
-      <column name="path" type="TEXT" null="true"/>
-      <column name="explicit" type="INTEGER" null="true"/>
+      <column name="type" type="TEXT" null="false"/>
+      <column name="path" type="TEXT" null="false"/>
+      <column name="explicit" type="INTEGER" null="false"/>
       <primary-key auto="true">
         <column name="id"/>
       </primary-key>
@@ -398,16 +398,16 @@
       </index>
     </table>
     <table name="main.available_package_dependency_alternative_dependencies" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="dependency_index" type="INTEGER" null="true"/>
-      <column name="alternative_index" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="dep_name" type="TEXT" null="true" options="COLLATE NOCASE"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="dependency_index" type="INTEGER" null="false"/>
+      <column name="alternative_index" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="dep_name" type="TEXT" null="false" options="COLLATE NOCASE"/>
       <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
       <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
@@ -450,10 +450,10 @@
       </index>
     </table>
     <table name="main.selected_package_config_variables" kind="container">
-      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="name" type="TEXT" null="true"/>
-      <column name="source" type="TEXT" null="true"/>
+      <column name="package" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="name" type="TEXT" null="false"/>
+      <column name="source" type="TEXT" null="false"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="main.selected_package">
@@ -468,15 +468,15 @@
       </index>
     </table>
     <table name="main.available_package_buildfiles" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="path" type="TEXT" null="true"/>
-      <column name="content" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="path" type="TEXT" null="false"/>
+      <column name="content" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -506,15 +506,15 @@
       </index>
     </table>
     <table name="main.available_package_distribution_values" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="dist_name" type="TEXT" null="true"/>
-      <column name="dist_value" type="TEXT" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="dist_name" type="TEXT" null="false"/>
+      <column name="dist_value" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -544,15 +544,15 @@
       </index>
     </table>
     <table name="main.available_package_languages" kind="container">
-      <column name="name" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="version_epoch" type="INTEGER" null="true"/>
-      <column name="version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="version_canonical_release" type="TEXT" null="true" options="COLLATE BINARY"/>
-      <column name="version_revision" type="INTEGER" null="true"/>
-      <column name="version_iteration" type="INTEGER" null="true"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="language_name" type="TEXT" null="true"/>
-      <column name="language_impl" type="INTEGER" null="true"/>
+      <column name="name" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE BINARY"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="version_iteration" type="INTEGER" null="false"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="language_name" type="TEXT" null="false"/>
+      <column name="language_impl" type="INTEGER" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -582,9 +582,9 @@
       </index>
     </table>
     <table name="main.selected_package_dependency_alternatives" kind="container">
-      <column name="package" type="TEXT" null="true" options="COLLATE NOCASE"/>
-      <column name="index" type="INTEGER" null="true"/>
-      <column name="position" type="INTEGER" null="true"/>
+      <column name="package" type="TEXT" null="false" options="COLLATE NOCASE"/>
+      <column name="index" type="INTEGER" null="false"/>
+      <column name="position" type="INTEGER" null="false"/>
       <foreign-key name="package_fk" on-delete="CASCADE">
         <column name="package"/>
         <references table="main.selected_package">
