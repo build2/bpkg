@@ -322,16 +322,12 @@ namespace bpkg
           x.iteration == q::_ref (y.iteration);
   }
 
-  /*
-  Currently unused (and probably should stay that way).
-
   template <typename T1, typename T2>
   inline auto
   operator== (const T1& x, const T2& y) -> decltype (x.revision == y.revision)
   {
-  return compare_version_eq (x, y, true);
+    return compare_version_eq (x, y, true, true);
   }
-  */
 
   template <typename T1, typename T2>
   inline auto
@@ -745,11 +741,61 @@ namespace bpkg
 */
 
   inline bool
+  operator== (const package_id& x, const package_id& y)
+  {
+    return x.name == y.name && x.version == y.version;
+  }
+
+  inline bool
   operator< (const package_id& x, const package_id& y)
   {
     int r (x.name.compare (y.name));
     return r != 0 ? r < 0 : x.version < y.version;
   }
+}
+
+namespace std
+{
+  template <>
+  struct hash<bpkg::package_name>
+  {
+    size_t
+    operator() (const bpkg::package_name& n) const {return sh (n.string ());}
+
+    hash<string> sh;
+  };
+
+  template <>
+  struct hash<bpkg::package_id>
+  {
+    size_t
+    operator() (const bpkg::package_id& id) const
+    {
+      const bpkg::canonical_version& v (id.version);
+
+      // Combine hashes as per
+      // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n3876.pdf.
+      //
+      // @@ Note that the below hash combining implementation doesn't seem to
+      //    really fit 64-bit hashes and we need to find a proper one. More
+      //    research is required. Can also consider implementing the
+      //    hash-combining function in libbutl.
+      //
+      size_t r (0);
+      r ^= nh (id.name)              + 0x9e3779b9 + (r << 6) + (r >> 2);
+      r ^= u16h (v.epoch)            + 0x9e3779b9 + (r << 6) + (r >> 2);
+      r ^= sh (v.canonical_upstream) + 0x9e3779b9 + (r << 6) + (r >> 2);
+      r ^= sh (v.canonical_release)  + 0x9e3779b9 + (r << 6) + (r >> 2);
+      r ^= u16h (v.revision)         + 0x9e3779b9 + (r << 6) + (r >> 2);
+      r ^= u32h (v.iteration)        + 0x9e3779b9 + (r << 6) + (r >> 2);
+      return r;
+    }
+
+    hash<bpkg::package_name> nh;
+    hash<string> sh;
+    hash<uint16_t> u16h;
+    hash<uint32_t> u32h;
+  };
 }
 
 #endif // BPKG_PACKAGE_COMMON_HXX
