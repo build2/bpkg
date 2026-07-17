@@ -45,7 +45,7 @@ else
 fi
 
 $odb "${inc[@]}"                                                      \
-    --std c++14 -d sqlite --sqlite-version 3.53.3                     \
+    --std c++14 -d sqlite --sqlite-version 3.53.0                     \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <bpkg/value-traits.hxx>'                 \
@@ -53,7 +53,7 @@ $odb "${inc[@]}"                                                      \
     package-common.hxx
 
 $odb "${inc[@]}"                                                      \
-    --std c++14 -d sqlite --sqlite-version 3.53.3                     \
+    --std c++14 -d sqlite --sqlite-version 3.53.0                     \
     --generate-query --generate-prepared --generate-schema            \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'          \
     --odb-epilogue '#include <bpkg/pointer-traits.hxx>'               \
@@ -65,7 +65,7 @@ $odb "${inc[@]}"                                                      \
     package.hxx
 
 $odb "${inc[@]}"                                                      \
-    --std c++14 -d sqlite --sqlite-version 3.53.3                     \
+    --std c++14 -d sqlite --sqlite-version 3.53.0                     \
     --generate-query --generate-schema --schema-name 'fetch-cache'    \
     --odb-epilogue '#include <bpkg/wrapper-traits.hxx>'               \
     --include-with-brackets --include-prefix bpkg --guard-prefix BPKG \
