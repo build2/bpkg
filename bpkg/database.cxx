@@ -109,11 +109,46 @@ namespace bpkg
             bool sys_rep,
             const dir_paths& pre_link,
             std::string str_repr)
+  try
       : sqlite::database (
           cfg_path (d, create != nullptr).string (),
           SQLITE_OPEN_READWRITE | (create != nullptr ? SQLITE_OPEN_CREATE : 0),
-          true,                  // Enable FKs.
-          "",                    // Default VFS.
+          [sync] (sqlite::connection& c)
+          {
+            // Lock the database for as long as the connection is active.
+            // First we set locking_mode to EXCLUSIVE which instructs SQLite
+            // not to release any locks until the connection is closed. Then,
+            // in the constructor body, we force SQLite to acquire the write
+            // lock by starting exclusive transaction. See the locking_mode
+            // pragma documentation for details. This will also fail if the
+            // database is inaccessible (e.g., file does not exist, already
+            // used by another process, etc).
+            //
+            // Note that here we assume that any database that is ATTACHED
+            // within an exclusive transaction gets the same treatment.
+            //
+            c.execute ("PRAGMA locking_mode = EXCLUSIVE");
+
+            // Use the default rollback journaling mode which, in contrast to
+            // the WAL (Write-Ahead Logging) mode, guarantees atomicity of a
+            // transaction across all the attached databases. Use the NORMAL
+            // synchronization mode to speed up the transaction commits. Note
+            // that for NORMAL in the rollback mode there is a very small
+            // (though non-zero) chance that a power failure at just the wrong
+            // time could corrupt the database on an older filesystem. Those
+            // who are uncomfortable with NORMAL can select FULL or even EXTRA
+            // while we may run tests with OFF (see GH issue #476 for
+            // background).
+            //
+            // Note: can throw odb::timeout if the database is already locked.
+            //
+            c.execute ("PRAGMA main.synchronous = " + to_string (sync));
+
+            // Enable FKs.
+            //
+            c.execute ("PRAGMA foreign_keys=ON");
+          },
+          "", // Default VFS.
           unique_ptr<sqlite::connection_factory> (
             new sqlite::serial_connection_factory)), // Single connection.
         config (normalize (d, "configuration")),
@@ -127,36 +162,8 @@ namespace bpkg
     //
     unique_ptr<impl> ig ((impl_ = new impl (connection ())));
 
-    try
     {
       tracer_guard tg (*this, trace);
-
-      // Lock the database for as long as the connection is active. First we
-      // set locking_mode to EXCLUSIVE which instructs SQLite not to release
-      // any locks until the connection is closed. Then we force SQLite to
-      // acquire the write lock by starting exclusive transaction. See the
-      // locking_mode pragma documentation for details. This will also fail if
-      // the database is inaccessible (e.g., file does not exist, already used
-      // by another process, etc).
-      //
-      // Note that here we assume that any database that is ATTACHED within an
-      // exclusive transaction gets the same treatment.
-      //
-      using odb::schema_catalog;
-
-      impl_->conn->execute ("PRAGMA locking_mode = EXCLUSIVE");
-
-      // Use the default rollback journaling mode which, in contrast to the
-      // WAL (Write-Ahead Logging) mode, guarantees atomicity of a transaction
-      // across all the attached databases. Use the NORMAL synchronization
-      // mode to speed up the transaction commits. Note that for NORMAL in the
-      // rollback mode there is a very small (though non-zero) chance that a
-      // power failure at just the wrong time could corrupt the database on an
-      // older filesystem. Those who are uncomfortable with NORMAL can select
-      // FULL or even EXTRA while we may run tests with OFF (see GH issue #476
-      // for background).
-      //
-      impl_->conn->execute ("PRAGMA main.synchronous = " + to_string (sync));
 
       add_env (true /* reset */);
       auto g (make_exception_guard ([] () {unsetenv (open_name);}));
@@ -165,6 +172,8 @@ namespace bpkg
         // Note that potential migration of the attached databases will be
         // performed in the default filesystem synchronization mode (see the
         // database synchronous member for the gory details).
+        //
+        // Note: can throw odb::timeout if the database is already locked.
         //
         sqlite::transaction t (impl_->conn->begin_exclusive ());
 
@@ -176,7 +185,7 @@ namespace bpkg
             fail << sqlite::database::name () << ": already has database "
                  << "schema";
 
-          schema_catalog::create_schema (*this);
+          odb::schema_catalog::create_schema (*this);
 
           // To speed up the query_dependents() function create the multi-
           // column index for the configuration and prerequisite columns of
@@ -243,20 +252,20 @@ namespace bpkg
         t.commit ();
       }
     }
-    catch (odb::timeout&)
-    {
-      fail << "configuration " << d << " is already used by another process";
-    }
-    catch (const sqlite::database_exception& e)
-    {
-      fail << sqlite::database::name () << ": " << e.message ();
-    }
 
     tracer (tr);
 
-    // Note: will be leaked if anything further throws.
+    // Note: keep last, since will be leaked if anything further throws.
     //
     ig.release ();
+  }
+  catch (odb::timeout&)
+  {
+    fail << "configuration " << d << " is already used by another process";
+  }
+  catch (const sqlite::database_exception& e)
+  {
+    fail << cfg_path (d, false /* create */) << ": " << e.message ();
   }
 
   // NOTE: if we ever load/persist any dynamically allocated objects in this

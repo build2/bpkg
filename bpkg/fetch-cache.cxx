@@ -431,13 +431,14 @@ namespace bpkg
         new odb::sqlite::database (
           f.string (),
           SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
-          true,                  // Enable FKs.
-          "",                    // Default VFS.
+          [] (odb::sqlite::connection& c)
+          {
+            c.execute ("PRAGMA locking_mode = EXCLUSIVE");
+          },
+          "", // Default VFS.
           move (cf)));
 
-      connection_ptr c (lock_->connection ());
-      c->execute ("PRAGMA locking_mode = EXCLUSIVE");
-      transaction t (c->begin_exclusive ());
+      transaction t (lock_->begin_exclusive ());
       t.commit ();
     }
     catch (const database_exception& e)
@@ -566,47 +567,59 @@ namespace bpkg
           new odb::sqlite::database (
             f.string (),
             SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0),
-            true,                  // Enable FKs.
-            "",                    // Default VFS.
+            [] (odb::sqlite::connection& c)
+            {
+              // Lock the database for as long as the connection is active.
+              // First we set locking_mode to EXCLUSIVE which instructs SQLite
+              // not to release any locks until the connection is closed.
+              // Then, after the database object is created, we force SQLite
+              // to acquire the write lock by starting exclusive transaction.
+              // See the locking_mode pragma documentation for details. This
+              // will also fail if the database is inaccessible (e.g., file
+              // does not exist, already used by another process, etc).
+              //
+              c.execute ("PRAGMA locking_mode = EXCLUSIVE");
+
+              // Use the WAL (Write-Ahead Logging) journaling mode and, by
+              // default, the NORMAL synchronization mode to speed up the
+              // transaction commits.
+              //
+              // Note that according to the SQLite documentation, NORMAL
+              // should be safe enough for WAL. In particular, the worst that
+              // can happen (in case of a power loss or operating system
+              // crash), is that the last committed transaction will be rolled
+              // back. Which in our case will translate to us not tracking
+              // some filesystem entries in the cache or not tracking some
+              // build configurations that are on different filesystems. This
+              // feels like a reasonable tradeoff. Those who are uncomfortable
+              // with NORMAL can select FULL while we may run tests with OFF
+              // (see GH issue #476 for background). Note that EXTRA is no
+              // different from FULL for WAL.
+              //
+              // Note: can throw odb::timeout if the database is already locked.
+              //
+              c.execute ("PRAGMA journal_mode = WAL");
+
+              // Note: can throw odb::timeout if the database is already locked.
+              //
+              c.execute ("PRAGMA main.synchronous = " +
+                         to_string (sqlite_synchronous_));
+
+              // Enable FKs.
+              //
+              c.execute ("PRAGMA foreign_keys=ON");
+            },
+            "", // Default VFS.
             move (cf)));
 
         auto& db (*db_);
 
         db.tracer (trace);
 
-        // Lock the database for as long as the connection is active. First we
-        // set locking_mode to EXCLUSIVE which instructs SQLite not to release
-        // any locks until the connection is closed. Then we force SQLite to
-        // acquire the write lock by starting exclusive transaction. See the
-        // locking_mode pragma documentation for details. This will also fail
-        // if the database is inaccessible (e.g., file does not exist, already
-        // used by another process, etc).
-        //
         {
-          connection_ptr c (db.connection ());
-          c->execute ("PRAGMA locking_mode = EXCLUSIVE");
-
-          // Use the WAL (Write-Ahead Logging) journaling mode and, by
-          // default, the NORMAL synchronization mode to speed up the
-          // transaction commits.
+          // Note: can throw odb::timeout if the database is already locked.
           //
-          // Note that according to the SQLite documentation, NORMAL should be
-          // safe enough for WAL. In particular, the worst that can happen (in
-          // case of a power loss or operating system crash), is that the last
-          // committed transaction will be rolled back. Which in our case will
-          // translate to us not tracking some filesystem entries in the cache
-          // or not tracking some build configurations that are on different
-          // filesystems. This feels like a reasonable tradeoff. Those who are
-          // uncomfortable with NORMAL can select FULL while we may run tests
-          // with OFF (see GH issue #476 for background). Note that EXTRA is
-          // no different from FULL for WAL.
-          //
-          c->execute ("PRAGMA journal_mode = WAL");
-
-          c->execute ("PRAGMA main.synchronous = " +
-                      to_string (sqlite_synchronous_));
-
-          transaction t (c->begin_exclusive ());
+          transaction t (db.begin_exclusive ());
 
           const string& sn (db_schema_name);
 
