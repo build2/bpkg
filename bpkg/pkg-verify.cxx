@@ -240,6 +240,13 @@ namespace bpkg
                   throw failed ();
                 }
 
+                manifest_parser::validate_value_utf8 (
+                  s,
+                  f.string (),
+                  1 /* line */,
+                  1 /* column */,
+                  "file referenced by " + n + " package manifest value");
+
                 return s;
               }
               else
@@ -269,11 +276,18 @@ namespace bpkg
                                      const dir_path& c,
                                      const string& ext)
           {
+            auto extract_buildfile = [&co, &af, diag_level] (const path& f)
+            {
+              string r (extract (co, af, f, diag_level != 0));
+              manifest_parser::validate_value_utf8 (r, f.string ());
+              return r;
+            };
+
             if (!m.bootstrap_build)
-              m.bootstrap_build = extract (co, af, b, diag_level != 0);
+              m.bootstrap_build = extract_buildfile (b);
 
             if (!m.root_build && contains (r))
-              m.root_build = extract (co, af, r, diag_level != 0);
+              m.root_build = extract_buildfile (r);
 
             // Extract build/config/*.build files.
             //
@@ -300,8 +314,7 @@ namespace bpkg
                                  [&f] (const auto& v) {return v.path == f;}) ==
                         bs.end ())
                     {
-                      bs.emplace_back (move (f),
-                                       extract (co, af, ap, diag_level != 0));
+                      bs.emplace_back (move (f), extract_buildfile (ap));
                     }
                   }
                 }
@@ -383,6 +396,11 @@ namespace bpkg
     {
       if (wait ())
       {
+        // Note that the exception may (thrown by package_manifest(),
+        // manifest_parser::validate_value_utf8(), etc) or may not (thrown by
+        // package_manifest::load_files()) contain the location information.
+        // In the latter case no location is printed.
+        //
         if (diag_level != 0)
           error (e.name, e.line, e.column) << e.description <<
             info << "package archive " << af;
@@ -476,7 +494,17 @@ namespace bpkg
               try
               {
                 ifdstream is (f);
-                return is.read_text ();
+                string s (is.read_text ());
+
+                manifest_parser::validate_value_utf8 (
+                  s,
+                  f.string (),
+                  1 /* line */,
+                  1 /* column */,
+                  "file referenced by " + n + " manifest value in " +
+                    mf.string ());
+
+                return s;
               }
               catch (const io_error& e)
               {
@@ -492,17 +520,7 @@ namespace bpkg
           },
           iu);
 
-        try
-        {
-          load_package_buildfiles (m, d);
-        }
-        catch (const runtime_error& e)
-        {
-          if (diag_level != 0)
-            error << e;
-
-          throw failed ();
-        }
+        load_package_buildfiles (m, d);
       }
 
       // We used to verify package directory is <name>-<version> but it is
@@ -524,6 +542,9 @@ namespace bpkg
     }
     catch (const manifest_parsing& e)
     {
+      // Note that the exception may or may not contain the location
+      // information (see the above overload for details).
+      //
       if (diag_level != 0)
         error (e.name, e.line, e.column) << e.description;
 
@@ -533,6 +554,13 @@ namespace bpkg
     {
       if (diag_level != 0)
         error << "unable to read from " << mf << ": " << e;
+
+      throw failed ();
+    }
+    catch (const runtime_error& e)
+    {
+      if (diag_level != 0)
+        error << e;
 
       throw failed ();
     }
