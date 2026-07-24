@@ -190,11 +190,12 @@ namespace bpkg
                                optional<bool> alt_naming = nullopt,
                                size_t n = 16);
 
-  // Load the package's buildfiles for unspecified manifest values. Throw
-  // std::runtime_error for underlying errors (unable to find bootstrap.build,
-  // unable to read from file, etc). Optionally convert paths used in the
-  // potential error description to be relative to the package source
-  // directory.
+  // Load the package's buildfiles for unspecified manifest values. For
+  // underlying errors throw generic std::runtime_error (unable to find
+  // bootstrap.build, unable to read from file, etc) or its manifest_parsing
+  // derivation (buildfile is not a valid UTF-8 encoded byte stream, etc).
+  // Optionally convert paths used in the potential error description to be
+  // relative to the package source directory.
   //
   // Note that before calling this function you need to expand the build-file
   // manifest values into the respective *-build values, for example, by

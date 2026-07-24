@@ -749,9 +749,10 @@ namespace bpkg
     return r;
   }
 
-  // Return contents of a file referenced by a *-file package manifest value.
+  // Return contents (first) and path (second) of a file referenced by a
+  // *-file package manifest value.
   //
-  static string
+  static pair<string, path>
   read_package_file (const path& f,
                      const string& name,
                      const dir_path& pkg,
@@ -773,7 +774,7 @@ namespace bpkg
           info << "repository " << rl
                << (!fragment.empty () ? ' ' + fragment : "");
 
-      return s;
+      return make_pair (move (s), move (fp));
     }
     catch (const io_error& e)
     {
@@ -845,34 +846,41 @@ namespace bpkg
               //
               if (ev || n == "build-file")
               {
-                return read_package_file (p,
-                                          n,
-                                          pl,
-                                          rd,
-                                          rl,
-                                          empty_string /* fragment */);
+                pair<string, path> r (
+                  read_package_file (p,
+                                     n,
+                                     pl,
+                                     rd,
+                                     rl,
+                                     empty_string /* fragment */));
+
+                string s (move (r.first));
+
+                manifest_parser::validate_value_utf8 (
+                  s,
+                  r.second.string (),
+                  "file referenced by " + n + " package manifest value");
+
+                return s;
               }
               else
                 return nullopt;
             },
             iu);
+
+          // Load the bootstrap, root, and config/*.build buildfiles into the
+          // respective *-build values, if requested and if they are not
+          // already specified in the manifest.
+          //
+          if (lb)
+            load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
         }
         catch (const manifest_parsing& e)
         {
-          diag_record dr (fail);
-          dr << e << info;
+          diag_record dr (fail (e.name, e.line, e.column));
+          dr << e.description << info;
           print_package_info (dr, pl, rl, nullopt /* fragment */);
           dr << endf;
-        }
-
-        // Load the bootstrap, root, and config/*.build buildfiles into the
-        // respective *-build values, if requested and if they are not already
-        // specified in the manifest.
-        //
-        if (lb)
-        try
-        {
-          load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
         }
         catch (const runtime_error& e)
         {
@@ -1062,12 +1070,21 @@ namespace bpkg
                     }
                   }
 
-                  return read_package_file (p,
-                                            n,
-                                            pl,
-                                            rd,
-                                            rl,
-                                            fr.friendly_name);
+                  pair<string, path> r (read_package_file (p,
+                                                           n,
+                                                           pl,
+                                                           rd,
+                                                           rl,
+                                                           fr.friendly_name));
+
+                  string s (move (r.first));
+
+                  manifest_parser::validate_value_utf8 (
+                    s,
+                    r.second.string (),
+                    "file referenced by " + n + " package manifest value");
+
+                  return s;
                 }
                 else
                   return nullopt;
@@ -1076,23 +1093,20 @@ namespace bpkg
 
             if (bail)
               return nullopt;
+
+            // Load the bootstrap, root, and config/*.build buildfiles into
+            // the respective *-build values, if requested and if they are not
+            // already specified in the manifest.
+            //
+            if (lb)
+              load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
           }
           catch (const manifest_parsing& e)
           {
-            diag_record dr (fail);
-            dr << e << info;
+            diag_record dr (fail (e.name, e.line, e.column));
+            dr << e.description << info;
             print_package_info (dr, pl, rl, fr.friendly_name);
             dr << endf;
-          }
-
-          // Load the bootstrap, root, and config/*.build buildfiles into the
-          // respective *-build values, if requested and if they are not
-          // already specified in the manifest.
-          //
-          if (lb)
-          try
-          {
-            load_package_buildfiles (m, rd / pl, true /* err_path_relative */);
           }
           catch (const runtime_error& e)
           {

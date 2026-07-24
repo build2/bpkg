@@ -7,7 +7,8 @@
 #include <cstring> // strcspn()
 
 #include <libbutl/b.hxx>
-#include <libbutl/filesystem.hxx>  // dir_iterator
+#include <libbutl/filesystem.hxx>      // dir_iterator
+#include <libbutl/manifest-parser.hxx> // manifest_parser
 
 #include <bpkg/package.hxx>        // wildcard_version
 #include <bpkg/diagnostics.hxx>
@@ -632,6 +633,8 @@ namespace bpkg
           ifdstream ifs (f);
           string r (ifs.read_text ());
           ifs.close ();
+
+          manifest_parser::validate_value_utf8 (r, diag_path (f).string (), "");
           return r;
         }
         catch (const io_error& e)
