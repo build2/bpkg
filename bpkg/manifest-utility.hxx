@@ -190,15 +190,25 @@ namespace bpkg
                                optional<bool> alt_naming = nullopt,
                                size_t n = 16);
 
-  // Load the package's buildfiles for unspecified manifest values. Throw
-  // std::runtime_error for underlying errors (unable to find bootstrap.build,
-  // unable to read from file, etc). Optionally convert paths used in the
-  // potential error description to be relative to the package source
+  // Load the package's buildfiles for unspecified manifest values. For
+  // underlying errors throw generic std::runtime_error (unable to find
+  // bootstrap.build, unable to read from file, etc) or its manifest_parsing
+  // derivation (buildfile is not a valid UTF-8 encoded byte stream, etc), if
+  // the location can be provided for the error. Optionally convert paths used
+  // in the potential error description to be relative to the package source
   // directory.
   //
   // Note that before calling this function you need to expand the build-file
   // manifest values into the respective *-build values, for example, by
   // calling manifest::load_files().
+  //
+  // @@ We could probably factor this function out as a member of the
+  //    bpkg::package_manifest class (similar to load_files() member), so we
+  //    could also use it in bdep to verify the package in bdep-release
+  //    command (as we use load_files() there). By making this function a
+  //    template parameterized with the filesystem type, we could also re-use
+  //    it for package archives (which we currently handle ad-hoc in
+  //    pkg-verify.cxx).
   //
   void
   load_package_buildfiles (package_manifest&,
