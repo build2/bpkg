@@ -647,8 +647,13 @@ namespace bpkg
         fail << "invalid build metadata '" << md << "'";
     }
 
+    // Collect the language runtimes, if we need them to compose the package
+    // file names and/or the JSON output.
+    //
     vector<reference_wrapper<const pair<const string, string>>> langrt;
-    if (!md_s || md_f || md_b)
+    if (!md_s || md_f || md_b ||
+        (ops->structured_result_specified () &&
+         ops->structured_result () == "json"))
     {
       // First collect the interface languages and then add implementation.
       // This way if different languages map to the same runtimes (e.g., C and
@@ -764,9 +769,19 @@ namespace bpkg
       }
     }
 
+    binary_files r;
+    string& lr (r.language_runtimes);
+
+    for (const pair<const string, string>& p: langrt)
+    {
+      if (lr.empty ())
+        lr = p.second;
+      else
+        lr += '-' + p.second;
+    }
+
     // If there is no split, reduce to empty key and empty filter.
     //
-    binary_files r;
     for (const pair<const string, string>& kf:
            ops->archive_split_specified ()
            ? ops->archive_split ()
@@ -800,8 +815,8 @@ namespace bpkg
         if (!ops->archive_no_os ())
           base += '-' + os_release.name_id + os_release.version_id;
 
-        for (const pair<const string, string>& p: langrt)
-          base += '-' + p.second;
+        if (!lr.empty ())
+          base += '-' + lr;
 
         if (md_f)
         {

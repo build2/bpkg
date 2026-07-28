@@ -654,13 +654,13 @@ namespace bpkg
      \
 
      Note that not all source packages support relocatable installation (see
-     \l{b#install-reloc Rolocatable Installation} for details).
+     \l{b#install-reloc Relocatable Installation} for details).
 
-     Another mechanism that can useful when generating archive packages is the
-     ability to filter the files being installed. This, for example, can be
-     used to create binary packages that don't contain any development-related
-     files. See \l{b#install-filter Installation Filtering} for details. See
-     also the \cb{--archive-split} option.
+     Another mechanism that can be useful when generating archive packages is
+     the ability to filter the files being installed. This, for example, can
+     be used to create binary packages that don't contain any
+     development-related files. See \l{b#install-filter Installation
+     Filtering} for details. See also the \cb{--archive-split} option.
 
      The installation archive package can be generated for a target other than
      the host by specifying the target triplet with the \cb{--architecture}
@@ -835,6 +835,7 @@ namespace bpkg
      string           name;
      string           version;
      optional<string> system_version;
+     optional<string> language_runtimes;
      vector<file>     files;
    };
 
@@ -906,6 +907,12 @@ namespace bpkg
    absent if not applicable to the distribution. The \cb{file::system_name}
    member is also absent if the file is not a binary package (for example,
    \cb{.changes} and \cb{.buildid} files in the \cb{debian} distribution).
+
+   The \cb{package::language_runtimes} member is absent if the language
+   runtimes are not deduced for the distribution. Currently, they are only
+   deduced for the \cb{archive} distribution (see the \cb{--archive-lang*}
+   options for details). If present, contains the dash-separated list of the
+   language runtime ids.
   "
 
   // NOTE: remember to add the corresponding `--class-doc ...=exclude-base`

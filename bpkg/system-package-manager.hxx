@@ -212,7 +212,8 @@ namespace bpkg
 
     struct binary_files: public vector<binary_file>
     {
-      string system_version; // Empty if not applicable.
+      string system_version;    // Empty if not applicable.
+      string language_runtimes; // Empty if not deduced.
     };
 
     virtual binary_files

@@ -769,6 +769,7 @@ namespace bpkg
           member ("name",    p.name.string ());
           member ("version", ver);
           member ("system_version", bfs.system_version);
+          member ("language_runtimes", bfs.language_runtimes);
           s.member_begin_array ("files");
           for (const binary_file& bf: bfs)
           {
