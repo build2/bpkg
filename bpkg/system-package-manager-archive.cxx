@@ -742,10 +742,19 @@ namespace bpkg
           if (p.first == p.second)
             p = find (implm, l.name);
 
+          // If no mapping for the language is found, then fail if no custom
+          // metadata is specified and ignore this language otherwise (JSON
+          // output just won't contain mapping for this language).
+          //
           if (p.first == p.second)
-            fail << "no runtime mapping for language " << l.name <<
-              info << "consider specifying with --archive-lang[-impl]" <<
-              info << "or alternatively specify --archive-build-meta";
+          {
+            if (!md_s || md_f || md_b)
+              fail << "no runtime mapping for language " << l.name <<
+                info << "consider specifying with --archive-lang[-impl]" <<
+                info << "or alternatively specify --archive-build-meta";
+
+            continue;
+          }
 
           for (auto i (p.first); i != p.second; ++i)
             add (*i);
