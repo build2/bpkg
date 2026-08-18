@@ -307,6 +307,10 @@ namespace bpkg
         print_process (dr, pe, args);
         dr << " <" << (f == nullptr || f->empty () ? "/dev/null" : f->string ());
 
+        // Note that we can assume that the unit test programs are single
+        // threaded and so there is no need to request fddup() to return a
+        // non-inheritable descriptor.
+        //
         pr = process (process_exit (0));
         pr.in_ofd = f == nullptr || f->empty ()
           ? fdopen_null ()
@@ -526,6 +530,10 @@ namespace bpkg
         }
         else
         {
+          // Note that we can assume that the unit test programs are single
+          // threaded and so there is no need to request fddup() to return a
+          // non-inheritable descriptor.
+          //
           pr = process (process_exit (0));
           pr.in_ofd = f->string () == "-"
             ? fddup (stdin_fd ())
