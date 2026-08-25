@@ -21,6 +21,55 @@
 +if ("$git_version" == "")
   exit "unable to obtain git version from '$git_version_out'"
 
+# Prevent git commands (fetch, status, etc) from running maintenance tasks,
+# both in the background and foreground, and starting daemons.
+#
+# Notes:
+#
+# - maintenance.auto=false (defaults to true) prevents git from running any
+#   maintenance tasks. The maintenance.* options are invented in the git
+#   version 2.30.0.
+#
+# - From all the maintenance.*.enabled options, only maintenance.gc.enabled
+#   is true by default.
+#
+# - maintenance.autoDetach=false (defaults to legacy gc.autoDetach) prevents
+#   git from running the (potentially re-enabled by the user) maintenance
+#   tasks as detached processes.
+#
+# - gc.auto=0 (defaults to 6700) prevents the garbage collection but performs
+#   the check in the detached process, so gc.autoDetach=false (defaults to
+#   true) is also required.
+#
+# - core.fsmonitor=false (defaults to false) prevents git from starting the
+#   file system monitor daemon.
+#
+# - credential.helper='' (unset by default) prevents git from staring the
+#   credential caching daemon.
+#
+# - core.hooksPath='' (unset by default) disables hooks, which, while being
+#   run synchronously, may leave some detached processes behind. Also, hooks
+#   may potentially break the tests generally (print to stderr, be broken,
+#   etc).
+#
+# - Older git versions fail with the 'bogus format in GIT_CONFIG_PARAMETERS'
+#   error, if the value of this environment variable contains the trailing
+#   space.
+#
+val = "\
+'maintenance.auto=false' 'maintenance.autoDetach=false' \
+'gc.auto=0' 'gc.autoDetach=false' \
+'core.fsmonitor=false' \
+'credential.helper=' \
+'core.hooksPath='"
+
+v = $getenv('GIT_CONFIG_PARAMETERS')
+
+ife! $v
+  val = "$val $v"
+
++export GIT_CONFIG_PARAMETERS="$val"
+
 +echo "$git_version" | sed -e 's/(\d+).*/\1/'      | set git_version_major
 +echo "$git_version" | sed -e 's/\d+\.(\d+).*/\1/' | set git_version_minor
 

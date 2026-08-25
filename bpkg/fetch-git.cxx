@@ -152,7 +152,11 @@ namespace bpkg
   // does for commands executed for submodules. Though we do it for all
   // commands (including the ones related to the top repository).
   //
-  static optional<strings> unset_vars;
+  // Prepend the GIT_CONFIG_PARAMETERS environment variable value with the
+  // configuration options which prevent git commands (fetch, status, etc)
+  // from running maintenance tasks in the background and starting daemons.
+  //
+  static optional<strings> git_vars;
 
   template <typename O, typename E, typename... A>
   static process
@@ -167,12 +171,12 @@ namespace bpkg
       // Prior the first git run check that its version is fresh enough and
       // setup the sanitized environment.
       //
-      if (!unset_vars)
+      if (!git_vars)
       {
         // Make sure that we don't end up here for the recursive, via
         // git_version(), call.
         //
-        unset_vars = strings ();
+        git_vars = strings ();
 
         for (;;) // Breakout loop.
         {
@@ -211,13 +215,35 @@ namespace bpkg
             for (string l; !eof (getline (is, l)); )
             {
               if (l != "GIT_CONFIG_PARAMETERS")
-                unset_vars->push_back (move (l));
+                git_vars->push_back (move (l)); // Unset the variable.
             }
 
             is.close ();
 
             if (pr.wait ())
+            {
+              // Prevent git commands from running maintenance tasks in the
+              // background and starting daemons.
+              //
+              // Note that in contrast to the testscripts (see
+              // tests/remote-git.testscript for details), we don't disable
+              // maintenance tasks completely, to avoid the fetch cache bloat.
+              // We also don't disable the credential caching daemon, if
+              // explicitly enabled by the user in the configuration file, not
+              // to worsen the user experience.
+              //
+              string var (
+                "GIT_CONFIG_PARAMETERS="
+                  "'maintenance.autoDetach=false' 'gc.autoDetach=false' "
+                  "'core.fsmonitor=false'");
+
+              if (optional<string> v = getenv ("GIT_CONFIG_PARAMETERS"))
+                var += ' ' + *v;
+
+              git_vars->push_back (move (var));
+
               break;
+            }
 
             // Fall through.
           }
@@ -268,7 +294,7 @@ namespace bpkg
                                          print_process (args, n);
                                      },
                                      0 /* stdin */, out, err,
-                                     process_env (pp, *unset_vars),
+                                     process_env (pp, *git_vars),
                                      !ep.empty () ? ep.c_str () : nullptr,
                                      forward<A> (args)...);
     }
