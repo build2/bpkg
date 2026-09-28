@@ -27,7 +27,9 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1, 1); // Redirect stdout and stderr to a pipe.
+      // Redirect stdin to /dev/null and stdout and stderr to a pipe.
+      //
+      process pr (pp, args, -2, -1, 1);
 
       try
       {
@@ -74,9 +76,25 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe stdout. Process exceptions must be handled by the caller.
+    // Redirect stdin to /dev/null and pipe stdout. Process exceptions must be
+    // handled by the caller.
     //
-    return process (pp, args.data (), 0, -1);
+    // Note that on FreeBSD the checksum utilities (sha256, sha256sum, etc)
+    // use the Capsicum sandboxing framework. That results in starting child
+    // processes by these utilities. Such a process inherits the parent's
+    // group, runs as a daemon, is not reaped by the parent checksum utility,
+    // and terminates soon after it detects that the parent has terminated. As
+    // a result, bpkg may fail with the "unreaped (grand)child process" error
+    // while being reaped by its own parent if, for example, executed as a
+    // leader of a new process group. Thus, let's run the checksum utility as
+    // a leader of a new process group and reap it with the kill_no_check
+    // flag.
+    //
+#if defined(__FreeBSD__)
+    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
+#else
+    return process (pp, args.data (), -2, -1);
+#endif
   }
 
   // sha256sum
@@ -96,7 +114,9 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
+      // Redirect stdin to /dev/null and stdout to a pipe.
+      //
+      process pr (pp, args, -2, -1);
 
       try
       {
@@ -151,9 +171,17 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe stdout. Process exceptions must be handled by the caller.
+    // Redirect stdin to /dev/null and pipe stdout. Process exceptions must be
+    // handled by the caller.
     //
-    return process (pp, args.data (), 0, -1);
+    // On FreeBSD, run the checksum utility as a leader of a new process group
+    // (see start_sha256() for the reasoning).
+    //
+#if defined(__FreeBSD__)
+    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
+#else
+    return process (pp, args.data (), -2, -1);
+#endif
   }
 
   // shasum
@@ -173,7 +201,9 @@ namespace bpkg
       if (verb >= 3)
         print_process (args);
 
-      process pr (pp, args, 0, -1); // Redirect stdout to a pipe.
+      // Redirect stdin to /dev/null and stdout to a pipe.
+      //
+      process pr (pp, args, -2, -1);
 
       try
       {
@@ -217,9 +247,17 @@ namespace bpkg
     if (verb >= 3)
       print_process (args);
 
-    // Pipe stdout. Process exceptions must be handled by the caller.
+    // Redirect stdin to /dev/null and pipe stdout. Process exceptions must be
+    // handled by the caller.
     //
-    return process (pp, args.data (), 0, -1);
+    // On FreeBSD, run the checksum utility as a leader of a new process group
+    // (see start_sha256() for the reasoning).
+    //
+#if defined(__FreeBSD__)
+    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
+#else
+    return process (pp, args.data (), -2, -1);
+#endif
   }
 
   // The dispatcher.
@@ -338,6 +376,19 @@ namespace bpkg
 
     process pr (start (o, f));
 
+    auto wait = [&pr] ()
+    {
+      // On FreeBSD, reap the utility process with the kill_no_check flag (see
+      // start_sha256() for the reasoning).
+      //
+#if defined(__FreeBSD__)
+      return pr.wait (false /* ignore_error*/,
+                      process::group_wait::kill_no_check);
+#else
+      return pr.wait ();
+#endif
+    };
+
     try
     {
       ifdstream is (move (pr.in_ofd), fdstream_mode::skip);
@@ -348,7 +399,7 @@ namespace bpkg
       is >> s;
       is.close ();
 
-      if (pr.wait ())
+      if (wait ())
       {
         if (s.size () != 64)
           fail << "'" << s << "' doesn't appear to be a SHA256 sum" <<
@@ -364,13 +415,13 @@ namespace bpkg
     //
     catch (const io_error&)
     {
-      if (pr.wait ())
+      if (wait ())
         fail << "unable to read '" << path_ << "' output";
     }
 
     // We should only get here if the child exited with an error status.
     //
-    assert (!pr.wait ());
+    assert (!wait ());
 
     // While it is reasonable to assuming the child process issued diagnostics,
     // issue something just in case.
