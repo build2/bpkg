@@ -83,24 +83,28 @@ namespace bpkg
     // use the Capsicum sandboxing framework. That results in starting child
     // processes by these utilities. Such a process inherits the parent's
     // group, runs as a daemon, is not reaped by the parent checksum utility,
-    // and terminates soon after it detects that the parent has terminated. As
-    // a result, bpkg may fail with the "unreaped (grand)child process" error
-    // while being reaped by its own parent if, for example, executed as a
-    // leader of a new process group. Thus, let's run the checksum utility as
-    // a leader of a new process group and reap it with the kill_no_check
-    // flag.
+    // and terminates soon after it detects that the parent has terminated.
     //
-    // @@ TODO:
+    // Also note that while the build2 driver runs testscript commands as
+    // process group leaders, it reaps them with the kill_no_check group
+    // action. As a result, these daemons spawned during bpkg testscripts
+    // execution may be forcefully killed (SIGKILL), albeit not causing the
+    // "unreaped (grand)child process" errors. While currently we are ok with
+    // this behavior, in the future we may consider running the checksum
+    // utilities on FreeBSD as process group leaders to protect the daemons
+    // from being killed this way. If we implement that, remember to:
     //
-    //    - Use no_kill flag for wait() when supported.
-    //    - Check that stderr is not a terminal or TOSTOP is disabled.
-    //    - Add signal handling/forwarding, similar to build2 driver.
+    // - Implement that for all the sha256, sha256sum (hardlinks sha256 on
+    //   FreeBSD), and shasum (for consistency) utilities.
     //
-#if defined(__FreeBSD__)
-    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
-#else
+    // - Only start a checksum utility as a group leader if stderr is not a
+    //   terminal or its TOSTOP attribute is disabled.
+    //
+    // - Reap the utility process with the no_kill group action.
+    //
+    // - Add signal handling/forwarding to bpkg, similar to build2 driver.
+    //
     return process (pp, args.data (), -2, -1);
-#endif
   }
 
   // sha256sum
@@ -180,14 +184,7 @@ namespace bpkg
     // Redirect stdin to /dev/null and pipe stdout. Process exceptions must be
     // handled by the caller.
     //
-    // On FreeBSD, run the checksum utility as a leader of a new process group
-    // (see start_sha256() for the reasoning).
-    //
-#if defined(__FreeBSD__)
-    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
-#else
     return process (pp, args.data (), -2, -1);
-#endif
   }
 
   // shasum
@@ -256,14 +253,7 @@ namespace bpkg
     // Redirect stdin to /dev/null and pipe stdout. Process exceptions must be
     // handled by the caller.
     //
-    // On FreeBSD, run the checksum utility as a leader of a new process group
-    // (see start_sha256() for the reasoning).
-    //
-#if defined(__FreeBSD__)
-    return process (pp, args.data (), -2, -1, 2, nullptr, nullptr, true);
-#else
     return process (pp, args.data (), -2, -1);
-#endif
   }
 
   // The dispatcher.
@@ -384,15 +374,7 @@ namespace bpkg
 
     auto wait = [&pr] ()
     {
-      // On FreeBSD, reap the utility process with the kill_no_check flag (see
-      // start_sha256() for the reasoning).
-      //
-#if defined(__FreeBSD__)
-      return pr.wait (false /* ignore_error*/,
-                      process::group_wait::kill_no_check);
-#else
       return pr.wait ();
-#endif
     };
 
     try
