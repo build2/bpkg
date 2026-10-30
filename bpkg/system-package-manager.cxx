@@ -5,9 +5,12 @@
 
 #include <sstream>
 
-#include <libbutl/regex.hxx>
 #include <libbutl/semantic-version.hxx>
+
 #include <libbutl/json/parser.hxx>
+
+#include <libbutl/regex/regex.hxx>
+#include <libbutl/regex/regex-ex.hxx>
 
 #include <bpkg/package.hxx>
 #include <bpkg/package-odb.hxx>
@@ -613,6 +616,9 @@ namespace bpkg
               // Note that in the future we may add support for some regex
               // flags.
               //
+              using namespace regex;
+              using butl::regex::regex;
+
               pair<string, string> rep;
               try
               {
@@ -647,10 +653,8 @@ namespace bpkg
               }
               catch (const regex_error& e)
               {
-                // Print regex_error description if meaningful (no space).
-                //
                 ostringstream os;
-                os << "invalid regex pattern '" << rep.first << "'" << e;
+                os << "invalid regex pattern '" << rep.first << "': " << e;
                 bad_value (os.str ());
               }
 
