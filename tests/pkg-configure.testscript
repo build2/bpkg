@@ -180,7 +180,7 @@ $* libhello libhello 2>>EOE != 0
 : src-ne-out
 :
 {
-  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0
+  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0/
 
   $*             libhello 2>'configured libhello/1.0.0'
   $pkg_status    libhello 1>'libhello configured 1.0.0'
@@ -195,7 +195,7 @@ $* libhello libhello 2>>EOE != 0
 : out-exists-disfigure
 :
 {
-  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0
+  $clone_cfg && $pkg_unpack -e $src/libhello-1.0.0/
 
   $* libhello 2>'configured libhello/1.0.0'
   touch cfg/libhello/stray &!cfg/libhello/stray
@@ -215,7 +215,7 @@ if ($posix && "$uid" != '0')
   : disfigure-failed
   :
   {
-    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0/
 
     $* libhello 2>'configured libhello/1.0.0'
     chmod 555 cfg/libhello
@@ -239,7 +239,7 @@ if ($posix && "$uid" != '0')
   : performs pkg-disfigure, that succeeds.
   :
   {
-    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0/
     mkdir -p cfg/libhello/build &!cfg/libhello/ &!cfg/libhello/build/
     chmod 555 cfg/libhello/build
 
@@ -256,7 +256,7 @@ if ($posix && "$uid" != '0')
   : performs pkg-disfigure, that also fails.
   :
   {
-    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0
+    $clone_root_cfg && $pkg_unpack -e $src/libhello-1.0.0/
     mkdir -p cfg/libhello/build &!cfg/libhello/ &!cfg/libhello/build/
     chmod 555 cfg/libhello cfg/libhello/build
 
@@ -415,7 +415,7 @@ if ($posix && "$uid" != '0')
     # Configure libhello as an external package.
     #
     cp --no-cleanup -r $src/libhello-1.0.0 ./libhello
-    $pkg_unpack -e ./libhello
+    $pkg_unpack -e ./libhello/
     $* libhello 2>!
 
     rm -r ./libhello

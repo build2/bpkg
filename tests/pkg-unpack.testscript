@@ -63,14 +63,14 @@ pkg_disfigure += -d cfg
 :
 $clone_cfg;
 $* foo -r 2>>EOE != 0
-  error: --replace|-r can only be specified with external package
+  error: --replace|-r can only be specified with --existing|-e or if package version is also specified
   EOE
 
 : no-dir
 :
 $clone_cfg;
 $* -e 2>>EOE != 0
-  error: package directory argument expected
+  error: package archive or directory argument expected
     info: run 'bpkg help pkg-unpack' for more information
   EOE
 
@@ -84,7 +84,7 @@ $* -e ./ 2>>/EOE != 0
 : dir-not-exist
 :
 $clone_cfg;
-$* -e ./no-such-dir 2>>/EOE != 0
+$* -e ./no-such-dir/ 2>>/EOE != 0
   error: package directory ./no-such-dir/ does not exist
   EOE
 
@@ -106,14 +106,22 @@ $* 2>>EOE != 0
   {
     $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
+    # While at it, test missing trailing slash.
+    #
+    $* -e $src/libfoo-1.1.0 2>>/~%EOE% != 0
+      %error: path '.+/libfoo-1.1.0' refers to existing directory but not to package archive%
+        info: consider specifying trailing '/' if this is a package directory
+        info: run 'bpkg help pkg-unpack' for more information
+      EOE
+
+    $* -e $src/libfoo-1.1.0/ 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
     $pkg_purge  libfoo       2>'purged libfoo/1.0.0'
-    $*  -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $*  -e $src/libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
     $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
     $pkg_configure libfoo  2>'configured libfoo/1.1.0'
@@ -128,13 +136,13 @@ $* 2>>EOE != 0
   {
     $clone_cfg && $pkg_fetch libfoo/1.0.0
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
+    $* -e $src/libfoo-1.1.0/ 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: fetched, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $* --replace --existing $src/libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
     $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -150,13 +158,13 @@ $* 2>>EOE != 0
       unpacked libfoo/1.0.0
       EOE
 
-    $* -e $src/libfoo-1.1.0 2>>/EOE != 0
+    $* -e $src/libfoo-1.1.0/ 2>>/EOE != 0
       error: package libfoo already exists in configuration cfg/
         info: version: 1.0.0, state: unpacked, substate: none
         info: use 'pkg-unpack --replace|-r' to replace
       EOE
 
-    $* --replace --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $* --replace --existing $src/libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
     $pkg_status libfoo/1.1.0 1>'libfoo unpacked 1.1.0'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
@@ -171,7 +179,7 @@ $* 2>>EOE != 0
       error: package libfoo does not exist in configuration cfg/
       EOE
 
-    $* -e $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $* -e $src/libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
 
     $* libfoo 2>>EOE != 0
       error: package libfoo is unpacked
@@ -208,7 +216,7 @@ $* 2>>EOE != 0
     $clone_cfg
     cp --no-cleanup -r $src/libfoo-1.1.0 ./
 
-    $* --purge --existing libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+    $* --purge --existing libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
   }
@@ -278,6 +286,57 @@ $* 2>>EOE != 0
   }
 }}
 
+: archive
+:
+{{
+  test.arguments += -e
+
+  : replace
+  :
+  {
+    $clone_root_cfg
+
+    $* $src/t1/libfoo-1.0.0.tar.gz 2>>~%EOE%
+      %fetching .+libfoo-1.0.0.tar.gz%
+      unpacking libfoo/1.0.0
+      unpacked libfoo/1.0.0
+      EOE
+
+    cp -r $src/t1/libfoo-1.1.0.tar.gz ./
+
+    $* libfoo-1.1.0.tar.gz 2>>/EOE != 0
+      fetching libfoo-1.1.0.tar.gz
+      error: package libfoo already exists in configuration cfg/
+        info: version: 1.0.0, state: unpacked, substate: none
+        info: use 'pkg-fetch --replace|-r' to replace
+      EOE
+
+    $* --replace libfoo-1.1.0.tar.gz 2>>EOE
+      fetching libfoo-1.1.0.tar.gz
+      unpacking libfoo/1.1.0
+      unpacked libfoo/1.1.0
+      EOE
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+
+  : purge
+  :
+  {
+    $clone_root_cfg
+
+    cp --no-cleanup -r $src/t1/libfoo-1.1.0.tar.gz ./
+
+    $* --purge libfoo-1.1.0.tar.gz 2>>EOE
+      fetching libfoo-1.1.0.tar.gz
+      unpacking libfoo/1.1.0
+      unpacked libfoo/1.1.0
+      EOE
+
+    $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+}}
+
 : existing
 :
 {{
@@ -292,7 +351,7 @@ $* 2>>EOE != 0
 
     rep = $canonicalize([dir_path] $out_git/state0)
 
-    $* -e $rep/style-basic.git 2>>~%EOE%
+    $* -e $rep/style-basic.git/ 2>>~%EOE%
       %using style-basic/1\.1\.0-a\.0\.\d+\..+ \(external\)%
       EOE
   }

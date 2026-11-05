@@ -761,7 +761,7 @@ if! $remote
   {
     $clone_root_cfg
 
-    $pkg_unpack -e $src/libhello-1.0.0
+    $pkg_unpack -e $src/libhello-1.0.0/
 
     $rep_add $src/libhello-1.0.0
 
