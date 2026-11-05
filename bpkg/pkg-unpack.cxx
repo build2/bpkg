@@ -16,6 +16,7 @@
 #include <bpkg/manifest-utility.hxx>
 
 #include <bpkg/pkg-purge.hxx>
+#include <bpkg/pkg-fetch.hxx>
 #include <bpkg/pkg-verify.hxx>
 
 using namespace std;
@@ -203,6 +204,46 @@ namespace bpkg
                        move (m),
                        purge,
                        simulate);
+  }
+
+  static shared_ptr<selected_package>
+  pkg_unpack (const common_options& o,
+              database& db,
+              transaction& t,
+              path a,
+              bool replace,
+              bool purge)
+  {
+    tracer trace ("pkg_unpack");
+
+    shared_ptr<selected_package> p (
+      pkg_fetch (o,
+                 db,
+                 t,
+                 move (a),
+                 replace,
+                 purge,
+                 false /* simulate */,
+                 true /* keep_transaction_if_safe */));
+
+    l4 ([&]{trace << a << ": " << p->name << " " << p->version;});
+
+    if (t.finalized ())
+      t.start (db);
+
+    // Note that since the package archive is used in place, there is no sence
+    // to open the fetch cache (see pkg_unpack() for details).
+    //
+    fetch_cache cache (o, &db);
+
+    p = pkg_unpack (o,
+                    cache,
+                    db,
+                    t,
+                    p->name,
+                    false /* simulate */);
+
+    return p;
   }
 
   shared_ptr<selected_package>
@@ -563,7 +604,7 @@ namespace bpkg
     transaction t (db);
 
     shared_ptr<selected_package> p;
-    bool external (o.existing ());
+    bool external;
 
     if (o.existing ())
     {
@@ -573,13 +614,54 @@ namespace bpkg
         fail << "package directory argument expected" <<
           info << "run 'bpkg help pkg-unpack' for more information";
 
-      p = pkg_unpack (o,
-                      db,
-                      t,
-                      dir_path (args.next ()),
-                      o.replace (),
-                      o.purge (),
-                      false /* simulate */);
+      try
+      {
+        path pp (args.next ());
+
+        if (pp.empty ())
+          throw invalid_path ("");
+
+        if (pp.to_directory ())
+        {
+          p = pkg_unpack (o,
+                          db,
+                          t,
+                          path_cast<dir_path> (move (pp)),
+                          o.replace (),
+                          o.purge (),
+                          false /* simulate */);
+
+          external = true;
+        }
+        else
+        {
+          // Note that previously, before we added support for unpacking an
+          // existing package archive, we didn't require trailing slash for
+          // the package directory. Thus, let's help the user out here a bit,
+          // if the specified path is an existing directory.
+          //
+          if (exists (path_cast<dir_path> (pp)))
+            fail << "path '" << pp << "' does not refer to package archive" <<
+              info << "it refers to directory" <<
+              info << "consider specifying trailing '"
+                   << path::traits_type::directory_separator
+                   << "' if this is a package directory" <<
+              info << "run 'bpkg help pkg-unpack' for more information";
+
+          p = pkg_unpack (o,
+                          db,
+                          t,
+                          pp,
+                          o.replace (),
+                          o.purge ());
+
+          external = false;
+        }
+      }
+      catch (const invalid_path& e)
+      {
+        fail << "invalid package path '" << e.path << "'";
+      }
     }
     else
     {

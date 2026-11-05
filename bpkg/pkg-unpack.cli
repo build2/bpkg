@@ -10,11 +10,11 @@ include <bpkg/configuration.cli>;
 namespace bpkg
 {
   {
-    "<options> <pkg> <ver> <dir>",
+    "<options> <pkg> <ver> <dir> <file>",
 
     "\h|SYNOPSIS|
 
-     \c{\b{bpkg pkg-unpack} [<options>] (<pkg>[\b{/}<ver>] | \b{--existing|-e} <dir>)}
+     \c{\b{bpkg pkg-unpack} [<options>] (<pkg>[\b{/}<ver>] | \b{--existing|-e} (<file>|<dir>\b{/}))}
 
      \h|DESCRIPTION|
 
@@ -29,12 +29,28 @@ namespace bpkg
      a package is called \i{external}.
 
      If the \cb{--existing|-e} option is used, then instead of the package
-     name, \cb{pkg-unpack} expects a local path to an existing package
-     directory. In this case, \cb{bpkg} will use the (source) directory in
-     place, the same as for packages from directory-based repositories. Also,
-     unless the \cb{--purge|-p} option is specified, \cb{bpkg} will not
-     attempt to remove this directory when the package is later purged with
-     the \l{bpkg-pkg-purge(1)} command. Such a package is also \i{external}.
+     name, \cb{pkg-unpack} expects a local path to an existing package archive
+     or directory. If the package archive is specified, then this command is a
+     shortcut for calling the \l{bpkg-pkg-fetch(1)} command first and
+     \cb{bpkg-pkg-unpack} afterwards. For example:
+
+     \
+     bpkg pkg-unpack -p -r -e /path/to/foo.tar.gz
+     \
+
+     is equivalent to
+
+     \
+     bpkg pkg-fetch -p -r -e /path/to/foo.tar.gz
+     bpkg pkg-unpack foo
+     \
+
+     If the package directory is specified, \cb{bpkg} will use the (source)
+     directory in place, the same as for packages from directory-based
+     repositories. Also, unless the \cb{--purge|-p} option is specified,
+     \cb{bpkg} will not attempt to remove this directory when the package is
+     later purged with the \l{bpkg-pkg-purge(1)} command. Such a package is
+     also \i{external}.
 
      If \cb{--existing|-e} is specified together with the \cb{--replace|-r}
      option, then \cb{pkg-unpack} will replace the archive and/or source
@@ -58,8 +74,8 @@ namespace bpkg
 
     bool --existing|-e
     {
-      "Treat the argument as an existing package directory path rather than
-       the package name to unpack."
+      "Treat the argument as an existing package archive or directory path
+       rather than the package name to unpack."
     }
 
     bool --purge|-p
