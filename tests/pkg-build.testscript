@@ -948,7 +948,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
   : unpacked-dir
   :
   {
-    $clone_root_cfg && $pkg_unpack -e $src/libfoo-1.1.0
+    $clone_root_cfg && $pkg_unpack -e $src/libfoo-1.1.0/
 
     $* libfoo               >'update libfoo/1.1.0'
     $* libfoo/1.1.0         >'update libfoo/1.1.0'
@@ -986,7 +986,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
     : downgrade
     :
     {
-      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0
+      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0/
 
       $* libfoo       >'update libfoo/1.1.0'
       $* libfoo/1.0.0 >'downgrade libfoo/1.0.0'
@@ -1002,7 +1002,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
     : downgrade-constraint
     :
     {
-      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0
+      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0/
 
       $* libfoo         >'update libfoo/1.1.0'
       $* 'libfoo<1.1.0' >'downgrade libfoo/1.0.0'
@@ -1176,7 +1176,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
     : downgrade-dependency
     :
     {
-      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0
+      $clone_cfg && $pkg_unpack -e $src/libfoo-1.1.0/
 
       $* libbar >>EOO
         update libfoo/1.1.0 (required by libbar)
@@ -3979,13 +3979,13 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
           cp -r $src/libfoo-1.1.0 libfoo
 
-          $pkg_unpack --existing libfoo 2>>~%EOE% != 0
+          $pkg_unpack --existing libfoo/ 2>>~%EOE% != 0
             %error: external package libfoo/1.1.0 is already available from dir:.+libfoo-1.1.0%
             EOE
 
           sed -i -e 's/(version:) .*/\1 1.1.1/' libfoo/manifest
 
-          $pkg_unpack --existing libfoo 2>'using libfoo/1.1.1 (external)'
+          $pkg_unpack --existing libfoo/ 2>'using libfoo/1.1.1 (external)'
 
           $* libfoo 2>>EOE
               update libfoo/1.1.1
@@ -4071,7 +4071,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
 
           sed -i -e 's/(version:) .*/\1 1.2.0/' libfoo/manifest
 
-          $pkg_unpack --existing libfoo 2>'using libfoo/1.2.0 (external)'
+          $pkg_unpack --existing libfoo/ 2>'using libfoo/1.2.0 (external)'
 
           $* libfoo 2>>EOE
               update libfoo/1.2.0
@@ -4148,7 +4148,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
         {
           $clone_cfg
 
-          $pkg_unpack --existing $src/libfoo-1.1.0 2>'using libfoo/1.1.0 (external)'
+          $pkg_unpack --existing $src/libfoo-1.1.0/ 2>'using libfoo/1.1.0 (external)'
 
           $* libfoo 2>>EOE
               update libfoo/1.1.0
@@ -38570,7 +38570,7 @@ filter = [cmdline] sed -e "'"'s/^mkdir -p .*//'"'" | \
       {
         $clone_cfg
         $pkg_disfigure libhello --keep-out 2>!
-        $pkg_unpack --replace --existing ../../../libhello
+        $pkg_unpack --replace --existing ../../../libhello/
 
         $* libhello 2>>~%EOE%
           configured libhello/1.0.1

@@ -120,7 +120,7 @@ $* 2>>EOE != 0
 :
 {
   $clone_cfg
-  $pkg_unpack -e $src/libhello-1.0.0 && $pkg_configure libhello
+  $pkg_unpack -e $src/libhello-1.0.0/ && $pkg_configure libhello
 
   $* libhello 2>>~%EOE%
     %(mkdir|c\+\+|ar|ld) .+%{8}
