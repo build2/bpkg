@@ -53,11 +53,14 @@
 pkg_fetch     += -d cfg 2>!
 pkg_purge     += -d cfg
 pkg_status    += -d cfg
+pkg_drop      += -d cfg
 rep_add       += -d cfg 2>!
 rep_fetch     += -d cfg --auth all 2>!
+rep_remove    += -d cfg 2>!
 pkg_configure += -d cfg
 pkg_update    += -d cfg
 pkg_disfigure += -d cfg
+pkg_build     += -d cfg
 
 : replace-with-existing
 :
@@ -334,6 +337,91 @@ $* 2>>EOE != 0
       EOE
 
     $pkg_purge libfoo 2>'purged libfoo/1.1.0'
+  }
+}}
+
+: switch
+:
+{{
+  pkg_build += --configure-only
+
+  : checked-out
+  :
+  {
+    $clone_root_cfg
+
+    # While at it, test some failures.
+    #
+    $* --switch --purge -e style-basic-1.0.0.tar.gz 2>>EOE != 0
+      error: archive file 'style-basic-1.0.0.tar.gz' does not exist
+      EOE
+
+    rep = $canonicalize([dir_path] $out_git/state0)
+
+    $pkg_build --checkout-root dist/ --checkout-purge &dist/    \
+               "style-basic@$rep/style-basic.git#master" 2>&1 | \
+      sed -n -e 's%^configured style-basic/(.+)$%\1%p'        | \
+      set version
+
+    pkg = style-basic-$version
+
+    $build 'dist:' dist/$pkg/@out/ config.dist.root=redist \
+           config.dist.archives=tar.gz &redist/ &redist/$pkg/*** 2>!
+
+    $* --switch --purge -e redist/$(pkg).tar.gz 2>>"EOE"
+      unpacking style-basic/$version
+      switched style-basic/$version
+      EOE
+
+    $rep_remove "$rep/style-basic.git#master"
+
+    $pkg_drop style-basic 2>>EOE
+      disfigured style-basic
+      purged style-basic
+      EOE
+  }
+
+  : shared-src
+  :
+  {
+    options_guard = $~/.build2
+    mkdir $options_guard
+    echo '--no-default-options' >=$options_guard/bpkg.options
+    export BPKG_FETCH_CACHE=src
+    export BPKG_FETCH_CACHE_PATH=cache
+
+    $cfg_create -d cfg 2>! &cfg/***
+    $rep_fetch --trust-yes $rep/t1 &cache/***
+
+    # While at it, test some failures.
+    #
+    $* --switch -e $src/t1/libfoo-1.1.0.tar.gz 2>>/EOE != 0
+      error: package libfoo does not exist in configuration cfg/
+      EOE
+
+    $pkg_build --default-options $options_guard libfoo 2>>EOE
+      fetching libfoo/1.1.0
+      fetched libfoo/1.1.0
+      unpacking libfoo/1.1.0 (cache, shared src)
+      unpacked libfoo/1.1.0
+      configured libfoo/1.1.0
+      EOE
+
+    $* --switch -e $src/t1/libfoo-1.0.0.tar.gz 2>>EOE != 0
+      error: unable to switch source directory for package libfoo/1.1.0 since archive contains different version (1.0.0)
+      EOE
+
+    $* --switch -e $src/t1/libfoo-1.1.0.tar.gz 2>>EOE
+      unpacking libfoo/1.1.0
+      switched libfoo/1.1.0
+      EOE
+
+    $pkg_status libfoo >'!libfoo configured 1.1.0'
+
+    $pkg_drop libfoo 2>>EOE
+      disfigured libfoo
+      purged libfoo
+      EOE
   }
 }}
 

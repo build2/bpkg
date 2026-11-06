@@ -207,6 +207,212 @@ namespace bpkg
   }
 
   static shared_ptr<selected_package>
+  pkg_switch (const common_options& o,
+              database& db,
+              transaction& t,
+              path a,
+              bool purge)
+  {
+    tracer trace ("pkg_switch");
+
+    if (!exists (a))
+      fail << "archive file '" << a << "' does not exist";
+
+    // Verify archive is a package (contains <name>-<version> subdirectory,
+    // etc) and get its manifest.
+    //
+    package_manifest m (pkg_verify (o,
+                                    a,
+                                    true /* ignore_unknown */,
+                                    false /* ignore_toolchain */,
+                                    false /* expand_values */,
+                                    false /* load_buildfiles */));
+
+    l4 ([&]{trace << a << ": " << m.name << " " << m.version;});
+
+    tracer_guard tg (db, trace);
+
+    // Verify that the package is selected, is configured out of source, is
+    // not external, and is of the same version as in the archive.
+    //
+    // Note that in the future, we may remove some of these restrictions.
+    //
+    shared_ptr<selected_package> p (db.find<selected_package> (m.name));
+
+    if (p == nullptr)
+      fail << "package " << m.name << " does not exist in configuration "
+           << db.config_orig;
+
+    if (p->state != package_state::configured)
+      fail << "unable to switch source directory for " << p->state
+           << " package " << p->string (db);
+
+    if (p->system ())
+      fail << "unable to switch source directory for system package "
+           << p->string (db);
+
+    assert (p->src_root); // Must be set since unpacked.
+    assert (p->out_root); // Must be set since configured.
+
+    dir_path src_root (p->effective_src_root (db.config_orig));
+    dir_path out_root (p->effective_out_root (db.config_orig));
+
+    if (src_root == out_root)
+      fail << p->string (db) << " is already configured in source";
+
+    l4 ([&]{trace << "src_root: " << src_root << ", "
+                  << "out_root: " << out_root;});
+
+    if (p->external ())
+      fail << "unable to switch source directory for external package "
+           << p->string (db);
+
+    if (p->version != m.version)
+      fail << "unable to switch source directory for package "
+           << p->string (db) << " since archive contains different version ("
+           << m.version << ")";
+
+    // The overall plan is as follows:
+    //
+    // - Setup auto-removal for the output directory, so that it is removed
+    //   if spoiled.
+    //
+    // - Create the make_exception_guard object which, on exception, sets the
+    //   broken state for the package object and issues the respective info.
+    //
+    // - Delete the build[2]/bootstrap/ subdirectory for the package and its
+    //   sub-projects.
+    //
+    // - Purge the original source directory and archive, if requested.
+    //
+    // - Extract the archive contents into the output directory.
+    //
+    // - Change the package database object and persist the change.
+    //
+    // - Commit the transaction.
+    //
+    // - Cancel the output directory auto removal.
+    //
+    dir_path dn (p->name.string () + '-' + p->version.string ());
+
+    assert (dn == out_root.leaf ()); // Since the package is not external.
+
+    package_info pi (package_b_info (o, out_root, b_info_flags::subprojects));
+
+    auto_rmdir arm (out_root);
+
+    auto g (
+      make_exception_guard (
+        [&p, &db, &t] ()
+        {
+          p->state = package_state::broken;
+          db.update (p);
+          t.commit ();
+
+          // Here we assume that the diagnostics is already issued.
+          //
+          info << "package " << p->name << db << " is now broken; "
+               << "use 'pkg-purge --force' to remove";
+        }));
+
+    // Delete build[2]/bootstrap/ subdirectories.
+    //
+    auto rm_bootstrap = [] (const dir_path& out_root)
+    {
+      dir_path d (exists (out_root / alt_build_dir) // Alternative naming?
+                  ? out_root / alt_bootstrap_dir
+                  : out_root / std_bootstrap_dir);
+
+      if (exists (d)) // Don't complain if someone did our job for us.
+        rm_r (d);
+    };
+
+    rm_bootstrap (out_root);
+
+    for (const package_info::subproject& sp: pi.subprojects)
+      rm_bootstrap (out_root / sp.path);
+
+    // Purge the original source directory and archive.
+    //
+    // Let's do this prior to extracting the archive contents to free up a bit
+    // of space. Also, keep in mind that we may still end up with the broken
+    // package state, so keep the object data consistent with the file system.
+    //
+    if (p->purge_src)
+    {
+      if (exists (src_root)) // Don't complain if someone did our job for us.
+        rm_r (src_root);
+
+      p->purge_src = false;
+    }
+
+    p->src_root = nullopt;
+
+    if (p->purge_archive)
+    {
+      path a (p->effective_archive (db.config_orig));
+
+      if (exists (a))
+        rm (a);
+
+      p->purge_archive = false;
+    }
+
+    p->archive = nullopt;
+
+    // Extract the archive contents.
+    //
+    if (verb > 1)
+      text << "unpacking " << dn << " from " << a << db;
+    else if ((verb && !o.no_progress ()) || o.progress ())
+      text << "unpacking " << *p << db;
+    else
+      l4 ([&]{trace << dn << " from " << a << db;});
+
+    dir_path pd (out_root.directory ());
+
+    try
+    {
+      pair<process, process> pr (start_extract (o, a, pd));
+
+      // While it is reasonable to assuming the child process issued
+      // diagnostics, tar, specifically, doesn't mention the archive name.
+      //
+      if (!pr.second.wait () || !pr.first.wait ())
+        fail << "unable to extract " << a << " to " << pd;
+    }
+    catch (const process_error& e)
+    {
+      fail << "unable to extract " << a << " to " << pd << ": " << e;
+    }
+
+    // Update the package object.
+    //
+    p->src_root = p->out_root;
+    p->purge_src = true;
+
+    // Make the archive path absolute and normalized. If the archive is
+    // inside the configuration, use the relative path. This way we can move
+    // the configuration around.
+    //
+    normalize (a, "archive");
+
+    if (a.sub (db.config))
+      a = a.leaf (db.config);
+
+    p->archive = move (a);
+    p->purge_archive = purge;
+    p->repository_fragment = repository_location ();
+
+    db.update (p);
+    t.commit ();
+
+    arm.cancel ();
+
+    return p;
+  }
+
+  static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
               database& db,
               transaction& t,
@@ -625,6 +831,10 @@ namespace bpkg
 
         if (pp.to_directory ())
         {
+          if (o.switch_ ())
+            fail << "existing archive must be specified with --switch" <<
+              info << "run 'bpkg help pkg-unpack' for more information";
+
           p = pkg_unpack (o,
                           db,
                           t,
@@ -654,12 +864,20 @@ namespace bpkg
               info << "run 'bpkg help pkg-unpack' for more information";
           }
 
-          p = pkg_unpack (o,
-                          db,
-                          t,
-                          move (pp),
-                          o.replace (),
-                          o.purge ());
+          if (o.switch_ ())
+          {
+            if (o.replace ())
+              fail << "both --switch and --replace|-r specified";
+
+            p = pkg_switch (o, db, t, move (pp), o.purge ());
+          }
+          else
+            p = pkg_unpack (o,
+                            db,
+                            t,
+                            move (pp),
+                            o.replace (),
+                            o.purge ());
 
           external = false;
         }
@@ -671,6 +889,10 @@ namespace bpkg
     }
     else
     {
+      if (o.switch_ ())
+        fail << "existing archive must be specified with --switch" <<
+          info << "run 'bpkg help pkg-unpack' for more information";
+
       // The package name[/version] case.
       //
       if (!args.more ())
@@ -727,7 +949,7 @@ namespace bpkg
     if (verb && !o.no_result ())
     {
       if (!external)
-        text << "unpacked " << *p;
+        text << (!o.switch_ () ? "unpacked " : "switched ") << *p;
       else
         text << "using " << *p << " (external)";
     }
