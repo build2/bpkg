@@ -86,7 +86,15 @@ namespace bpkg
     bool --replace|-r
     {
       "Replace the source directory if the package is already unpacked or
-       fetched. Can only be specified with an external package."
+       fetched. Can only be specified with an \cb{--existing|-e} option or
+       if the package version is specified."
+    }
+
+    bool --switch-configured
+    {
+      "Switch non-external package configured out of source to in source
+       configuration, by overlaying the package archive content over the
+       existing configuration directory."
     }
   };
 

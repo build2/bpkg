@@ -207,6 +207,71 @@ namespace bpkg
   }
 
   static shared_ptr<selected_package>
+  pkg_switch_configured (const common_options& o,
+                         database& db,
+                         transaction& t,
+                         path a)
+  {
+    tracer trace ("pkg_switch_configured");
+
+    if (!exists (a))
+      fail << "archive file '" << a << "' does not exist";
+
+    // Verify archive is a package and get its manifest.
+    //
+    package_manifest m (pkg_verify (o,
+                                    a,
+                                    true /* ignore_unknown */,
+                                    false /* ignore_toolchain */,
+                                    false /* expand_values */,
+                                    false /* load_buildfiles */));
+
+    l4 ([&]{trace << m.name << " " << m.version;});
+
+    tracer_guard tg (db, trace);
+
+    // Verify that the selected package is configured out of source, is not
+    // external, and is of the same version as in the archive.
+    //
+    shared_ptr<selected_package> p (db.find<selected_package> (m.name));
+
+    if (p->state != package_state::configured)
+      fail << "unable to switch configuration for " << p->state << " package "
+           << p->string (db);
+
+    if (p->system ())
+      fail << "unable to switch configuration for system package "
+           << p->string (db);
+
+    if (p->external ())
+      fail << "unable to switch configuration for external package "
+           << p->string (db);
+
+    assert (p->src_root); // Wouldn't be here otherwise.
+
+    if (p->src_root->relative ())
+      fail << p->string (db) << " is already configured in source";
+
+    // Absolute source directory paths must refer outside configuration.
+    //
+    assert (!p->src_root->sub (db.config));
+
+    if (p->version != m.version)
+      fail << "unable to switch configuration for package "
+           << p->string (db) << " since archive contains version "
+           << m.version;
+
+    l4 ([&]{trace << a << ": " << p->name << " " << p->version;});
+
+    // @@ TODO
+
+    db.update (p);
+    t.commit ();
+
+    return p;
+  }
+
+  static shared_ptr<selected_package>
   pkg_unpack (const common_options& o,
               database& db,
               transaction& t,
@@ -648,12 +713,20 @@ namespace bpkg
                    << "' if this is a package directory" <<
               info << "run 'bpkg help pkg-unpack' for more information";
 
-          p = pkg_unpack (o,
-                          db,
-                          t,
-                          pp,
-                          o.replace (),
-                          o.purge ());
+          if (o.switch_configured ())
+          {
+            if (o.replace ())
+              fail << "both --switch-configured and --replace|-r specified";
+
+            p = pkg_switch_configured (o, db, t, pp);
+          }
+          else
+            p = pkg_unpack (o,
+                            db,
+                            t,
+                            pp,
+                            o.replace (),
+                            o.purge ());
 
           external = false;
         }
