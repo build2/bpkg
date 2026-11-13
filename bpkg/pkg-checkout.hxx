@@ -108,9 +108,9 @@ namespace bpkg
   //
 
   // Check out the package from a version control-based repository into a
-  // directory other than the configuration directory and commit the
-  // transaction. Return the selected package object which may replace the
-  // existing one.
+  // directory other than the configuration directory and the shared directory
+  // in the fetch cache, if enabled, and commit the transaction. Return the
+  // selected package object which may replace the existing one.
   //
   shared_ptr<selected_package>
   pkg_checkout (const common_options&,

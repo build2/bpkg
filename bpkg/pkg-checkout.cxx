@@ -219,7 +219,7 @@ namespace bpkg
 
       cached = !config_repo_exists && fetch_cache.enabled ();
 
-      if (cached && fetch_cache.cache_src ())
+      if (cached && fetch_cache.cache_src () && !output_root)
       {
         assert (fetch_cache.is_open ());
 
