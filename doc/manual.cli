@@ -2661,6 +2661,8 @@ The package build configurations where the substring matched by \c{*} in
 package is built in these configurations by automated build bots in addition
 to the default configuration (which is called \c{default}).
 
+The configuration name may not contain \c{+} or start with \c{.}.
+
 The \c{*-build-config} values contain whitespace separated lists of
 potentially double/single-quoted package configuration arguments. The global
 (as opposed to package-specific) options and configuration variables can be
